@@ -14,6 +14,20 @@ use Shared\Exceptions\BadRequestException;
 class AlphaApiController
 {
     /**
+     * カテゴリIDから名前を取得
+     */
+    private function getCategoryName(int $categoryId): string
+    {
+        $categories = \App\Config\AppConfig::OPEN_CHAT_CATEGORY[''];
+        foreach ($categories as $name => $id) {
+            if ($id === $categoryId) {
+                return $name;
+            }
+        }
+        return '';
+    }
+
+    /**
      * 検索API
      * GET /alpha-api/search?keyword=xxx&category=0&page=0&limit=20
      */
@@ -26,7 +40,6 @@ class AlphaApiController
         DB::connect();
 
         $offset = $page * $limit;
-        $keywordLike = '%' . $keyword . '%';
 
         $sql = "
             SELECT
@@ -40,7 +53,9 @@ class AlphaApiController
                 oc.category,
                 oc.join_method_type,
                 COALESCE(sr.diff_member, 0) AS increasedMember,
-                COALESCE(sr.percent_increase, 0) AS percentageIncrease
+                COALESCE(sr.percent_increase, 0) AS percentageIncrease,
+                oc.created_at,
+                oc.api_created_at
             FROM
                 open_chat AS oc
                 LEFT JOIN statistics_ranking_hour24 AS sr ON oc.id = sr.open_chat_id
@@ -50,10 +65,14 @@ class AlphaApiController
 
         $params = [];
 
-        // キーワード検索
+        // キーワード検索（スペース区切りでAND検索）
         if ($keyword !== '') {
-            $sql .= " AND (oc.name LIKE :keyword OR oc.description LIKE :keyword)";
-            $params['keyword'] = $keywordLike;
+            $keywords = preg_split('/\s+/', trim($keyword), -1, PREG_SPLIT_NO_EMPTY);
+            foreach ($keywords as $index => $kw) {
+                $paramKey = "keyword{$index}";
+                $sql .= " AND (oc.name LIKE :{$paramKey} OR oc.description LIKE :{$paramKey})";
+                $params[$paramKey] = '%' . $kw . '%';
+            }
         }
 
         // カテゴリフィルター
@@ -90,6 +109,15 @@ class AlphaApiController
                 $item['img'] = 'https://obs.line-scdn.net/' . $item['img_url'];
             }
             unset($item['img_url']);
+
+            // カテゴリ名を追加
+            $item['categoryName'] = $this->getCategoryName((int)$item['category']);
+
+            // 作成日と登録日を追加
+            $item['createdAt'] = !empty($item['created_at']) ? strtotime($item['created_at']) : null;
+            $item['registeredAt'] = $item['api_created_at'] ?? '';
+            unset($item['created_at']);
+            unset($item['api_created_at']);
         }
         unset($item);
 
@@ -148,8 +176,12 @@ class AlphaApiController
 
         $countParams = [];
         if ($keyword !== '') {
-            $countSql .= " AND (oc.name LIKE :keyword OR oc.description LIKE :keyword)";
-            $countParams['keyword'] = $keywordLike;
+            $keywords = preg_split('/\s+/', trim($keyword), -1, PREG_SPLIT_NO_EMPTY);
+            foreach ($keywords as $index => $kw) {
+                $paramKey = "keyword{$index}";
+                $countSql .= " AND (oc.name LIKE :{$paramKey} OR oc.description LIKE :{$paramKey})";
+                $countParams[$paramKey] = '%' . $kw . '%';
+            }
         }
         if ($category > 0) {
             $countSql .= " AND oc.category = :category";
@@ -320,6 +352,7 @@ class AlphaApiController
             'name' => $ocData['name'],
             'currentMember' => (int)$ocData['member'],
             'category' => (int)$ocData['category'],
+            'categoryName' => $this->getCategoryName((int)$ocData['category']),
             'dates' => $dates,
             'members' => $members,
             'rankings' => $rankings,
@@ -408,6 +441,9 @@ class AlphaApiController
             $item['increasedMember'] = (int)$item['diff_member'];
             $item['percentageIncrease'] = (float)$item['percent_increase'];
             unset($item['diff_member'], $item['percent_increase']);
+
+            // カテゴリ名を追加
+            $item['categoryName'] = $this->getCategoryName((int)$item['category']);
         }
         unset($item);
 
