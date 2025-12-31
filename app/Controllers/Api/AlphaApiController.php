@@ -297,9 +297,15 @@ class AlphaApiController
         // URLをLINE形式に変換
         $lineUrl = '';
         if (!empty($ocData['url'])) {
-            // https://line.me/ti/g2/{hash} 形式に変換
-            if (preg_match('/\/([^\/]+)$/', $ocData['url'], $matches)) {
-                $lineUrl = 'https://line.me/ti/g2/' . $matches[1];
+            // すでに完全なURLの場合はそのまま使用
+            if (strpos($ocData['url'], 'http') === 0) {
+                $lineUrl = $ocData['url'];
+            } else {
+                // ハッシュのみの場合は https://line.me/ti/g2/{hash} 形式に変換
+                $hash = trim($ocData['url'], '/');
+                if (!empty($hash)) {
+                    $lineUrl = 'https://line.me/ti/g2/' . $hash;
+                }
             }
         }
 
