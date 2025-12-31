@@ -128,6 +128,8 @@ class AlphaApiController
                 oc.emblem,
                 oc.api_created_at,
                 oc.created_at,
+                oc.join_method_type,
+                oc.url,
                 COALESCE(sr.diff_member, 0) AS hourly_diff_member,
                 COALESCE(sr.percent_increase, 0) AS hourly_percent_increase
             FROM
@@ -228,6 +230,8 @@ class AlphaApiController
             'hourlyPercentage' => (float)($ocData['hourly_percent_increase'] ?? 0),
             'createdAt' => $ocData['created_at'] ? strtotime($ocData['created_at']) : null,
             'registeredAt' => $ocData['api_created_at'] ?? '',
+            'joinMethodType' => (int)($ocData['join_method_type'] ?? 0),
+            'url' => $ocData['url'] ?? '',
         ]);
     }
 
