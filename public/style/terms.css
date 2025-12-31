@@ -1,17 +1,17 @@
 main {
   color: #616161;
-  max-width: 600px;
+  max-width: 812px;
   margin: auto;
 }
 
 .footer-elem-outer {
-  max-width: 600px;
+  max-width: 812px;
   margin: auto;
 }
 
 .terms>section>p,
 .terms>p {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.9;
 }
 
@@ -23,24 +23,25 @@ main {
 h1 {
   font-weight: 700;
   line-height: 1.5;
-  padding: 2rem 0;
+  padding: .5rem 0;
   font-size: 1.2rem;
   letter-spacing: 0.1em;
   margin: 0;
   text-align: center;
   color: #333;
+  font-size: 21px;
 }
 
 .terms {
   font-family: var(--font-family);
   padding: 1rem;
-  max-width: 600px;
+  max-width: 812px;
   margin: auto;
 }
 
 .terms>h2 {
   padding-bottom: 0.3em;
-  font-size: 1em;
+  font-size: 21px;
   margin-top: 2.3em;
   margin-bottom: 1.1rem;
   border-bottom: 1px solid var(--color-bg-secondary);
@@ -50,8 +51,10 @@ h1 {
   color: #333;
 }
 
-.terms h3 {
+.terms section h3 {
   color: #333;
+  margin-top: 2.5rem;
+  font-size: 18px;
 }
 
 .terms>ol p {
@@ -88,5 +91,3 @@ h1 {
   box-shadow: 1px 3px 15px -5px #777;
   border-radius: 4px;
 }
-
-.footer-elem-outer {}

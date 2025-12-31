@@ -8,7 +8,7 @@
 }
 
 .mylist {
-  margin: .5rem 0;
+  margin: 2rem 0 1rem 0;
 }
 
 .top-ranking.top-btns {
@@ -186,7 +186,12 @@
   all: unset;
   font-size: 16px;
   font-weight: bold;
-  background: -webkit-linear-gradient(45deg, rgb(253, 18, 226) 20%, rgb(164, 67, 221), rgb(84, 126, 255) 90%);
+  background: -webkit-linear-gradient(
+    45deg,
+    rgb(253, 18, 226) 20%,
+    rgb(164, 67, 221),
+    rgb(84, 126, 255) 90%
+  );
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -275,7 +280,7 @@
 
 .openchat-item-list {
   display: block;
-  max-width: 600px;
+  max-width: 812px;
   margin: 0 auto;
 }
 
@@ -289,7 +294,7 @@
 .recent-comment-list {
   display: flex;
   /* padding: 1rem 0; */
-  padding: .5rem 0;
+  padding: 0.5rem 0;
   flex-direction: column;
   gap: 12px;
   /* border-bottom: 1px solid #efefef; */
@@ -314,7 +319,8 @@
   letter-spacing: -0.3px;
   cursor: pointer;
   min-height: 58px;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
 }
 
 .openchat-item.add-openchat-form-item {
@@ -434,7 +440,7 @@
   gap: 4px;
 }
 
-.openchat-item-lower>span:nth-child(2) {
+.openchat-item-lower > span:nth-child(2) {
   position: relative;
 }
 
@@ -448,7 +454,7 @@
 }
 
 .openchat-item-mui-chip-inner {
-  font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  font-family: "Roboto", "Helvetica", "Arial", sans-serif;
   overflow: hidden;
   text-overflow: ellipsis;
   padding-left: 7px;
@@ -469,17 +475,31 @@
 
 .top-ranking:not(.not-rank) .openchat-item {
   min-height: 56px;
-  margin: 13px 0rem 13px 30px;
+  margin: 13px 1.5rem 13px 30px;
   margin-left: 1.5rem;
 }
 
 .top-ranking.not-rank .openchat-item {
   min-height: 56px;
-  margin: 13px 0rem 13px 0;
+  margin: 13px 1.5rem 13px 0;
 }
 
 .recommend-ranking-section .top-ranking:not(.not-rank) .openchat-item {
-  margin: 17px 0rem 17px 30px;
+  margin: 17px 1.5rem 17px 30px;
+}
+
+@media screen and (min-width: 768px) {
+  .top-ranking:not(.not-rank) .openchat-item {
+    margin: 13px 3rem 13px 30px;
+  }
+
+  .top-ranking.not-rank .openchat-item {
+    margin: 13px 3rem 13px 0;
+  }
+
+  .recommend-ranking-section .top-ranking:not(.not-rank) .openchat-item {
+    margin: 17px 3rem 17px 30px;
+  }
 }
 
 .recent-comment-list .openchat-item {
@@ -487,6 +507,7 @@
   margin: 0;
   padding: 8px 0;
   padding-left: 50px;
+  padding-right: 1.5rem;
   cursor: unset;
 }
 
@@ -508,25 +529,48 @@
   text-align: center;
 }
 
+.top-ranking:not(.not-rank) .openchat-item.goldmedal::before {
+  content: "🥇";
+  font-style: normal;
+  font-size: 24px;
+  left: -31px;
+  top: 23px;
+  line-height: 1;
+}
+
+.top-ranking:not(.not-rank) .openchat-item.silvermedal::before {
+  content: "🥈";
+  font-style: normal;
+  font-size: 22px;
+  left: -30px;
+  top: 23px;
+  line-height: 1;
+}
+
+.top-ranking:not(.not-rank) .openchat-item.blonzemedal::before {
+  content: "🥉";
+  font-style: normal;
+  font-size: 20px;
+  left: -29px;
+  top: 23px;
+}
+
 .top-ranking:not(.not-rank) .openchat-item.reverse::before {
   counter-increment: openchat-counter -1;
 }
 
 .top-ranking:not(.not-rank) .openchat-item-desc {
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   font-size: 13px;
   margin-top: 2px;
 }
 
 .recent-comment-list .openchat-item-desc {
-  font-size: 16px;
-  margin-top: 5px;
   color: #111;
   font-weight: normal;
-  line-height: 135%;
-  -webkit-line-clamp: 4;
-  line-clamp: 5;
-  white-space: break-spaces;
+  line-height: 150%;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .top-ranking .openchat-item h3 {
@@ -541,7 +585,6 @@
 }
 
 .recent-comment-list .openchat-item-title {
-  font-size: 16px;
   display: flex;
 }
 
@@ -661,8 +704,13 @@
   height: 42px;
   border: 1px solid #efefef;
   border-radius: 7px;
-  background: -webkit-linear-gradient(45deg, rgb(253, 18, 226) 20%, rgb(164, 67, 221), rgb(84, 126, 255) 90%);
-  opacity: .7;
+  background: -webkit-linear-gradient(
+    45deg,
+    rgb(253, 18, 226) 20%,
+    rgb(164, 67, 221),
+    rgb(84, 126, 255) 90%
+  );
+  opacity: 0.7;
 }
 
 .readMore-btn.top-ranking-readMore.white-btn,
@@ -686,7 +734,6 @@
   font-weight: 900;
 }
 
-
 .top-ranking .ranking-readMore,
 .recent-comment-list .ranking-readMore {
   font-size: 14px;
@@ -697,12 +744,11 @@
 .white-btn .ranking-readMore {
   color: #111;
   font-size: 13px;
-
 }
 
 .white-btn .ranking-readMore::after {
   display: inline-block;
-  content: '';
+  content: "";
   margin-left: 6px;
   width: 6px;
   height: 6px;
@@ -772,7 +818,7 @@
 }
 
 .page-select label span::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   right: -7px;
@@ -822,7 +868,7 @@
 }
 
 .button01.next a::after {
-  content: '';
+  content: "";
   margin-left: 4px;
   width: 5px;
   height: 5px;
@@ -833,7 +879,7 @@
 }
 
 .button01.prev a::before {
-  content: '';
+  content: "";
   margin-right: 4px;
   width: 5px;
   height: 5px;
@@ -958,7 +1004,6 @@
 }
 
 @media screen and (max-width: 359px) {
-
   header,
   main {
     padding: 0rem 8px;
@@ -997,7 +1042,7 @@
 
 .top-ranking.not-rank .openchat-item-desc,
 .mylist .openchat-item-desc {
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   font-size: 13px;
   margin-top: 3px;
 }
@@ -1012,7 +1057,7 @@
 .mylist .openchat-item::after {
   position: absolute;
   top: 76%;
-  content: '';
+  content: "";
   transform: translateY(-50%);
   width: 18px;
   height: 18px;
@@ -1025,7 +1070,14 @@
 .mylist .openchat-item::before {
   left: 33px;
   border: solid 1px white;
-  background: linear-gradient(-332deg, #0dc95a, #11d871 21.96%, #11d593 53.46%, #12cfcd 81.85%, #16c2c1);
+  background: linear-gradient(
+    -332deg,
+    #0dc95a,
+    #11d871 21.96%,
+    #11d593 53.46%,
+    #12cfcd 81.85%,
+    #16c2c1
+  );
   z-index: 2;
 }
 
@@ -1199,7 +1251,6 @@
     line-height: 2;
   }
 
-
   .top-page .openchat-list-title {
     font-size: 20px;
   }
@@ -1267,10 +1318,12 @@
   height: 38px;
   width: 48px;
   right: 0px;
-  background-image: linear-gradient(90deg,
-      rgba(255, 255, 255, 0),
-      rgba(255, 255, 255, 0.95) 37%,
-      rgba(255, 255, 255, 1) 99%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.95) 37%,
+    rgba(255, 255, 255, 1) 99%
+  );
 }
 
 .tag-btn.open-btn {
@@ -1281,13 +1334,14 @@
   display: block;
   height: 36px;
   margin-left: auto;
-  box-shadow: rgba(0, 0, 0, 0.1) 0px 1px 3px 0px, rgba(0, 0, 0, 0.06) 0px 1px 2px 0px;
+  box-shadow: rgba(0, 0, 0, 0.1) 0px 1px 3px 0px,
+    rgba(0, 0, 0, 0.06) 0px 1px 2px 0px;
   border: 1px solid #06c755;
 }
 
 .tag-btn.open-btn::after {
   display: inline-flex;
-  content: '';
+  content: "";
   position: absolute;
   width: 6px;
   height: 6px;
@@ -1352,7 +1406,11 @@
 }
 
 .gradient-bottom {
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 1));
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 1)
+  );
   position: absolute;
   bottom: 0;
   left: 0;
@@ -1450,4 +1508,22 @@
 
 .responsive-google {
   margin: auto !important;
+}
+
+@media screen and (min-width: 768px) {
+  .openchat-list-title {
+    zoom: 110%;
+  }
+
+  .openchat-item {
+    zoom: 115%;
+  }
+
+  .tag-list {
+    zoom: 110%;
+  }
+
+  .openchat-list-date.ranking-url {
+    zoom: 110%;
+  }
 }

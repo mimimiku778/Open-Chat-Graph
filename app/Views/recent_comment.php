@@ -3,11 +3,17 @@
 <?php
 
 use App\Config\AppConfig;
-use App\Views\Ads\GoogleAdsence as GAd;
+use App\Views\Ads\GoogleAdsense as GAd;
+use Shared\MimimalCmsConfig;
 
-viewComponent('head', compact('_css', '_meta') + ['disableGAd' => true]) ?>
+$enableAdsense = MimimalCmsConfig::$urlRoot === ''; // 日本語版のみ広告表示
+
+viewComponent('head', compact('_css', '_meta') + ['dataOverlays' => 'bottom']) ?>
 
 <body class="body">
+    <?php if ($enableAdsense): ?>
+        <?php \App\Views\Ads\GoogleAdsense::gTag('bottom') ?>
+    <?php endif ?>
     <style>
         .list-title {
             color: #111;
@@ -81,7 +87,7 @@ viewComponent('head', compact('_css', '_meta') + ['disableGAd' => true]) ?>
     </style>
     <!-- 固定ヘッダー -->
     <?php viewComponent('site_header') ?>
-    <article style="margin: 0 1rem; margin-top: .5rem;">
+    <article style="margin: .5rem 1rem; margin-bottom: 1rem;">
         <header class="openchat-list-title-area unset" style="margin: 0 0 .5rem 0;">
             <div style="flex-direction: column;">
                 <h2 class="openchat-list-title" style="font-size: 20px;">
@@ -113,15 +119,13 @@ viewComponent('head', compact('_css', '_meta') + ['disableGAd' => true]) ?>
                 compact('openChatList') + [
                     'listLen' => AppConfig::LIST_LIMIT_RECENT_COMMENT,
                     'omitDeleted' => false,
-                    'showAds' => true
                 ]
             ) ?>
         </section>
         <!-- 次のページ・前のページボタン -->
         <?php viewComponent('pager_nav', compact('pageNumber', 'maxPageNumber') + ['path' => $path]) ?>
     </article>
-
-    <section class="unset" style="display: block; margin-top: .5rem">
+    <section class="unset" style="display: block;">
 
         <?php viewComponent('footer_inner') ?>
 
@@ -136,8 +140,13 @@ viewComponent('head', compact('_css', '_meta') + ['disableGAd' => true]) ?>
 
         applyTimeElapsedString()
     </script>
-
+    <script>
+        const admin = <?php echo isAdmin() ? 1 : 0; ?>;
+    </script>
     <script defer src="<?php echo fileUrl("/js/site_header_footer.js", urlRoot: '') ?>"></script>
+    <?php if ($enableAdsense): ?>
+        <script defer src="<?php echo fileurl("/js/security.js", urlRoot: '') ?>"></script>
+    <?php endif ?>
     <script>
         ;
         (function(el) {

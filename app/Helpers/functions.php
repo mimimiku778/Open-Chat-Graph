@@ -97,10 +97,8 @@ function dateTimeAttr(int $timestamp): string
     return date('Y-m-d\TH:i:sO', $timestamp);
 }
 
-function convertDatetime(string|int $datetime, bool $time = false): string
+function convertDatetime(string|int $datetime, bool $time = false, string $format = 'Y/n/j'): string
 {
-    $format = 'Y/n/j';
-
     if (is_int($datetime)) {
         // タイムスタンプが与えられた場合
         if ($time) {
@@ -303,6 +301,16 @@ function getImgPreviewPath(int $open_chat_id, string $imgUrl): string
     return AppConfig::OPENCHAT_IMG_PATH[MimimalCmsConfig::$urlRoot] . '/' . AppConfig::OPENCHAT_IMG_PREVIEW_PATH . "/{$subDir}/{$imgUrl}" . AppConfig::OPENCHAT_IMG_PREVIEW_SUFFIX . ".webp";
 }
 
+function lineImgUrl($img_url)
+{
+    return AppConfig::LINE_IMG_URL . $img_url;
+}
+
+function linePreviewUrl($img_url)
+{
+    return AppConfig::LINE_IMG_URL . $img_url . AppConfig::LINE_IMG_URL_PREVIEW_PATH;
+}
+
 function filePathNumById(int $id): string
 {
     return (string)floor($id / 1000);
@@ -354,6 +362,8 @@ function checkLineSiteRobots(int $retryLimit = 3, int $retryInterval = 1): strin
         $retryCount++;
         sleep($retryInterval);
     }
+
+    throw new \RuntimeException('Line site robots.txt not found or invalid');
 }
 
 function getImgSetErrorTag(): string
@@ -578,6 +588,13 @@ function adminMode(): true
     return true;
 }
 
+function isAdmin(): bool
+{
+    /** @var AdminAuthService $adminAuthService */
+    $adminAuthService = app(AdminAuthService::class);
+    return $adminAuthService->auth();
+}
+
 function getStorageFileTime(string $filename, bool $fullPath = false): int|false
 {
     $path = $fullPath === false ? (__DIR__ . '/../../storage/' . $filename) : $filename;
@@ -607,10 +624,16 @@ function addVerboseCronLog(string|array $log)
     }
 }
 
-function t(string $text): string
+function t(string $text, ?string $lang = null): string
 {
     static $data = json_decode(file_get_contents(AppConfig::TRANSLATION_FILE), true);
-    static $lang = str_replace('/', '', MimimalCmsConfig::$urlRoot) ?: 'ja';
+    static $defaultLang = str_replace('/', '', MimimalCmsConfig::$urlRoot) ?: 'ja';
+
+    if ($lang === null) {
+        $lang = $defaultLang;
+    } else {
+        $lang = str_replace('/', '', $lang) ?: 'ja';
+    }
 
     return $data[$text][$lang] ?? $text;
 }
@@ -619,4 +642,51 @@ function sprintfT(string $format, string|int ...$values): string
 {
     $text = t($format);
     return sprintf($text, ...$values);
+}
+
+/**
+ * 説明文を指定文字数で切り詰める
+ * @param string $text 元のテキスト
+ * @param int $limit 文字数制限
+ * @param string $suffix 省略記号
+ * @return string 切り詰められたテキスト
+ */
+function truncateDescription($text, $limit = 70, $suffix = '...')
+{
+    // 改行やタブを半角スペースに変換
+    $text = preg_replace('/[\r\n\t]+/', ' ', $text);
+
+    // 連続する半角スペースを1つに
+    $text = preg_replace('/\s+/', ' ', $text);
+
+    // 前後の空白を削除
+    $text = trim($text);
+
+    // 文字数チェック
+    if (mb_strlen($text, 'UTF-8') <= $limit) {
+        return $text;
+    }
+
+    // 指定文字数で切り取り
+    $truncated = mb_substr($text, 0, $limit, 'UTF-8');
+
+    // 単語の途中で切れないように調整（日本語対応）
+    $lastSpace = mb_strrpos($truncated, ' ', 0, 'UTF-8');
+    if ($lastSpace !== false && $lastSpace > $limit * 0.8) {
+        $truncated = mb_substr($truncated, 0, $lastSpace, 'UTF-8');
+    }
+
+    return $truncated . $suffix;
+}
+
+/**
+ * @param array{url: string, emid: string, ...} $oc OpenChat data array containing at least url and emid
+ * @return string
+ */
+function lineAppUrl(array $oc): string
+{
+    /*  if (isMobile())
+        return AppConfig::LINE_APP_URL_SP . $oc['emid'] . AppConfig::LINE_APP_SUFFIX_SP; */
+
+    return AppConfig::LINE_APP_URL . $oc['url'] . AppConfig::LINE_APP_SUFFIX;
 }

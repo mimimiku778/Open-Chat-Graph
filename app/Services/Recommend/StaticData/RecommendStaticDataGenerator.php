@@ -8,6 +8,7 @@ use App\Config\AppConfig;
 use App\Models\RecommendRepositories\CategoryRankingRepository;
 use App\Models\RecommendRepositories\OfficialRoomRankingRepository;
 use App\Models\RecommendRepositories\RecommendRankingRepository;
+use App\Models\Repositories\DB;
 use App\Services\Recommend\Dto\RecommendListDto;
 use App\Services\Recommend\Enum\RecommendListType;
 use App\Services\Recommend\RecommendRankingBuilder;

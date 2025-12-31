@@ -2,10 +2,9 @@
 
 namespace App\Views\Schema;
 
-use Spatie\SchemaOrg\Schema;
-use App\Services\Recommend\Dto\RecommendListDto;
-use App\Services\Recommend\Enum\RecommendListType;
+use App\Config\AppConfig;
 use Shared\MimimalCmsConfig;
+use Spatie\SchemaOrg\Schema;
 
 class OcPageSchema
 {
@@ -13,52 +12,50 @@ class OcPageSchema
         private PageBreadcrumbsListSchema $schema
     ) {}
 
-    /**
-     * @param array{0: RecommendListDto|false, 1: RecommendListDto|false, 2: string|false} $recommend
-     */
     function generateSchema(
         string $title,
         string $description,
         \DateTimeInterface $datePublished,
         \DateTimeInterface $dateModified,
-        array $recommend,
         array $oc
     ): string {
-        $name = $oc['name'];
-        $tags = array_filter(
-            $recommend,
-            fn($r) => $r instanceof RecommendListDto ? ($r->type === RecommendListType::Tag ? $r->listName : false) : false,
-        );
-
-        $recommendSection = array_map(fn(RecommendListDto $r) => "「{$r->listName}」のおすすめ", $tags);
-
-        // WebPageの構築
-        $webPage = Schema::article()
+        // シンプルなWebPageの構築
+        $webPage = Schema::webPage()
+            ->inLanguage($this->schema->getLocale())
             ->publisher($this->schema->publisher())
-            ->author($this->schema->person())
-            ->headline($title)
-            ->description($description)
+            ->name($title)
+            ->description(preg_replace('/\s+/', ' ', str_replace(["\n", "\r"], ' ', $description)))
             ->image(imgUrl($oc['id'], $oc['img_url']))
             ->datePublished($datePublished)
-            ->dateModified(new \DateTime($oc['updated_at']))
-            ->articleSection(
-                [
-                    $name,
-                    t('メンバー数の推移グラフ'),
-                    t('ランキングの順位表示'),
-                    ...$recommendSection,
-                ] + (
-                    // TODO: 日本語以外ではコメントが無効
-                    MimimalCmsConfig::$urlRoot === ''
-                    ? [
-                        'オープンチャットについてのコメント',
-                        'コメントする',
-                    ]
-                    : []
+            ->dateModified($dateModified);
+
+        // aboutフィールドの追加 - OpenChatの情報
+        $webPage->about(
+            Schema::discussionForumPosting()
+                ->headline($oc['name'])
+                ->image(imgUrl($oc['id'], $oc['img_url']))
+                ->url(AppConfig::LINE_OPEN_URL[MimimalCmsConfig::$urlRoot] . $oc['emid'] . AppConfig::LINE_OPEN_URL_SUFFIX)
+                ->author(
+                    Schema::organization()
+                        ->name('LINE OpenChat')
+                        ->url(str_replace('/cover/', '', AppConfig::LINE_OPEN_URL[MimimalCmsConfig::$urlRoot]))
                 )
-            )
-            ->mainEntity($this->schema->room($oc))
-            ->potentialAction($this->schema->potentialAction());
+                ->datePublished($datePublished)
+        );
+
+        // mainEntityの追加 - データセット情報
+        $webPage->mainEntity(
+            Schema::dataset()
+                ->name(sprintf(t('LINEオープンチャット「%s」統計データ'), $oc['name']))
+                ->description(t('このデータセットには、LINEオープンチャットのメンバー数の時系列変化、日別・時間別の成長率、参加者数の推移に関する詳細な統計情報が含まれています。データは1時間ごとに自動収集され、トレンド分析や人気度の測定に活用されます。'))
+                ->temporalCoverage($datePublished->format('Y-m-d') . '/' . (new \DateTime() >= new \DateTime('today 06:00') ? (new \DateTime('today 06:00'))->format('Y-m-d') : (new \DateTime('yesterday 06:00'))->format('Y-m-d')))
+                ->creator(
+                    Schema::organization()
+                        ->name(t('オプチャグラフ'))
+                        ->url(url())
+                )
+                ->license('https://creativecommons.org/licenses/by/4.0/')
+        );
 
         // JSON-LDのマークアップを生成
         return $webPage->toScript();

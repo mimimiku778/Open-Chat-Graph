@@ -37,6 +37,7 @@ class MimimalCmsConfig
         \App\Models\Repositories\RankingPosition\HourMemberRankingUpdaterRepositoryInterface::class => \App\Models\RankingPositionDB\Repositories\HourMemberRankingUpdaterRepository::class,
         
         \App\Models\Repositories\OpenChatListRepositoryInterface::class => \App\Models\Repositories\OpenChatListRepository::class,
+        \App\Models\Repositories\OpenChatRecentListRepositoryInterface::class => \App\Models\Repositories\OpenChatListRepository::class,
         \App\Models\Repositories\OpenChatPageRepositoryInterface::class => \App\Models\Repositories\OpenChatPageRepository::class,
 
         \App\Models\Repositories\OpenChatDataForUpdaterWithCacheRepositoryInterface::class => \App\Models\Repositories\OpenChatDataForUpdaterWithCacheRepository::class,
@@ -49,6 +50,11 @@ class MimimalCmsConfig
         \App\Models\CommentRepositories\RecentCommentListRepositoryInterface::class => \App\Models\CommentRepositories\RecentCommentListRepository::class,
         
         \App\Services\Auth\AuthInterface::class => \App\Services\Auth\Auth::class,
+        
+        \App\Services\OpenChat\Updater\OpenChatDeleterInterface::class => \App\Services\OpenChat\Updater\OpenChatDeleter::class,
+        
+        \App\Views\Classes\Dto\RankingPositionChartArgDtoFactoryInterface::class => \App\Views\Classes\Dto\RankingPositionChartArgDtoFactory::class,
+        \App\Views\Classes\CollapseKeywordEnumerationsInterface::class => \App\Views\Classes\CollapseKeywordEnumerations::class,
     ];
 
     // URL root

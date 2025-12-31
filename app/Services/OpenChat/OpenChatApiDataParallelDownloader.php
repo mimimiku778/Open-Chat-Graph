@@ -18,7 +18,6 @@ use App\Models\Repositories\SyncOpenChatStateRepositoryInterface;
 use App\Services\Cron\Enum\SyncOpenChatStateType;
 use App\Services\OpenChat\Enum\RankingType;
 use App\Services\OpenChat\Utility\OpenChatServicesUtility;
-use App\Models\Repositories\DB;
 
 class OpenChatApiDataParallelDownloader
 {
@@ -59,8 +58,6 @@ class OpenChatApiDataParallelDownloader
         try {
             $result = $this->process((string)$category, ...$args);
         } catch (\RuntimeException $e) {
-            // 再接続
-            DB::$pdo = null;
             $this->logRepository->logUpdateOpenChatError(0, $e->__toString());
             throw $e;
         }
@@ -94,8 +91,6 @@ class OpenChatApiDataParallelDownloader
             $errors = $this->openChatApiDtoFactory->validateAndMapToOpenChatDto($apiData, $processCallback);
 
             foreach ($errors as $error) {
-                // 再接続
-                DB::$pdo = null;
                 $this->logRepository->logUpdateOpenChatError(0, $error);
             }
 

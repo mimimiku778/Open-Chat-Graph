@@ -1,3 +1,6 @@
+<?php
+$enableAdsense = \Shared\MimimalCmsConfig::$urlRoot === ''; // 日本語版のみ広告表示 
+?>
 <!DOCTYPE html>
 <html lang="<?php echo t('ja') ?>">
 
@@ -12,16 +15,35 @@
     <?php endforeach ?>
     <script defer="defer" src="<?php echo fileUrl($_js, urlRoot: '') ?>"></script>
     <link rel="canonical" href="<?php echo url('ranking') . ($category ? '/' . $category : '') ?>">
-    <?php // \App\Views\Ads\GoogleAdsence::gTag("bottom") ?>
+    <?php if ($enableAdsense): ?>
+        <?php \App\Views\Ads\GoogleAdsense::gTag('bottom') ?>
+    <?php endif ?>
+
 </head>
 
 <body style="margin: 0;">
+    <!-- <style>
+        .grippy-host {
+            display: none;
+        }
+
+        .right-side-rail-dismiss-btn {
+            display: none;
+        }
+
+        .left-side-rail-dismiss-btn {
+            display: none;
+        }
+    </style> -->
     <script type="application/json" id="arg-dto">
         <?php echo json_encode($_argDto, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>
     </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
     <?php echo $_breadcrumbsShema ?>
+    <?php if ($enableAdsense): ?>
+        <script defer src="<?php echo fileurl("/js/security.js", urlRoot: '') ?>"></script>
+    <?php endif ?>
 </body>
 
 </html>

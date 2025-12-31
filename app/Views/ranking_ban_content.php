@@ -83,8 +83,7 @@ viewComponent('head', compact('_css', '_meta')) ?>
     </style>
     <!-- 固定ヘッダー -->
     <?php viewComponent('site_header', compact('_updatedAt')) ?>
-    <main style="max-width: 600px; padding: 0 1rem; overflow: hidden;">
-        <?php \App\Views\Ads\GoogleAdsence::output(\App\Views\Ads\GoogleAdsence::AD_SLOTS['siteTopRectangle']) ?>
+    <main style="max-width: 812px; padding: 0 1rem; overflow: hidden;">
         <header class="openchat-list-title-area unset" style="padding-top: 1rem;">
             <div style="flex-direction: column;">
                 <h2 class="list-title">
@@ -205,7 +204,6 @@ viewComponent('head', compact('_css', '_meta')) ?>
             </div>
         </form>
         <!-- select要素ページネーション -->
-        <?php \App\Views\Ads\GoogleAdsence::output(\App\Views\Ads\GoogleAdsence::AD_SLOTS['siteTopRectangle']) ?>
         <?php if (isset($_select)) : ?>
             <nav class="page-select unset" style="flex-direction: column; padding: 1rem 0 0 0; margin: 0 0 12px 0;">
                 <div style="font-weight: bold; font-size: 13px;">
@@ -233,7 +231,7 @@ viewComponent('head', compact('_css', '_meta')) ?>
         <?php endif ?>
     </main>
     <?php viewComponent('footer_inner') ?>
-    <?php \App\Views\Ads\GoogleAdsence::loadAdsTag() ?>
+    <?php \App\Views\Ads\GoogleAdsense::loadAdsTag() ?>
     <script defer src="<?php echo fileUrl("/js/site_header_footer.js", urlRoot: '') ?>"></script>
     <script>
         ((form) => {

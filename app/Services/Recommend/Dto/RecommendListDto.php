@@ -12,6 +12,8 @@ use Shared\MimimalCmsConfig;
 
 class RecommendListDto
 {
+    const TAG_LIMIT = 30;
+
     public int $maxMemberCount;
     public array $mergedElements;
     public ?array $shuffledMergedElements = null;
@@ -36,8 +38,10 @@ class RecommendListDto
         $this->maxMemberCount = $elements ? max($elements) : 0;
     }
 
-    function getList(bool $shuffle = true, ?int $limit = AppConfig::LIST_LIMIT_TOP_RANKING, int $excludeId = 0): array
+    function getList(bool $shuffle = true, ?int $limit = 0, int $excludeId = 0): array
     {
+        $limit = $limit === 0 ? AppConfig::$listLimitTopRanking : $limit;
+
         $elements = $shuffle ? $this->buildShuffledList() : $this->mergedElements;
         if ($excludeId) $elements = array_filter($elements, fn($el) => $el['id'] !== $excludeId);
 
@@ -105,21 +109,26 @@ class RecommendListDto
     }
 
     /** @return string[] */
-    function getFilterdTags(bool $shuffle = true, ?int $limit = AppConfig::LIST_LIMIT_TOP_RANKING): array
+    function getFilterdTags(bool $shuffle = true, ?int $limit = 0): array
     {
         // 日本以外は取得済みの関連タグを返す
         if (MimimalCmsConfig::$urlRoot !== '') {
-            return $this->type === RecommendListType::Tag
+            $result = $this->type === RecommendListType::Tag
                 ? array_filter($this->sortAndUniqueTags, fn($e) => $e !== $this->listName)
                 : $this->sortAndUniqueTags;
+        } else {
+            $result = $this->buildFilterdTags($this->getList($shuffle, $limit), $shuffle);
         }
 
-        return $this->buildFilterdTags($this->getList($shuffle, $limit), $shuffle);
+        return array_slice($result, 0, self::TAG_LIMIT);
     }
 
     /** @return string[] */
-    private function buildFilterdTags(array $mergedElements, bool $shuffle): array
-    {
+    function buildFilterdTags(
+        array $mergedElements,
+        bool $shuffle = false,
+        array $filteredTagSort = RecommendTagFilters::FilteredTagSort
+    ): array {
         $tag = $this->type === RecommendListType::Tag ? $this->listName : '';
         $tagName = $this->type === RecommendListType::Tag ? $this->listName : '';
         $tagStr = RecommendUtility::extractTag($tag);
@@ -128,7 +137,7 @@ class RecommendListDto
             array_merge(
                 array_column($mergedElements, 'tag1'),
                 array_column($mergedElements, 'tag2'),
-                RecommendTagFilters::FilteredTagSort[$tag] ?? []
+                $filteredTagSort[$tag] ?? []
             ),
             1
         );
@@ -138,8 +147,8 @@ class RecommendListDto
             fn($e) => (
                 !in_array($e, RecommendTagFilters::RecommendPageTagFilter)
                 || (
-                    isset(RecommendTagFilters::FilteredTagSort[$tag])
-                    && in_array($e, RecommendTagFilters::FilteredTagSort[$tag])
+                    isset($filteredTagSort[$tag])
+                    && in_array($e, $filteredTagSort[$tag])
                 )
             ) && $e !== $tagName
         );
@@ -151,8 +160,8 @@ class RecommendListDto
                 $tagsStr[$a],
                 $tagStr
             ) || (
-                isset(RecommendTagFilters::FilteredTagSort[$tag])
-                && in_array($tags[$a], RecommendTagFilters::FilteredTagSort[$tag])
+                isset($filteredTagSort[$tag])
+                && in_array($tags[$a], $filteredTagSort[$tag])
             ) ? -1 : 1;
         });
 

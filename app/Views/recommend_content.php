@@ -3,24 +3,34 @@
 <?php
 
 use App\Config\AppConfig;
-use App\Views\Ads\GoogleAdsence as GAd;
+use App\Services\Recommend\TagDefinition\Ja\RecommendUtility;
+use App\Views\Ads\GoogleAdsense as GAd;
+use Shared\MimimalCmsConfig;
 
 /** @var \App\Services\StaticData\Dto\StaticRecommendPageDto $_dto */
+/** @var \App\Services\Recommend\Dto\RecommendListDto $recommend */
 
 $_tagIndex = htmlspecialchars_decode($tag);
 if (isset($_dto->tagRecordCounts[$_tagIndex])) {
-  $countTitle = sprintfT('%s選', $count);
+  $countTitle = sprintfT('TOP%s', $count);
 } else {
   $countTitle = '';
 }
+$hourlyUpdatedAt = $hourlyUpdatedAt ?? new DateTime();
+$hourlyUpdatedAt->setTimezone(new DateTimeZone(AppConfig::DATE_TIME_ZONE[MimimalCmsConfig::$urlRoot]));
 
-viewComponent('head', compact('_css', '_schema', 'canonical') + ['_meta' => $_meta->generateTags(true), 'titleP' => true]) ?>
+$enableAdsense = MimimalCmsConfig::$urlRoot === ''; // 日本語版のみ広告表示
+
+viewComponent('head', compact('_css', '_schema', 'canonical') + ['_meta' => $_meta->generateTags(true), 'titleP' => true, 'dataOverlays' => 'bottom']) ?>
 
 <body>
-  <!-- 固定ヘッダー -->
+  <?php if ($enableAdsense): ?>
+    <?php \App\Views\Ads\GoogleAdsense::gTag('bottom') ?>
+    <?php GAd::output(GAd::AD_SLOTS['recommendTopRectangle'], true) ?>
+  <?php endif ?>
+
   <?php viewComponent('site_header') ?>
   <article class="ranking-page-main pad-side-top-ranking body" style="overflow: hidden; padding-top: 0;">
-    <?php GAd::output(GAd::AD_SLOTS['recommendTopWide']) ?>
 
     <section class="recommend-header-wrapper">
 
@@ -37,16 +47,29 @@ viewComponent('head', compact('_css', '_schema', 'canonical') + ['_meta' => $_me
 
       <div class="recommend-header-desc-wrapper">
         <h1 class="recommend-header-desc-text">
-          <?php echo t('【最新】') . sprintfT("「%s」のおすすめ 人気オプチャまとめ", $extractTag) ?><?php echo $countTitle ?? '' ?>
+          <?php echo t('【最新】') . sprintfT("「%s」おすすめオープンチャットランキング", $tag) ?><?php echo $countTitle ?? '' ?>
         </h1>
       </div>
 
-      <?php if (isset($recommend)) : ?>
+      <?php if (isset($recommend) && $count >= 5) : ?>
         <figure class="talkroom_banner_img_figure">
-          <?php $oc = $recommend->getPreviewList(1)[0] ?>
-          <figcaption><?php echo sprintfT('「%s」のメイン画像', $oc['name']) ?></figcaption>
+          <?php $ocList = $recommend->getPreviewList(5) ?>
           <div class="talkroom_banner_img_area">
-            <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $oc['name'] ?>" src="<?php echo imgUrl($oc['id'], $oc['img_url']) ?>">
+            <div class="talkroom_banner_img_area_inner">
+              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[0]['name'] ?>" src="<?php echo imgUrl($ocList[0]['id'], $ocList[0]['img_url']) ?>">
+            </div>
+            <div class="talkroom_banner_img_area_inner">
+              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[1]['name'] ?>" src="<?php echo imgUrl($ocList[1]['id'], $ocList[1]['img_url']) ?>">
+            </div>
+            <div class="talkroom_banner_img_area_inner">
+              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[2]['name'] ?>" src="<?php echo imgUrl($ocList[2]['id'], $ocList[2]['img_url']) ?>">
+            </div>
+            <div class="talkroom_banner_img_area_inner">
+              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[3]['name'] ?>" src="<?php echo imgUrl($ocList[3]['id'], $ocList[3]['img_url']) ?>">
+            </div>
+            <div class="talkroom_banner_img_area_inner">
+              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[4]['name'] ?>" src="<?php echo imgUrl($ocList[4]['id'], $ocList[4]['img_url']) ?>">
+            </div>
           </div>
         </figure>
       <?php endif ?>
@@ -54,12 +77,11 @@ viewComponent('head', compact('_css', '_schema', 'canonical') + ['_meta' => $_me
     </section>
 
     <p class="recommend-header-desc desc-bottom">
-      <?php echo sprintfT('「%s」に関する人気のオープンチャットをピックアップ！🙌', $tag) ?><br>
+      <?php echo sprintfT('「%s」に関する人気のオープンチャットをピックアップ！🙌', $extractTag) ?><br>
       <span class="desc-aside"><?php echo t('ランキングは、直近の人数増加を反映して決定されています。') ?></span>
     </p>
-
     <?php if (isset($recommend)) : ?>
-      <header class="recommend-ranking-section-header" style="padding: 0 0 10px 16px;">
+      <header class="recommend-ranking-section-header" style="padding: 0 0 4px 16px;">
         <aside class="list-aside">
           <details class="icon-desc">
             <summary style="font-size: 13px; font-weight: normal; color: #b7b7b7"><?php echo t('人数増加アイコンの説明') ?></summary>
@@ -79,15 +101,14 @@ viewComponent('head', compact('_css', '_schema', 'canonical') + ['_meta' => $_me
         </aside>
       </header>
     <?php endif ?>
-
     <section class="recommend-ranking-section">
       <?php if (isset($recommend)) : ?>
-        <ol class="openchat-item-list parent unset" style="counter-reset: openchat-counter2 <?php echo $count + 1 ?>;">
+        <ol class="openchat-item-list parent unset">
           <?php
           $chunkLen = 5;
-          $reverseList = array_reverse($recommend->getList(false, null));
-          $firstLists = array_slice($reverseList, 0, $chunkLen);
-          $secondLists = array_chunk(array_slice($reverseList, $chunkLen), $chunkLen * 2);
+          $recommendList = $recommend->getList(false, null);
+          $firstLists = array_slice($recommendList, 0, $chunkLen);
+          $secondLists = array_chunk(array_slice($recommendList, $chunkLen), $chunkLen * 2);
           $lists = [$firstLists, ...$secondLists];
           $listsLastKey = count($lists) - 1;
           $currentCount = 0;
@@ -95,28 +116,49 @@ viewComponent('head', compact('_css', '_schema', 'canonical') + ['_meta' => $_me
           <?php foreach ($lists as $key => $listArray) : ?>
             <li class="top-ranking" style="padding-top: 8px; <?php echo $key ? 'gap: 8px;' : 'gap: 8px;' ?>">
               <header class="recommend-ranking-section-header">
-                <h2 style="all: unset; font-size: 15px; font-weight: bold; color: #111; display: flex; flex-direction:row; flex-wrap:wrap; line-height: 1.3;">
-                  <div><?php echo sprintfT("「%s」のおすすめ 人気オプチャまとめ", $extractTag) ?></div>
-                  <div>&nbsp;<?php echo sprintfT('%s位', $count - $currentCount) ?>〜 (<?php echo $hourlyUpdatedAt->format('G:i') ?>)</div>
+                <h2 style="all: unset; font-size: <?php echo $key > 0 ? '16px' : '15px' ?>; font-weight: bold; color: #111; display: flex; flex-direction:row; flex-wrap:wrap; line-height: 1.3;">
+                  <?php if ($key > 0) : ?>
+                    <div><?php echo sprintfT("「%s」のオプチャランキング", $extractTag) ?><?php echo $countTitle ?? '' ?>&nbsp;</div>
+                    <div><?php echo sprintfT('%s位', $currentCount + 1) ?>〜 (<?php echo $hourlyUpdatedAt->format('G:i') ?>)</div>
+                  <?php else : ?>
+                    <div><?php echo sprintfT("「%s」のオプチャランキング", $extractTag) ?>&nbsp;</div>
+                    <div>(<?php echo $hourlyUpdatedAt->format('G:i') ?>)</div>
+                  <?php endif ?>
                 </h2>
               </header>
-              <?php if ($key === 0) : ?>
-              <?php else : ?>
-              <?php endif ?>
-              <?php $currentCount += count($listArray) ?>
+              <?php $currentListCount = count($listArray) ?>
+              <?php $currentCount += $currentListCount ?>
 
-              <?php viewComponent('open_chat_list_recommend', compact('recommend', 'listArray') + ['showReverseListMedal' => ($count - $currentCount) === 0]) ?>
+              <?php viewComponent('open_chat_list_recommend', compact('recommend', 'listArray') + ['showListMedal' => $currentCount - $currentListCount === 0, 'currentCount' => $currentCount - $currentListCount, 'showApiCreatedAt' => true]) ?>
+
+              <?php if ($listsLastKey !== $key) : ?>
+                <aside class="list-aside recommend-ranking-bottom" style="padding: 0; margin-bottom: -.5rem;">
+                  <?php if (
+                    isset($recommend)
+                    && (
+                      ($recommendTags = $recommend->buildFilterdTags($listArray, filteredTagSort: []))
+                    )
+                  ) : ?>
+                    <?php viewComponent('recommend_content_tags', ['tags' => $recommendTags, 'tag' => $tag]) ?>
+                  <?php endif ?>
+                </aside>
+              <?php endif ?>
+
               <?php if ($listsLastKey === $key && isset($_dto->tagRecordCounts[$_tagIndex]) && ((int)$_dto->tagRecordCounts[$_tagIndex]) > $count) : ?>
+                <hr class="hr-top" style="margin: 1rem auto;">
                 <a class="top-ranking-readMore unset ranking-url white-btn" href="<?php echo url('ranking?keyword=' . urlencode('tag:' . $_tagIndex)) ?>">
                   <span class="ranking-readMore" style="font-size: 11.5px;"><?php echo sprintfT('「%s」をすべて見る', $tag) ?><span class="small" style="font-size: 11.5px;"><?php echo sprintfT('%s件', $_dto->tagRecordCounts[$_tagIndex]) ?></span></span>
                 </a>
               <?php endif ?>
+
             </li>
-            <?php if ($listsLastKey !== $key) : ?>
+            <?php if ($key === 0) : ?>
               <li>
-
-                <?php GAd::output(GAd::AD_SLOTS[$key ? 'recommendSeparatorRectangle' : 'recommendThirdRectangle']) ?>
-
+                <?php GAd::output(GAd::AD_SLOTS['recommendSeparatorResponsive'], true) ?>
+              </li>
+            <?php elseif ($listsLastKey !== $key) : ?>
+              <li>
+                <?php GAd::output(GAd::AD_SLOTS['recommendSeparatorResponsive'], true) ?>
               </li>
             <?php endif ?>
           <?php endforeach ?>
@@ -129,34 +171,21 @@ viewComponent('head', compact('_css', '_schema', 'canonical') + ['_meta' => $_me
         </section>
       <?php endif ?>
 
-      <aside class="list-aside recommend-ranking-bottom" style="padding-top: 0; margin-bottom: 0;">
-        <?php if (isset($recommend)) : ?>
-          <?php viewComponent('recommend_content_tags', ['tags' => $recommend->getFilterdTags(false, null), 'tag' => $tag]) ?>
-        <?php endif ?>
-      </aside>
-      <?php //GAd::output(GAd::AD_SLOTS['recommendSeparatorRectangle']) 
-      ?>
-
     </section>
-
-    <?php //GAd::output(GAd::AD_SLOTS['recommendListBottomWide']) 
-    ?>
-
-    <aside class="top-ranking-list-aside">
-      <?php viewComponent('topic_tag', compact('topPageDto')) ?>
-    </aside>
-
-    <aside class="top-ranking-list-aside">
-      <?php viewComponent('top_ranking_comment_list_hour', ['dto' => $topPageDto]) ?>
-    </aside>
-
-    <?php viewComponent('footer_inner', /* ['adSlot' => 'recommendBottomWide'] */) ?>
+    <?php viewComponent('footer_inner') ?>
 
   </article>
 
-  <?php \App\Views\Ads\GoogleAdsence::loadAdsTag() ?>
+  <?php \App\Views\Ads\GoogleAdsense::loadAdsTag() ?>
 
+  <script>
+    const admin = <?php echo isAdmin() ? 1 : 0; ?>;
+  </script>
   <script defer src="<?php echo fileurl("/js/site_header_footer.js", urlRoot: '') ?>"></script>
+
+  <?php if ($enableAdsense): ?>
+    <script defer src="<?php echo fileurl("/js/security.js", urlRoot: '') ?>"></script>
+  <?php endif ?>
 
   <?php echo $_breadcrumbsShema ?>
 </body>

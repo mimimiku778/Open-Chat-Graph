@@ -29,11 +29,11 @@ class Metadata
         $this->image_url = url(['urlRoot' => '', 'paths' => [AppConfig::DEFAULT_OGP_IMAGE_FILE_PATH]]);
 
         $this->title = t('オプチャグラフ');
-        $this->site_name = 'OpenChat Graph';
+        $this->site_name = t('オプチャグラフ');
 
         $this->locale = t('ja');
 
-        $description = t('オプチャグラフはユーザーがオープンチャットを見つけて成長傾向をグラフで比較できる場所です。コメント機能で意見交換ができます。');
+        $description = t('LINEオープンチャットの「今」が一目でわかる人気ランキングサイト。最新の人気チャットルームや成長トレンドをシンプルなグラフで表示。初心者からベテランまで、誰でも簡単に活用できます。');
         $this->description = $description;
         $this->ogpDescription = $description;
     }
@@ -80,6 +80,8 @@ class Metadata
         if ($this->image_url) $tags .= '<meta property="og:image" content="' . $this->image_url . '">' . "\n";
         $tags .= '<meta property="og:site_name" content="' . $this->site_name . '">' . "\n";
         $tags .= '<meta name="twitter:card" content="summary">' . "\n";
+        $tags .= '<meta name="twitter:site" content="@openchat_graph">' . "\n";
+
         if ($this->thumbnail) $tags .= '<meta name="thumbnail" content="' . $this->thumbnail . '">' . "\n";
 
         return $tags;
@@ -89,8 +91,8 @@ class Metadata
     {
         return Schema::webSite()
             ->name($this->site_name)
-            ->url(url(['urlRoot' => '', 'paths' => []]))
-            ->alternateName(['LINE OpenChat Graph', 'OC Graph', 'オプチャグラフ'])
+            ->inLanguage($this->locale)
+            ->url(url())
             ->image($this->image_url)
             ->toScript();
     }

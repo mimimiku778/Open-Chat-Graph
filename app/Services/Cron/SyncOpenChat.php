@@ -7,11 +7,12 @@ namespace App\Services\Cron;
 use App\Models\Repositories\SyncOpenChatStateRepositoryInterface;
 use App\Services\Admin\AdminTool;
 use App\Services\Cron\Enum\SyncOpenChatStateType as StateType;
-use App\Services\OpenChat\OpenChatApiDbMergerWithParallelDownloader;
 use App\Services\DailyUpdateCronService;
+use App\Services\OpenChat\OpenChatApiDbMerger;
 use App\Services\OpenChat\OpenChatDailyCrawling;
 use App\Services\OpenChat\OpenChatHourlyInvitationTicketUpdater;
 use App\Services\OpenChat\OpenChatImageUpdater;
+use App\Services\OpenChat\Utility\OpenChatServicesUtility;
 use App\Services\RankingBan\RankingBanTableUpdater;
 use App\Services\RankingPosition\Persistence\RankingPositionHourPersistence;
 use App\Services\RankingPosition\Persistence\RankingPositionHourPersistenceLastHourChecker;
@@ -23,7 +24,7 @@ use App\Services\UpdateHourlyMemberRankingService;
 class SyncOpenChat
 {
     function __construct(
-        private OpenChatApiDbMergerWithParallelDownloader $merger,
+        private OpenChatApiDbMerger $merger,
         private SitemapGenerator $sitemap,
         private RankingPositionHourPersistence $rankingPositionHourPersistence,
         private RankingPositionHourPersistenceLastHourChecker $rankingPositionHourChecker,
@@ -38,8 +39,7 @@ class SyncOpenChat
         ini_set('memory_limit', '2G');
 
         set_exception_handler(function (\Throwable $e) {
-            OpenChatApiDbMergerWithParallelDownloader::setKillFlagTrue();
-            AdminTool::sendLineNofity($e->__toString());
+            AdminTool::sendDiscordNotify($e->__toString());
             addCronLog($e->__toString());
         });
     }
@@ -53,7 +53,6 @@ class SyncOpenChat
             // 毎日23:30に実行
             $this->dailyTask();
         } else if ($this->isFailedDailyUpdate() || $retryDailyTest) {
-            // 毎日1:30にdailyTaskが実行中の場合は、前日のdailyTaskが失敗したとみなす
             $this->retryDailyTask();
         } else {
             // 23:30を除く毎時30分に実行
@@ -68,7 +67,7 @@ class SyncOpenChat
         checkLineSiteRobots();
 
         if ($this->state->getBool(StateType::isHourlyTaskActive)) {
-            AdminTool::sendLineNofity('SyncOpenChat: hourlyTask is active');
+            AdminTool::sendDiscordNotify('SyncOpenChat: hourlyTask is active');
             addCronLog('SyncOpenChat: hourlyTask is active');
         }
 
@@ -79,9 +78,7 @@ class SyncOpenChat
 
     private function isFailedDailyUpdate(): bool
     {
-        return !isDailyUpdateTime()
-            && !isDailyUpdateTime(new \DateTime('-1 hour'), new \DateTime('-1 hour'))
-            && $this->state->getBool(StateType::isDailyTaskActive);
+        return $this->state->getBool(StateType::isDailyTaskActive);
     }
 
     // 毎時0分に実行
@@ -127,7 +124,10 @@ class SyncOpenChat
             [fn() => purgeCacheCloudFlare(), 'purgeCacheCloudFlare'],
             [function () {
                 if ($this->state->getBool(StateType::isUpdateInvitationTicketActive)) {
+                    // 既に実行中の場合は1回だけスキップする
                     addCronLog('Skip updateInvitationTicketAll because it is active');
+                    // スキップした場合は、次回実行時に実行するようにする
+                    $this->state->setFalse(StateType::isUpdateInvitationTicketActive);
                     return;
                 }
 
@@ -135,7 +135,7 @@ class SyncOpenChat
                 $this->invitationTicketUpdater->updateInvitationTicketAll();
                 $this->state->setFalse(StateType::isUpdateInvitationTicketActive);
             }, 'updateInvitationTicketAll'],
-            //[fn() => $this->rankingBanUpdater->updateRankingBanTable(), 'updateRankingBanTable'],
+            [fn() => $this->rankingBanUpdater->updateRankingBanTable(), 'updateRankingBanTable'],
             [function () {
                 if ($this->state->getBool(StateType::isDailyTaskActive)) {
                     addCronLog('Skip updateRecommendTables because dailyTask is active');
@@ -150,14 +150,12 @@ class SyncOpenChat
     private function retryHourlyTask()
     {
         addCronLog('Retry hourlyTask');
-        AdminTool::sendLineNofity('Retry hourlyTask');
-        OpenChatApiDbMergerWithParallelDownloader::setKillFlagTrue();
-        OpenChatDailyCrawling::setKillFlagTrue();
+        AdminTool::sendDiscordNotify('Retry hourlyTask');
         sleep(30);
 
         $this->handle();
         addCronLog('Done retrying hourlyTask');
-        AdminTool::sendLineNofity('Done retrying hourlyTask');
+        AdminTool::sendDiscordNotify('Done retrying hourlyTask');
     }
 
     private function dailyTask()
@@ -181,15 +179,34 @@ class SyncOpenChat
 
     private function retryDailyTask()
     {
+        // 6:30以降にリトライした場合は通知
+        if ($this->isAfterRetryNotificationTime()) {
+            AdminTool::sendDiscordNotify('Retrying dailyTask');
+        }
+
         addCronLog('Retry dailyTask');
-        AdminTool::sendLineNofity('Retry dailyTask');
-        OpenChatApiDbMergerWithParallelDownloader::setKillFlagTrue();
         OpenChatDailyCrawling::setKillFlagTrue();
         sleep(30);
 
         $this->dailyTask();
-        addCronLog('Done retrying dailyTask');
-        AdminTool::sendLineNofity('Done retrying dailyTask');
+        addCronLog('Done Retry dailyTask');
+
+        if ($this->isAfterRetryNotificationTime()) {
+            AdminTool::sendDiscordNotify('Done retrying dailyTask');
+        }
+    }
+
+    function isAfterRetryNotificationTime(): bool
+    {
+        $currentTime = OpenChatServicesUtility::getModifiedCronTime('now');
+
+        return !isDailyUpdateTime()
+            && !isDailyUpdateTime($currentTime->modify('-1 hour'), $currentTime->modify('-1 hour'))
+            && !isDailyUpdateTime($currentTime->modify('-2 hour'), $currentTime->modify('-2 hour'))
+            && !isDailyUpdateTime($currentTime->modify('-3 hour'), $currentTime->modify('-3 hour'))
+            && !isDailyUpdateTime($currentTime->modify('-4 hour'), $currentTime->modify('-4 hour'))
+            && !isDailyUpdateTime($currentTime->modify('-5 hour'), $currentTime->modify('-5 hour'))
+            && !isDailyUpdateTime($currentTime->modify('-6 hour'), $currentTime->modify('-6 hour'));
     }
 
     /**

@@ -8,6 +8,11 @@ use App\Services\Recommend\TagDefinition\RecommendUpdaterTagsInterface;
 
 class RecommendUpdaterTags implements RecommendUpdaterTagsInterface
 {
+    function getStrongestTags(?string $column = null): array
+    {
+        return [];
+    }
+
     function getBeforeCategoryNameTags(): array
     {
         return [];

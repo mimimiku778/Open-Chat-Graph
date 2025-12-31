@@ -8,6 +8,7 @@ use App\Controllers\Api\CommentLikePostApiController;
 use App\Controllers\Api\CommentListApiController;
 use App\Controllers\Api\CommentPostApiController;
 use App\Controllers\Api\CommentReportApiController;
+use App\Controllers\Api\DatabaseApiController;
 use Shadow\Kernel\Route;
 use App\Services\Admin\AdminAuthService;
 use App\Controllers\Api\OpenChatRankingPageApiController;
@@ -17,6 +18,8 @@ use App\Controllers\Api\MyListApiController;
 use App\Controllers\Api\RecentCommentApiController;
 use App\Controllers\Pages\AdsRegistrationPageController;
 use App\Controllers\Pages\FuriganaPageController;
+use App\Controllers\Pages\JumpOpenChatPageController;
+use App\Controllers\Pages\LabsPageController;
 use App\Controllers\Pages\OpenChatPageController;
 use App\Controllers\Pages\RankingBanLabsPageController;
 use App\Controllers\Pages\ReactRankingPageController;
@@ -26,6 +29,8 @@ use App\Controllers\Pages\RecommendOpenChatPageController;
 use App\Controllers\Pages\RegisterOpenChatPageController;
 use App\Controllers\Pages\TagLabsPageController;
 use App\Middleware\VerifyCsrfToken;
+use App\ServiceProvider\ApiDbOpenChatControllerServiceProvider;
+use App\ServiceProvider\ApiRankingPositionPageRepositoryServiceProvider;
 use Shadow\Kernel\Reception;
 use Shared\MimimalCmsConfig;
 
@@ -63,7 +68,25 @@ Route::path('/')
 
 Route::path('oc/{open_chat_id}', [OpenChatPageController::class, 'index'])
     ->matchNum('open_chat_id', min: 1)
-    ->match(fn(int $open_chat_id) => handleRequestWithETagAndCache($open_chat_id));
+    ->match(function (int $open_chat_id) {
+        if (MimimalCmsConfig::$urlRoot === '')
+            handleRequestWithETagAndCache($open_chat_id);
+    });
+
+Route::path('oc/{open_chat_id}/jump', [JumpOpenChatPageController::class, 'index'])
+    ->matchNum('open_chat_id', min: 1)
+    ->match(function (int $open_chat_id) {
+        return MimimalCmsConfig::$urlRoot !== '/tw';
+    });
+
+// TODO: test-api
+Route::path('ocapi/{user}/{open_chat_id}', [OpenChatPageController::class, 'index'])
+    ->matchNum('open_chat_id', min: 1)
+    ->match(function (string $user) {
+
+        app(ApiDbOpenChatControllerServiceProvider::class)->register();
+        return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
+    });
 
 Route::path('oclist', [OpenChatRankingPageApiController::class, 'index'])
     ->match(fn(Reception $reception) => handleRequestWithETagAndCache(json_encode($reception->input())));
@@ -88,6 +111,27 @@ Route::path(
         return true;
     });
 
+// TODO: test-api
+Route::path(
+    'ranking-position/{user}/oc/{open_chat_id}/position',
+    [RankingPositionApiController::class, 'rankingPosition']
+)
+    ->matchNum('open_chat_id', min: 1)
+    ->matchNum('category', min: 0)
+    ->matchStr('sort', regex: ['ranking', 'rising'])
+    ->matchStr('start_date')
+    ->matchStr('end_date')
+    ->match(function (string $start_date, string $end_date, string $user) {
+        $isValid = $start_date === date("Y-m-d", strtotime($start_date))
+            && $end_date === date("Y-m-d", strtotime($end_date))
+            && strtotime($start_date) <= strtotime($end_date);
+        if (!$isValid)
+            return false;
+
+        app(ApiRankingPositionPageRepositoryServiceProvider::class)->register();
+        return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
+    });
+
 Route::path(
     'oc/{open_chat_id}/position_hour',
     [RankingPositionApiController::class, 'rankingPositionHour']
@@ -100,23 +144,28 @@ Route::path(
     });
 
 Route::path('mylist-api', [MyListApiController::class, 'index'])
-    // TODO: 日本語以外ではルーティングを無効化
     ->match(fn() => MimimalCmsConfig::$urlRoot === '');
 
 Route::path('recent-comment-api', [RecentCommentApiController::class, 'index'])
-    // TODO: 日本語以外ではルーティングを無効化
     ->match(fn() => MimimalCmsConfig::$urlRoot === '')
     ->matchNum('open_chat_id', min: 1, emptyAble: true);
 
 Route::path('recent-comment-api/nocache', [RecentCommentApiController::class, 'nocache'])
-    // TODO: 日本語以外ではルーティングを無効化
     ->match(fn() => MimimalCmsConfig::$urlRoot === '')
     ->matchNum('open_chat_id', min: 1, emptyAble: true);
 
-Route::path('recommend', [RecommendOpenChatPageController::class, 'index'])
-    ->matchStr('tag', maxLen: 100)
+// タグ関連のルーティング
+Route::path('recommend')
+    ->matchStr('tag', maxLen: 1000)
+    ->match(function (string $tag) {
+        return redirect(url('recommend/' . urlencode($tag)), 301);
+    });
+
+Route::path('recommend/{tag}', [RecommendOpenChatPageController::class, 'index'])
+    ->matchStr('tag', maxLen: 1000)
     ->match(function (string $tag) {
         handleRequestWithETagAndCache($tag);
+        return ['tag' => urldecode($tag)];
     });
 
 Route::path(
@@ -126,7 +175,7 @@ Route::path(
 )
     ->middleware([VerifyCsrfToken::class])
     ->matchStr('url', 'post', regex: OpenChatCrawlerConfig::LINE_URL_MATCH_PATTERN[MimimalCmsConfig::$urlRoot])
-    // TODO: 日本語以外ではルーティングを無効化
+
     ->match(fn() => MimimalCmsConfig::$urlRoot === '');
 
 Route::path(
@@ -153,7 +202,6 @@ Route::path(
 )
     ->matchNum('page')
     ->match(function (int $page) {
-        // TODO: 日本語以外ではルーティングを無効化
         if (MimimalCmsConfig::$urlRoot !== '')
             return false;
 
@@ -166,12 +214,23 @@ Route::path(
 )
     ->matchNum('page', emptyAble: true)
     ->match(function () {
-        // TODO: 日本語以外ではルーティングを無効化
         if (MimimalCmsConfig::$urlRoot !== '')
             return false;
 
         handleRequestWithETagAndCache("recent-comments");
     });
+
+Route::path(
+    'labs',
+    [LabsPageController::class, 'index']
+)
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+
+Route::path(
+    'labs/live',
+    [LabsPageController::class, 'live']
+)
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
 
 /* Route::path(
     'labs/tags',
@@ -179,8 +238,7 @@ Route::path(
 )
     ->matchStr('ads', emptyAble: true)
     ->match(function () {
-        // TODO: 日本語以外ではルーティングを無効化
-        if (MimimalCmsConfig::$urlRoot !== '')
+                if (MimimalCmsConfig::$urlRoot !== '')
             return false;
 
         handleRequestWithETagAndCache("labs/tags");
@@ -196,7 +254,6 @@ Route::path(
     ->matchNum('page', min: 1, default: 1, emptyAble: true)
     ->matchStr('keyword', maxLen: 100, emptyAble: true)
     ->match(function (Reception $reception) {
-        // TODO: 日本語以外ではルーティングを無効化
         if (MimimalCmsConfig::$urlRoot !== '')
             return false;
 
@@ -217,7 +274,6 @@ Route::path(
     ->matchStr('text', 'post', maxLen: 1000)
     ->match(
         function (string $text, string $name) {
-            // TODO: 日本語以外ではルーティングを無効化
             if (MimimalCmsConfig::$urlRoot !== '')
                 return false;
 
@@ -237,7 +293,6 @@ Route::path(
 )
     ->matchNum('comment_id', min: 1)
     ->matchStr('type', 'post', regex: ['empathy', 'insights', 'negative'])
-    // TODO: 日本語以外ではルーティングを無効化
     ->match(fn() => MimimalCmsConfig::$urlRoot === '')
     ->middleware([VerifyCsrfToken::class]);
 
@@ -247,7 +302,6 @@ Route::path(
     [CommentReportApiController::class, 'index']
 )
     ->matchNum('comment_id', min: 1)
-    // TODO: 日本語以外ではルーティングを無効化
     ->match(fn() => MimimalCmsConfig::$urlRoot === '')
     ->matchStr('token');
 
@@ -271,7 +325,6 @@ Route::path(
 )
     ->matchNum('id')
     ->matchNum('commentId')
-    // TODO: 日本語以外ではルーティングを無効化
     ->match(fn() => MimimalCmsConfig::$urlRoot === '')
     ->matchNum('flag', min: 0, max: 3);
 
@@ -280,7 +333,6 @@ Route::path(
     [AdminEndPointController::class, 'deleteuser']
 )
     ->matchNum('id')
-    // TODO: 日本語以外ではルーティングを無効化
     ->match(fn() => MimimalCmsConfig::$urlRoot === '')
     ->matchNum('commentId');
 
@@ -288,7 +340,6 @@ Route::path(
     'admin-api/commentbanroom@post',
     [AdminEndPointController::class, 'commentbanroom']
 )
-    // TODO: 日本語以外ではルーティングを無効化
     ->match(fn() => MimimalCmsConfig::$urlRoot === '')
     ->matchNum('id');
 
@@ -359,15 +410,12 @@ Route::path(
     }); */
 
 Route::path('furigana@POST')
-    // TODO: 日本語以外ではルーティングを無効化
     ->match(fn() => MimimalCmsConfig::$urlRoot === '')
     ->matchStr('json');
 
 Route::path('furigana/guideline')
     ->match(function () {
         handleRequestWithETagAndCache('guideline');
-
-        // TODO: 日本語以外ではルーティングを無効化
         return MimimalCmsConfig::$urlRoot === '';
     });
 
@@ -377,10 +425,37 @@ Route::path(
 )
     ->match(function () {
         handleRequestWithETagAndCache('defamationGuideline');
-
-        // TODO: 日本語以外ではルーティングを無効化
         return MimimalCmsConfig::$urlRoot === '';
     });
+
+Route::path(
+    'database/{user}/query@get@options',
+    [DatabaseApiController::class, 'index']
+)
+    ->match(function (string $user) {
+        allowCORS();
+        return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
+    })
+    ->matchStr('stmt');
+
+Route::path(
+    'database/{user}/schema@get@options',
+    [DatabaseApiController::class, 'schema']
+)
+    ->match(function (string $user) {
+        allowCORS();
+        return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
+    });
+
+Route::path(
+    'database/{user}/ban@get@options',
+    [DatabaseApiController::class, 'ban']
+)
+    ->match(function (string $user) {
+        allowCORS();
+        return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
+    })
+    ->matchStr('date');
 
 cache();
 Route::run();

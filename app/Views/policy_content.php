@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="<?php echo t('ja') ?>">
-<?php viewComponent('policy_head', compact('_css', '_meta')) ?>
+<?php
+
+use App\Views\Ads\GoogleAdsense as GAd;
+
+viewComponent('policy_head', compact('_css', '_meta')) ?>
 
 <body>
     <script type="application/json" id="comment-app-init-dto">
@@ -11,12 +15,9 @@
     <main style="overflow: hidden;">
         <article class="terms">
             <?php if (\Shared\MimimalCmsConfig::$urlRoot === ''): ?>
-                <h1 style="letter-spacing: 0px;">オプチャグラフについて</h1>
-                <p>オプチャグラフはユーザーがオープンチャットを見つけて、成長傾向をグラフやランキングで比較できるWEBサイトです。</p>
+                <h1 style="letter-spacing: 0px;">オプチャグラフとは？</h1>
+                <p>オプチャグラフはLINEオープンチャットの成長傾向をグラフやランキングで比較できるWEBサイトです。</p>
                 <p>LINE非公式の<a href="https://github.com/pika-0203/Open-Chat-Graph" target="_blank">オープンソースプロジェクト</a>により運営されています。 </p>
-                <div style="margin: 2rem 0;">
-                    <?php viewComponent('update_news', compact('_news')) ?>
-                </div>
                 <h2>サイトの目的</h2>
                 <p>・ユーザーがオープンチャットを見つけて参加する機会を作る</p>
                 <p>・オープンチャットの管理者が成長傾向を把握し、比較できる事で運営に役立つ</p>
@@ -31,8 +32,8 @@
                 <p>
                     <b>データの取得は公式サイトのみから行います。LINEアプリ本体に係るデータを取得することはありません。</b>
                 </p>
-                <section style="margin: 2rem 0;">
-                    <h3 style="font-size: 14px;">オプチャグラフに掲載される条件</h3>
+                <section style="margin: 1rem 0;">
+                    <h3>オプチャグラフに掲載される条件</h3>
                     <p>
                         オプチャグラフのクローラーは<a href="https://openchat.line.me/jp/explore?sort=RANKING" rel="external" target="_blank">公式サイトのランキング</a>から新しいルームを見つけて登録します。<b>ランキングに掲載されていないルームは登録されません。</b>
                     </p>
@@ -52,8 +53,8 @@
                         <a href="<?php echo url('recently-registered') ?>">最近登録されたオープンチャット</a>
                     </p>
                 </section>
-                <section style="margin: 2rem 0;">
-                    <h3 style="font-size: 14px;">公式サイトでの掲載条件</h3>
+                <section style="margin: 1rem 0;">
+                    <h3>公式サイトでの掲載条件</h3>
                     <p>
                         オープンチャットの検索を許可しているなどの条件において、開設したルームが公式サイトに掲載されます。
                     </p>
@@ -64,19 +65,19 @@
                         参考ページ: <a href="https://openchat-jp.line.me/other/notice_webmain_3gf87gs1" target="_blank">Webブラウザ版メイン画面公開と検索エンジン対応のお知らせ | LINEオープンチャット</a>
                     </p>
                 </section>
-                <section style="margin: 2rem 0;">
-                    <h3 style="font-size: 14px;">情報更新のスケジュール</h3>
+                <section style="margin: 1rem 0;">
+                    <h3>情報更新のスケジュール</h3>
                     <p>
                         オプチャグラフのクローラーは公式サイトを定期巡回してルームのタイトル、説明文、画像、人数統計、ランキング履歴などを更新します。
                     </p>
-                    <ul style="font-size: 14px; line-height: 2;">
+                    <ul style="font-size: 18px; line-height: 2;">
                         <li>ランキング掲載中のルーム: 1時間毎（毎時30分頃）</li>
                         <li>ランキング未掲載のルーム: 1日毎 （23:30〜0:30頃）</li>
                         <li>ランキング未掲載かつ1週間以上メンバー数に変動がないルーム: 1週間毎</li>
                     </ul>
                 </section>
-                <section style="margin: 2rem 0;">
-                    <h3 style="font-size: 14px;">キーワード検索機能について</h3>
+                <section style="margin: 1rem 0;">
+                    <h3>キーワード検索機能について</h3>
                     <p>
                         オプチャグラフが提供するキーワード検索機能は公式サイトからインデックスした情報に基づいています。Google・Yahoo・Bingなどの検索サイトが表示する検索結果と同様の内容です。
                     </p>
@@ -87,8 +88,8 @@
                         <b>オプチャグラフはLINE公式の検索機能について関与していません。公式の検索機能にルームが表示されない理由を調べることはできません。</b>
                     </p>
                 </section>
-                <section style="margin: 2rem 0;">
-                    <h3 style="font-size: 14px;">ランキングの順位グラフについて</h3>
+                <section style="margin: 1rem 0;">
+                    <h3>ランキングの順位グラフについて</h3>
                     <p>
                         オプチャグラフのクローラーは公式サイトのランキング順位を1時間毎に記録します。ルームの並び順から順位を数えて算出しています。
                     </p>
@@ -160,8 +161,8 @@
                 <p>
                     <b>數據僅從官方網站獲取，不會取得與 LINE 應用程式本體相關的數據。</b>
                 </p>
-                <section style="margin: 2rem 0;">
-                    <h3 style="font-size: 14px;">LINE社群流量統計收錄的條件</h3>
+                <section style="margin: 1rem 0;">
+                    <h3>LINE社群流量統計收錄的條件</h3>
                     <p>
                         LINE社群流量統計的爬蟲程式從<a href="https://openchat.line.me/jp/explore?sort=RANKING" rel="external" target="_blank">官方網站排名</a>中找到新的聊天室並進行登記。<b>未列入排名的聊天室不會被登記。</b>
                     </p>
@@ -175,19 +176,19 @@
                         未列入排名（例如剛建立）的聊天室，只要出現在官方網站中，也可以手動登記到LINE社群流量統計。
                     </p>
                 </section>
-                <section style="margin: 2rem 0;">
-                    <h3 style="font-size: 14px;">資訊更新的排程</h3>
+                <section style="margin: 1rem 0;">
+                    <h3>資訊更新的排程</h3>
                     <p>
                         LINE社群流量統計的爬蟲程式定期巡覽官方網站，更新聊天室的標題、說明、圖片、人數統計及排名歷史等資訊。
                     </p>
-                    <ul style="font-size: 14px; line-height: 2;">
+                    <ul style="font-size: 18px; line-height: 2;">
                         <li>排名中的聊天室：每小時更新</li>
                         <li>未列入排名的聊天室：每天更新（23:30 ～ 0:30）</li>
                         <li>未列入排名且人數超過一週未變動的聊天室：每週更新一次</li>
                     </ul>
                 </section>
-                <section style="margin: 2rem 0;">
-                    <h3 style="font-size: 14px;">關於排名的趨勢圖</h3>
+                <section style="margin: 1rem 0;">
+                    <h3>關於排名的趨勢圖</h3>
                     <p>
                         LINE社群流量統計的爬蟲程式每小時記錄官方網站中的排名位置，透過聊天室的排列順序計算排名。
                     </p>
@@ -213,8 +214,8 @@
                 <p>
                     <b>ข้อมูลจะถูกรวบรวมจากเว็บไซต์ทางการเท่านั้น จะไม่มีการรวบรวมข้อมูลจากตัวแอปพลิเคชัน LINE</b>
                 </p>
-                <section style="margin: 2rem 0;">
-                    <h3 style="font-size: 14px;">เงื่อนไขการรวบรวมข้อมูลใน LINE OPENCHAT สถิติการเข้าชม</h3>
+                <section style="margin: 1rem 0;">
+                    <h3>เงื่อนไขการรวบรวมข้อมูลใน LINE OPENCHAT สถิติการเข้าชม</h3>
                     <p>
                         โปรแกรมรวบรวมข้อมูลของ LINE OPENCHAT สถิติการเข้าชม ค้นหาและลงทะเบียนห้องใหม่จาก<a href="https://openchat.line.me/jp/explore?sort=RANKING" rel="external" target="_blank">การจัดอันดับบนเว็บไซต์ทางการ</a> <b>ห้องที่ไม่ได้อยู่ในการจัดอันดับจะไม่ได้รับการลงทะเบียน</b>
                     </p>
@@ -228,19 +229,19 @@
                         ห้องที่ไม่ได้อยู่ในการจัดอันดับ (เช่น ห้องที่เพิ่งสร้าง) สามารถลงทะเบียนใน LINE OPENCHAT สถิติการเข้าชม ได้ด้วยตนเองหากอยู่ในเว็บไซต์ทางการ
                     </p>
                 </section>
-                <section style="margin: 2rem 0;">
-                    <h3 style="font-size: 14px;">กำหนดการอัปเดตข้อมูล</h3>
+                <section style="margin: 1rem 0;">
+                    <h3>กำหนดการอัปเดตข้อมูล</h3>
                     <p>
                         โปรแกรมรวบรวมข้อมูลของ LINE OPENCHAT สถิติการเข้าชม เยี่ยมชมเว็บไซต์ทางการเป็นประจำเพื่ออัปเดตข้อมูล เช่น ชื่อห้อง คำอธิบาย รูปภาพ สถิติสมาชิก ประวัติการจัดอันดับ ฯลฯ
                     </p>
-                    <ul style="font-size: 14px; line-height: 2;">
+                    <ul style="font-size: 18px; line-height: 2;">
                         <li>ห้องที่อยู่ในการจัดอันดับ: อัปเดตทุกชั่วโมง (ประมาณเวลา 30 นาทีของทุกชั่วโมง)</li>
                         <li>ห้องที่ไม่ได้อยู่ในการจัดอันดับ: อัปเดตทุกวัน (23:30 ～ 0:30)</li>
                         <li>ห้องที่ไม่ได้อยู่ในการจัดอันดับและไม่มีการเปลี่ยนแปลงจำนวนสมาชิกเกิน 1 สัปดาห์: อัปเดตทุกสัปดาห์</li>
                     </ul>
                 </section>
-                <section style="margin: 2rem 0;">
-                    <h3 style="font-size: 14px;">เกี่ยวกับกราฟอันดับการจัดอันดับ</h3>
+                <section style="margin: 1rem 0;">
+                    <h3>เกี่ยวกับกราฟอันดับการจัดอันดับ</h3>
                     <p>
                         โปรแกรมรวบรวมข้อมูลของ LINE OPENCHAT สถิติการเข้าชม บันทึกอันดับการจัดอันดับบนเว็บไซต์ทางการทุกชั่วโมง โดยคำนวณอันดับจากลำดับของห้อง
                     </p>
@@ -251,6 +252,7 @@
             <?php endif ?>
         </article>
     </main>
+    <?php \App\Views\Ads\GoogleAdsense::loadAdsTag() ?>
     <?php viewComponent('footer_inner') ?>
     <?php echo $_breadcrumbsShema ?>
 </body>

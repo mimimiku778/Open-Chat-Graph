@@ -2,7 +2,14 @@
 
 namespace App\Services\Recommend\TagDefinition;
 
-interface RecommendUpdaterTagsInterface {
+interface RecommendUpdaterTagsInterface
+{
+    /**
+     * @param 'oc.name'|'oc.description'|null $column
+     * @return array<string,(string|array{string, string[]})[]>
+     */
+    function getStrongestTags(?string $column = null): array;
+
     /**
      * @return array<string,(string|array{string,string[]})[]>
      */

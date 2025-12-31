@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Pages;
 
 use App\Config\AppConfig;
+use App\Models\Repositories\Api\ApiDeletedOpenChatListRepository;
 use App\Models\Repositories\DeleteOpenChatRepositoryInterface;
 use App\Models\Repositories\SyncOpenChatStateRepositoryInterface;
 use App\Services\Admin\AdminAuthService;
@@ -12,6 +13,7 @@ use Shadow\DB;
 use App\Services\OpenChat\OpenChatApiDbMerger;
 use App\Models\SQLite\SQLiteStatistics;
 use App\Models\UserLogRepositories\UserLogRepository;
+use App\Services\Admin\AdminTool;
 use App\Services\Cron\Enum\SyncOpenChatStateType;
 use App\Services\OpenChat\OpenChatDailyCrawling;
 use App\Services\OpenChat\OpenChatImageUpdater;
@@ -22,6 +24,7 @@ use App\Services\UpdateDailyRankingService;
 use App\Services\UpdateHourlyMemberRankingService;
 use Shadow\Kernel\Validator;
 use Shared\Exceptions\NotFoundException;
+use Shared\MimimalCmsConfig;
 
 class AdminPageController
 {
@@ -38,12 +41,88 @@ class AdminPageController
         return view('admin/dash_my_list', ['result' => $result]);
     }
 
-    function test()
+    function ban(ApiDeletedOpenChatListRepository $repo, string $date)
     {
-        $path = AppConfig::ROOT_PATH . 'batch/exec/test_exec.php';
-        $path = AppConfig::ROOT_PATH . 'batch/exec/genetop_exec.php';
+        $result = $repo->getDeletedOpenChatList($date, 999999);
+        $result = array_map(function ($item) {
+            $item['description'] = truncateDescription($item['description']);
+            return $item;
+        }, $result);
 
-        exec("/usr/bin/php8.3 {$path} >/dev/null 2>&1 &");
+        pre_var_dump($result);
+    }
+
+    function cron_test(string $lang)
+    {
+        $urlRoot = null;
+        switch ($lang) {
+            case 'ja':
+                $urlRoot = '';
+                break;
+            case 'tw':
+                $urlRoot = '/tw';
+                break;
+            case 'th':
+                $urlRoot = '/th';
+                break;
+        }
+
+        if (is_null($urlRoot)) {
+            return view('admin/admin_message_page', ['title' => 'exec', 'message' => 'パラメータ(lang)が不正です。']);
+        }
+
+        $path = AppConfig::ROOT_PATH . 'batch/cron/cron_crawling.php';
+        $arg = escapeshellarg($urlRoot);
+
+        exec(AppConfig::$phpBinary . " {$path} {$arg} >/dev/null 2>&1 &");
+
+        return view('admin/admin_message_page', ['title' => 'exec', 'message' => $path . ' を実行しました。']);
+    }
+
+    function apidb_test()
+    {
+        $path = AppConfig::ROOT_PATH . 'batch/exec/update_api_db.php';
+
+        exec(AppConfig::$phpBinary . " {$path} >/dev/null 2>&1 &");
+
+        return view('admin/admin_message_page', ['title' => 'exec', 'message' => $path . ' を実行しました。']);
+    }
+
+    function rankingban_test()
+    {
+        $path = AppConfig::ROOT_PATH . 'batch/exec/ranking_ban_test.php';
+
+        exec(AppConfig::$phpBinary . " {$path} >/dev/null 2>&1 &");
+
+        return view('admin/admin_message_page', ['title' => 'exec', 'message' => $path . ' を実行しました。']);
+    }
+
+    function retry_daily_test()
+    {
+        $urlRoot = MimimalCmsConfig::$urlRoot;
+
+        $path = AppConfig::ROOT_PATH . 'batch/exec/retry_daily_tast.php';
+        $arg = escapeshellarg($urlRoot);
+
+        exec(AppConfig::$phpBinary . " {$path} {$arg} >/dev/null 2>&1 &");
+
+        return view('admin/admin_message_page', ['title' => 'exec', 'message' => $path . ' を実行しました。']);
+    }
+
+    function tagupdate()
+    {
+        $path = AppConfig::ROOT_PATH . 'batch/exec/tag_update.php';
+
+        exec(AppConfig::$phpBinary . " {$path} >/dev/null 2>&1 &");
+
+        return view('admin/admin_message_page', ['title' => 'exec', 'message' => $path . ' を実行しました。']);
+    }
+
+    function recommendtagupdate()
+    {
+        $path = AppConfig::ROOT_PATH . 'batch/exec/tag_update_onlyrecommend.php';
+
+        exec(AppConfig::$phpBinary . " {$path} >/dev/null 2>&1 &");
 
         return view('admin/admin_message_page', ['title' => 'exec', 'message' => $path . ' を実行しました。']);
     }
@@ -70,7 +149,7 @@ class AdminPageController
         $path = AppConfig::ROOT_PATH . 'batch/exec/imageupdater_exec.php';
         $arg = escapeshellarg($urlRoot);
 
-        exec("/usr/bin/php8.3 {$path} {$arg} >/dev/null 2>&1 &");
+        exec(AppConfig::$phpBinary . " {$path} {$arg} >/dev/null 2>&1 &");
 
         return view('admin/admin_message_page', ['title' => 'exec', 'message' => $path . ' を実行しました。']);
     }
@@ -140,8 +219,9 @@ class AdminPageController
     function genetop()
     {
         $path = AppConfig::ROOT_PATH . 'batch/exec/genetop_exec.php';
+        $arg = escapeshellarg(MimimalCmsConfig::$urlRoot);
 
-        exec("/usr/bin/php8.3 {$path} >/dev/null 2>&1 &");
+        exec(AppConfig::$phpBinary . " {$path} {$arg} >/dev/null 2>&1 &");
 
         return view('admin/admin_message_page', ['title' => 'exec', 'message' => $path . ' を実行しました。']);
     }

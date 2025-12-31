@@ -6,6 +6,8 @@ use Shared\MimimalCmsConfig;
 
 class AppConfig
 {
+    static string $phpBinary = '/usr/bin/php8.3';
+
     const SITE_ICON_FILE_PATH = 'assets/icon-192x192.png';
     const DEFAULT_OGP_IMAGE_FILE_PATH = 'assets/ogp.png';
 
@@ -14,8 +16,14 @@ class AppConfig
     const ETAG_ARG = [300, 3600 * 24, false];
 
     const LINE_URL = 'https://line.me/ti/g2/';
-    const LINE_APP_URL = 'line://ti/g2/';
-    const LINE_APP_SUFFIX = '?utm_source=line-openchat-seo&utm_medium=category&utm_campaign=default';
+    const LINE_APP_URL = 'https://line.me/ti/g2/';
+    const LINE_APP_SUFFIX = '?utm_source=openchat-graph&utm_medium=referral&utm_campaign=default';
+
+    const LINE_APP_URL_SP = 'https://liff.line.me/1573545970-LlNdaE20?to=squareCover&id=';
+    const LINE_APP_SUFFIX_SP = '&isJoinImmediately=1&utm_source=openchat-graph&utm_medium=referral&utm_campaign=default';
+
+    const LINE_IMG_URL = 'https://obs.line-scdn.net/';
+    const LINE_IMG_URL_PREVIEW_PATH = '/preview';
 
     const OPENCHAT_IMG_PREVIEW_PATH = 'preview';
     const OPENCHAT_IMG_PREVIEW_SUFFIX = '_p';
@@ -25,13 +33,14 @@ class AppConfig
         '/tw' => 'https://openchat.line.me/tw/cover/',
         '/th' => 'https://openchat.line.me/th/cover/',
     ];
-    const LINE_OPEN_URL_SUFFIX = '?utm_source=line-openchat-seo&utm_medium=category&utm_campaign=default';
+    const LINE_OPEN_URL_SUFFIX = '?utm_source=openchat-graph&utm_medium=referral&utm_campaign=default';
 
-    const LIST_LIMIT_TOP_RANKING = 5;
+    static int $listLimitTopRanking = 10;
+    static int $tagListLimit = 3;
     const LIST_LIMIT_MY_LIST = 50;
     const LIST_LIMIT_RECENT_COMMENT = 50;
     const LIST_LIMIT_RECENTLY_REGISTERED = 100;
-    const LIST_LIMIT_RECOMMEND = 20;
+    const LIST_LIMIT_RECOMMEND = 100;
 
     const RECOMMEND_MIN_MEMBER_DIFF_HOUR = 3;
     const RECOMMEND_MIN_MEMBER_DIFF_H24 = 8;
@@ -138,6 +147,7 @@ class AppConfig
     static bool $disableAds = false;
     static bool $verboseCronLog = false;
     static bool $enableCloudflare = false;
+    static bool $disableAdTags = true;
 
     /** @var array<string,int> */
     static array $developmentEnvUpdateLimit = [
@@ -261,4 +271,6 @@ class AppConfig
         '4DceVI1KwU1k',
     ];
     const ADD_OPEN_CHAT_DEFAULT_OPENCHAT_IMG_URL_HASH = '2AtTNcODU67';
+
+    const DAILY_UPDATE_EXCEPTION_ERROR_CODE = 1001;
 }

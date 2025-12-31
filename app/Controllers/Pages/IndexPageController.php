@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers\Pages;
 
+use App\Config\AppConfig;
 use App\Models\CommentRepositories\RecentCommentListRepositoryInterface;
 use App\Services\Recommend\OfficialPageList;
 use App\Services\StaticData\StaticDataFile;
@@ -18,14 +19,15 @@ class IndexPageController
         PageBreadcrumbsListSchema $pageBreadcrumbsListSchema,
         OfficialPageList $officialPageList,
     ) {
+        AppConfig::$listLimitTopRanking = 10;
         $dto = $staticDataGeneration->getTopPageData();
 
-        $_css = ['room_list', 'site_header', 'site_footer', 'search_form', 'recommend_list'];
+        $_css = ['room_list', 'site_header', 'site_footer', 'search_form', 'recommend_list', 'recommend_page'];
         $_meta = meta();
         $_meta->title = "{$_meta->title}｜" . t('オープンチャットの統計情報');
 
         $_schema = $_meta->generateTopPageSchema(
-            'OpenChat Graph',
+            t('オプチャグラフ'),
             $_meta->description,
             url(),
             url('assets/ogp.png'),

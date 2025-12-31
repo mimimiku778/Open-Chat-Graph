@@ -4,16 +4,22 @@ namespace App\Views\Ads;
 
 use App\Config\AppConfig;
 
-class GoogleAdsence
+class GoogleAdsense
 {
     const AD_CLIENT = 'ca-pub-2330982526015125';
 
     const AD_SLOTS = [
+        // OCトップ-horizontal
+        'ocTopHorizontal' => ['9641198670', 'horizontal-ads'],
+
         // OCトップ-rectangle
         'ocTopRectangle' => ['8037531176', 'rectangle3-ads'],
 
+        // OCトップ2-rectangle
+        'ocTop2Rectangle' => ['4585711910', 'rectangle3-ads'],
+
         // OC-third-rectangle
-        'ocThirdRectangle' => ['8325497013', 'rectangle-ads'],
+        'ocThirdRectangle' => ['8325497013', 'rectangle3-ads'],
 
         // OCトップ2-横長
         'ocTopWide2' => ['6469006397', 'rectangle2-ads'],
@@ -25,7 +31,7 @@ class GoogleAdsence
         'ocSeparatorResponsive' => ['2542775305'],
 
         // OCセパレーター-rectangle
-        'ocSeparatorRectangle' => ['2078443048', 'rectangle-ads'],
+        'ocSeparatorRectangle' => ['2078443048', 'rectangle3-ads'],
 
         // OC-リスト-bottom-横長
         'ocListBottomWide' => ['9996104663', 'rectangle2-ads'],
@@ -34,7 +40,7 @@ class GoogleAdsence
         'ocBottomWide' => ['9240027393', 'rectangle2-ads'],
 
         // OC-footer-rectangle
-        'ocFooterRectangle' => ['2217617182', 'rectangle-ads'],
+        'ocFooterRectangle' => ['2217617182', 'rectangle3-ads'],
 
         // OCセパレーター-横長
         'ocSeparatorWide' => ['1847273098', 'rectangle2-ads'],
@@ -43,7 +49,7 @@ class GoogleAdsence
         'siteTopRectangle' => ['4122044659', 'rectangle3-ads'],
 
         // サイトトップ2-横長
-        'siteTopWide' => ['4015067592', 'rectangle2-ads'],
+        'siteTopWide' => ['4015067592', 'horizontal-ads'],
 
         // サイトセパレーター-レスポンシブ
         'siteSeparatorResponsive' => ['4243068812'],
@@ -58,7 +64,10 @@ class GoogleAdsence
         'siteBottomWide' => ['8637392164', 'rectangle2-ads'],
 
         // おすすめトップ-rectangle
-        'recommendTopRectangle' => ['3109180036', 'rectangle-ads'],
+        'recommendTopRectangle' => ['3109180036', 'rectangle3-ads'],
+
+        // おすすめトップ-recommendTopHorizontal
+        'recommendTopHorizontal' => ['5472515659', 'horizontal-ads'],
 
         // おすすめ-third-rectangle
         'recommendThirdRectangle' => ['3035874831', 'rectangle3-ads'],
@@ -82,7 +91,7 @@ class GoogleAdsence
         'recommendSeparatorResponsive' => ['7064673271'],
 
         // おすすめセパレーター-Rectangle
-        'recommendSeparatorRectangle' => ['8031174545', 'rectangle-ads'],
+        'recommendSeparatorRectangle' => ['8031174545', 'rectangle3-ads'],
 
         // おすすめ-footer-rectangle
         'recommendFooterRectangle' => ['1260592882', 'rectangle-ads'],
@@ -93,38 +102,60 @@ class GoogleAdsence
         // コメントタイムライントップ-rectangle
         'recentCommentTopRectangle' => ['4440788981', 'rectangle3-ads'],
 
-        // コメントタイムライン-bottom-横長
-        'recentCommentBottomWide' => ['4852423347', 'rectangle2-ads'],
+        // コメントタイムラインセパレーター-レスポンシブ
+        'recentCommentSeparatorResponsive' => ['4852423347'],
     ];
 
     /**
      * @param array $adElement { 0: int, 1: string }|{ 0: int }
      */
-    static function output(array $adElement)
+    static function output(array $adElement, bool $forceShow = false)
     {
         if (AppConfig::$isStaging || AppConfig::$disableAds) return;
 
         if (count($adElement) === 1) {
-            self::responsive($adElement[0], 'responsive-google');
+            self::responsive($adElement[0], 'responsive-google', $forceShow);
         } else {
-            self::rectangle($adElement[0], $adElement[1]);
+            self::rectangle($adElement[0], $adElement[1], $forceShow);
         }
     }
 
-    private static function rectangle(int $adSlot, string $cssClass)
+    private static function rectangle(int $adSlot, string $cssClass, bool $forceShow = false)
     {
 
         $adClient = self::AD_CLIENT;
+
         echo <<<EOT
-        <ins class="adsbygoogle manual {$cssClass}" data-ad-client="{$adClient}" data-ad-slot="{$adSlot}" data-ad-format="rectangle"></ins>
+        <div class="{$cssClass}-parent">
+        EOT;
+
+        if ($forceShow || !(AppConfig::$disableAdTags ?? false)) {
+            echo <<<EOT
+            <ins class="adsbygoogle manual {$cssClass}" data-ad-client="{$adClient}" data-ad-slot="{$adSlot}" data-full-width-responsive="false"></ins>
+        EOT;
+        }
+
+        echo <<<EOT
+        </div>
         EOT;
     }
 
-    private static function responsive(int $adSlot, string $cssClass)
+    private static function responsive(int $adSlot, string $cssClass, bool $forceShow = false)
     {
         $adClient = self::AD_CLIENT;
+
         echo <<<EOT
-        <ins class="adsbygoogle manual {$cssClass}" data-ad-client="{$adClient}" data-ad-slot="{$adSlot}" data-ad-format="auto" data-full-width-responsive="true"></ins>
+        <div class="{$cssClass}-parent">
+        EOT;
+
+        if ($forceShow || !(AppConfig::$disableAdTags ?? false)) {
+            echo <<<EOT
+            <ins class="adsbygoogle manual {$cssClass}" data-ad-client="{$adClient}" data-ad-slot="{$adSlot}" data-ad-format="auto" data-full-width-responsive="false"></ins>
+        EOT;
+        }
+
+        echo <<<EOT
+        </div>
         EOT;
     }
 

@@ -5,7 +5,7 @@
 use App\Config\AppConfig;
 use App\Services\Recommend\Enum\RecommendListType;
 use App\Services\Recommend\TagDefinition\Ja\RecommendUtility;
-use App\Views\Ads\GoogleAdsence as GAd;
+use App\Views\Ads\GoogleAdsense as GAd;
 use Shared\MimimalCmsConfig;
 
 if (!$recommend->getCount()) {
@@ -15,15 +15,15 @@ if (!$recommend->getCount()) {
 if ($recommend->type === RecommendListType::Category) {
     $title = sprintfT('「%s」カテゴリーのおすすめ', $recommend->listName);
 } elseif ($recommend->type === RecommendListType::Official) {
-    $title = sprintfT('%sのおすすめ', $recommend->listName);
+    $title = sprintfT('「%s」のおすすめ', $recommend->listName);
 } else {
-    $title = "「{$recommend->listName}」のおすすめ";
+    $title = sprintfT('「%s」のおすすめ', $recommend->listName);
 }
 
 ?>
 
 <?php if (!isset($disableGAd) || !$disableGAd): ?>
-    <?php GAd::output(GAd::AD_SLOTS['siteSeparatorRectangle']) ?>
+    <?php //GAd::output(GAd::AD_SLOTS['siteSeparatorRectangle']) ?>
 <?php endif ?>
 
 <article class="top-ranking not-rank" style="<?php echo $style ?? '' ?>">
@@ -53,8 +53,8 @@ if ($recommend->type === RecommendListType::Category) {
             <span class="ranking-readMore"><?php echo sprintfT('%sをもっと見る', $recommend->listName) ?></span>
         </a>
     <?php else : ?>
-        <a class="top-ranking-readMore unset ranking-url white-btn" href="<?php echo url("recommend?tag=" . urlencode(htmlspecialchars_decode($recommend->listName))) ?>">
-            <span class="ranking-readMore">「<?php echo RecommendUtility::extractTag($recommend->listName) ?>」をもっと見る</span>
+        <a class="top-ranking-readMore unset ranking-url white-btn" href="<?php echo url("recommend/" . urlencode(htmlspecialchars_decode($recommend->listName))) ?>">
+            <span class="ranking-readMore"><?php echo sprintfT('%sをもっと見る', RecommendUtility::extractTag($recommend->listName)) ?></span>
         </a>
     <?php endif ?>
 
