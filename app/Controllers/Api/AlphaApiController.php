@@ -34,9 +34,11 @@ class AlphaApiController
                 oc.name,
                 oc.description AS `desc`,
                 oc.member,
+                oc.img_url,
                 oc.local_img_url AS img,
                 oc.emblem,
                 oc.category,
+                oc.join_method_type,
                 COALESCE(sr.diff_member, 0) AS increasedMember,
                 COALESCE(sr.percent_increase, 0) AS percentageIncrease
             FROM
@@ -78,6 +80,64 @@ class AlphaApiController
 
         $stmt->execute();
         $data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        // 画像URLを変換し、IDリストを作成
+        $ids = [];
+        foreach ($data as &$item) {
+            $ids[] = $item['id'];
+            // img_urlをobs.line-scdn.net形式に変換
+            if (!empty($item['img_url'])) {
+                $item['img'] = 'https://obs.line-scdn.net/' . $item['img_url'];
+            }
+            unset($item['img_url']);
+        }
+        unset($item);
+
+        // 24時間と1週間のデータを一括取得
+        if (!empty($ids)) {
+            $pdo = \App\Models\SQLite\SQLiteStatistics::connect();
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $statsSql = "
+                SELECT
+                    open_chat_id,
+                    date,
+                    member
+                FROM statistics
+                WHERE open_chat_id IN ($placeholders)
+                ORDER BY open_chat_id, date DESC
+            ";
+            $statsStmt = $pdo->prepare($statsSql);
+            $statsStmt->execute($ids);
+            $statsRows = $statsStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            // IDごとにメンバー数の配列を作成
+            $membersById = [];
+            foreach ($statsRows as $row) {
+                $membersById[$row['open_chat_id']][] = (int)$row['member'];
+            }
+
+            // 各検索結果に24時間と1週間の差分を追加
+            foreach ($data as &$item) {
+                $members = $membersById[$item['id']] ?? [];
+                $maxIndex = count($members) - 1;
+
+                $item['diff24h'] = 0;
+                $item['percent24h'] = 0.0;
+                $item['diff1w'] = 0;
+                $item['percent1w'] = 0.0;
+
+                if ($maxIndex >= 1 && $members[$maxIndex - 1] > 0) {
+                    $item['diff24h'] = $members[$maxIndex] - $members[$maxIndex - 1];
+                    $item['percent24h'] = floor(($item['diff24h'] / $members[$maxIndex - 1]) * 100 * 1000000) / 1000000;
+                }
+
+                if ($maxIndex >= 7 && $members[$maxIndex - 7] > 0) {
+                    $item['diff1w'] = $members[$maxIndex] - $members[$maxIndex - 7];
+                    $item['percent1w'] = floor(($item['diff1w'] / $members[$maxIndex - 7]) * 100 * 1000000) / 1000000;
+                }
+            }
+            unset($item);
+        }
 
         // 総件数取得（簡易版：LIMITなしで同じ条件でCOUNT）
         $countSql = "
@@ -125,6 +185,7 @@ class AlphaApiController
                 oc.category,
                 oc.description,
                 oc.local_img_url,
+                oc.img_url,
                 oc.emblem,
                 oc.api_created_at,
                 oc.created_at,
@@ -174,6 +235,25 @@ class AlphaApiController
             $members[] = (int)$row['member'];
         }
 
+        // 24時間と1週間の差分を計算
+        $maxIndex = count($members) - 1;
+        $diff24h = 0;
+        $percent24h = 0.0;
+        $diff1w = 0;
+        $percent1w = 0.0;
+
+        if ($maxIndex >= 1 && $members[$maxIndex - 1] > 0) {
+            $diff24h = $members[$maxIndex] - $members[$maxIndex - 1];
+            $percent24h = ($diff24h / $members[$maxIndex - 1]) * 100;
+            $percent24h = floor($percent24h * 1000000) / 1000000;
+        }
+
+        if ($maxIndex >= 7 && $members[$maxIndex - 7] > 0) {
+            $diff1w = $members[$maxIndex] - $members[$maxIndex - 7];
+            $percent1w = ($diff1w / $members[$maxIndex - 7]) * 100;
+            $percent1w = floor($percent1w * 1000000) / 1000000;
+        }
+
         // ランキングデータ取得（barパラメータがrankingまたはrisingの場合）
         $rankings = [];
         if ($bar === 'ranking' || $bar === 'rising') {
@@ -214,6 +294,21 @@ class AlphaApiController
             }
         }
 
+        // URLをLINE形式に変換
+        $lineUrl = '';
+        if (!empty($ocData['url'])) {
+            // https://line.me/ti/g2/{hash} 形式に変換
+            if (preg_match('/\/([^\/]+)$/', $ocData['url'], $matches)) {
+                $lineUrl = 'https://line.me/ti/g2/' . $matches[1];
+            }
+        }
+
+        // 画像URLをobs.line-scdn.net形式に変換
+        $imageUrl = '';
+        if (!empty($ocData['img_url'])) {
+            $imageUrl = 'https://obs.line-scdn.net/' . $ocData['img_url'];
+        }
+
         return response([
             'id' => $open_chat_id,
             'name' => $ocData['name'],
@@ -224,14 +319,18 @@ class AlphaApiController
             'rankings' => $rankings,
             // 追加フィールド
             'description' => $ocData['description'] ?? '',
-            'thumbnail' => $ocData['local_img_url'] ?? '',
+            'thumbnail' => $imageUrl,
             'emblem' => (int)($ocData['emblem'] ?? 0),
             'hourlyDiff' => (int)($ocData['hourly_diff_member'] ?? 0),
             'hourlyPercentage' => (float)($ocData['hourly_percent_increase'] ?? 0),
+            'diff24h' => $diff24h,
+            'percent24h' => $percent24h,
+            'diff1w' => $diff1w,
+            'percent1w' => $percent1w,
             'createdAt' => $ocData['created_at'] ? strtotime($ocData['created_at']) : null,
             'registeredAt' => $ocData['api_created_at'] ?? '',
             'joinMethodType' => (int)($ocData['join_method_type'] ?? 0),
-            'url' => $ocData['url'] ?? '',
+            'url' => $lineUrl,
         ]);
     }
 
@@ -269,9 +368,11 @@ class AlphaApiController
                 oc.id,
                 oc.name,
                 oc.member,
+                oc.img_url,
                 oc.local_img_url AS img,
                 oc.emblem,
                 oc.category,
+                oc.join_method_type,
                 COALESCE(sr.diff_member, 0) AS diff_member,
                 COALESCE(sr.percent_increase, 0) AS percent_increase
             FROM
@@ -288,6 +389,61 @@ class AlphaApiController
         $params = array_merge($ids, $ids);
         $stmt->execute($params);
         $data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        // 画像URLを変換
+        foreach ($data as &$item) {
+            if (!empty($item['img_url'])) {
+                $item['img'] = 'https://obs.line-scdn.net/' . $item['img_url'];
+            }
+            unset($item['img_url']);
+        }
+        unset($item);
+
+        // 24時間と1週間のデータを一括取得
+        if (!empty($ids)) {
+            $pdo = \App\Models\SQLite\SQLiteStatistics::connect();
+            $placeholders2 = implode(',', array_fill(0, count($ids), '?'));
+            $statsSql = "
+                SELECT
+                    open_chat_id,
+                    date,
+                    member
+                FROM statistics
+                WHERE open_chat_id IN ($placeholders2)
+                ORDER BY open_chat_id, date DESC
+            ";
+            $statsStmt = $pdo->prepare($statsSql);
+            $statsStmt->execute($ids);
+            $statsRows = $statsStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            // IDごとにメンバー数の配列を作成
+            $membersById = [];
+            foreach ($statsRows as $row) {
+                $membersById[$row['open_chat_id']][] = (int)$row['member'];
+            }
+
+            // 各結果に24時間と1週間の差分を追加
+            foreach ($data as &$item) {
+                $members = $membersById[$item['id']] ?? [];
+                $maxIndex = count($members) - 1;
+
+                $item['diff24h'] = 0;
+                $item['percent24h'] = 0.0;
+                $item['diff1w'] = 0;
+                $item['percent1w'] = 0.0;
+
+                if ($maxIndex >= 1 && $members[$maxIndex - 1] > 0) {
+                    $item['diff24h'] = $members[$maxIndex] - $members[$maxIndex - 1];
+                    $item['percent24h'] = floor(($item['diff24h'] / $members[$maxIndex - 1]) * 100 * 1000000) / 1000000;
+                }
+
+                if ($maxIndex >= 7 && $members[$maxIndex - 7] > 0) {
+                    $item['diff1w'] = $members[$maxIndex] - $members[$maxIndex - 7];
+                    $item['percent1w'] = floor(($item['diff1w'] / $members[$maxIndex - 7]) * 100 * 1000000) / 1000000;
+                }
+            }
+            unset($item);
+        }
 
         return response([
             'data' => $data,
