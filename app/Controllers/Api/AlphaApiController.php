@@ -367,6 +367,7 @@ class AlphaApiController
             SELECT
                 oc.id,
                 oc.name,
+                oc.description AS `desc`,
                 oc.member,
                 oc.img_url,
                 oc.local_img_url AS img,
@@ -390,12 +391,17 @@ class AlphaApiController
         $stmt->execute($params);
         $data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        // 画像URLを変換
+        // 画像URLを変換し、フィールド名を変更
         foreach ($data as &$item) {
             if (!empty($item['img_url'])) {
                 $item['img'] = 'https://obs.line-scdn.net/' . $item['img_url'];
             }
             unset($item['img_url']);
+
+            // Rename fields to match frontend interface
+            $item['increasedMember'] = (int)$item['diff_member'];
+            $item['percentageIncrease'] = (float)$item['percent_increase'];
+            unset($item['diff_member'], $item['percent_increase']);
         }
         unset($item);
 

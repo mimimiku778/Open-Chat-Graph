@@ -4,6 +4,7 @@ namespace App\Config;
 
 use App\Controllers\Api\AdminEndPointController;
 use App\Controllers\Api\AdsRegistrationApiController;
+use App\Controllers\Api\AlphaApiController;
 use App\Controllers\Api\CommentLikePostApiController;
 use App\Controllers\Api\CommentListApiController;
 use App\Controllers\Api\CommentPostApiController;
@@ -17,6 +18,7 @@ use App\Controllers\Api\RankingPositionApiController;
 use App\Controllers\Api\MyListApiController;
 use App\Controllers\Api\RecentCommentApiController;
 use App\Controllers\Pages\AdsRegistrationPageController;
+use App\Controllers\Pages\AlphaPageController;
 use App\Controllers\Pages\FuriganaPageController;
 use App\Controllers\Pages\JumpOpenChatPageController;
 use App\Controllers\Pages\LabsPageController;
@@ -456,6 +458,33 @@ Route::path(
         return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
     })
     ->matchStr('date');
+
+// ========================================
+// Alpha PoC - 統計監視ツール
+// ========================================
+
+// Alpha ページ
+Route::path('alpha', [AlphaPageController::class, 'index'])
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+
+// Alpha API - 検索
+Route::path('alpha-api/search', [AlphaApiController::class, 'search'])
+    ->matchStr('keyword', emptyAble: true, maxLen: 100)
+    ->matchNum('category', min: 0, emptyAble: true, default: 0)
+    ->matchNum('page', min: 0, emptyAble: true, default: 0)
+    ->matchNum('limit', min: 1, max: 50, emptyAble: true, default: 20)
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+
+// Alpha API - 統計データ取得（グラフ用）
+Route::path('alpha-api/stats/{open_chat_id}', [AlphaApiController::class, 'stats'])
+    ->matchNum('open_chat_id', min: 1)
+    ->matchStr('bar', emptyAble: true, maxLen: 10, default: '')
+    ->matchStr('rankingCategory', emptyAble: true, maxLen: 20, default: 'all')
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+
+// Alpha API - 一括統計取得（マイリスト用）
+Route::path('alpha-api/batch-stats@post', [AlphaApiController::class, 'batchStats'])
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
 
 cache();
 Route::run();

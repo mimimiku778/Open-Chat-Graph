@@ -10,6 +10,79 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Language**: Primarily Japanese
 - **License**: MIT
 
+## Development Best Practices
+
+### Task Planning and Execution
+
+**IMPORTANT: Follow these steps for ALL non-trivial implementation tasks:**
+
+1. **Use Plan Agent for Multi-Step Tasks**
+   - When given multiple features or complex requirements, use `EnterPlanMode` or Task tool with `subagent_type=Plan`
+   - Let the Plan agent break down the work and create a structured approach
+   - Get user approval before starting implementation
+
+2. **Commit Frequently with Meaningful Granularity**
+   - **Never implement everything and commit once at the end**
+   - Commit after each logical unit of work:
+     - After installing new dependencies
+     - After adding new UI components
+     - After implementing each feature component
+     - After integrating components
+     - After fixing bugs or errors
+   - Each commit should be independently reviewable
+   - Use the commit-message skill for consistent formatting
+
+3. **Test with Playwright After Implementation**
+   - **Always test the implementation matches requirements**
+   - Use Playwright browser automation to verify:
+     - UI renders correctly (desktop and mobile if applicable)
+     - User interactions work as expected
+     - Features behave according to requirements
+   - Take screenshots for visual confirmation
+   - Fix any issues discovered during testing
+   - Commit fixes separately
+
+### Example Good Workflow
+
+```
+User: "Add folder management with drag-and-drop and mobile bottom nav"
+
+1. Plan (if complex):
+   - Use Plan agent or EnterPlanMode to break down tasks
+
+2. Implementation with commits:
+   - Install dependencies → Commit
+   - Add UI components → Commit
+   - Implement FolderDialog → Commit
+   - Implement FolderTree → Commit
+   - Update storage functions → Commit
+   - Integrate in MyListPage → Commit
+   - Add mobile bottom nav → Commit
+   - Update responsive layout → Commit
+
+3. Test:
+   - Use Playwright to test folder creation
+   - Test drag and drop functionality
+   - Test mobile/desktop responsive behavior
+   - Take screenshots to verify
+   - Fix any issues → Commit fixes
+
+4. Summary:
+   - Report what was implemented
+   - Show test results
+```
+
+### Example Bad Workflow (DON'T DO THIS)
+
+```
+User: "Add folder management with drag-and-drop and mobile bottom nav"
+
+1. Implement everything at once
+2. No commits during implementation
+3. Test at the end (if at all)
+4. One big commit with all changes ❌
+```
+
 ## Development Environment
 
 ### Docker Setup
@@ -161,6 +234,54 @@ Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) 
 - React components embedded in PHP templates
 - Pre-built JavaScript bundles (no build process in main repo)
 - Client-side rendering for interactive features
+
+### Preact Component Integration Pattern
+
+When integrating external Preact components (like chart displays) into a React SPA, use cache busting to ensure proper remounting on navigation:
+
+```typescript
+const preactScriptRef = useRef<HTMLScriptElement | null>(null)
+
+// Cleanup on unmount or ID change
+useEffect(() => {
+  return () => {
+    if (preactScriptRef.current?.parentNode) {
+      preactScriptRef.current.remove()
+      preactScriptRef.current = null
+    }
+    const appDiv = document.getElementById('app')
+    if (appDiv) {
+      appDiv.innerHTML = ''
+    }
+  }
+}, [id])
+
+// Load script with cache busting
+useEffect(() => {
+  if (!data) return
+
+  // Clear mount point
+  const appDiv = document.getElementById('app')
+  if (appDiv) {
+    appDiv.innerHTML = ''
+  }
+
+  // Load Preact bundle with timestamp for cache busting
+  setTimeout(() => {
+    preactScriptRef.current = document.createElement('script')
+    preactScriptRef.current.type = 'module'
+    preactScriptRef.current.src = `/js/preact-chart/assets/index.js?t=${Date.now()}`
+    document.body.appendChild(preactScriptRef.current)
+  }, 50)
+}, [data])
+```
+
+**Key Points:**
+- Use `useRef` to track script elements, not global variables
+- Clean up script elements and DOM on unmount
+- Use timestamp query parameters (`?t=${Date.now()}`) for cache busting
+- Browser ES module caching requires different URLs to re-execute code
+- Avoid custom events for remounting - they don't work with cached modules
 
 ## Deployment
 
