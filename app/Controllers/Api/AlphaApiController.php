@@ -413,6 +413,8 @@ class AlphaApiController
                 oc.emblem,
                 oc.category,
                 oc.join_method_type,
+                oc.created_at,
+                oc.api_created_at,
                 COALESCE(sr.diff_member, 0) AS diff_member,
                 COALESCE(sr.percent_increase, 0) AS percent_increase
             FROM
@@ -444,6 +446,12 @@ class AlphaApiController
 
             // カテゴリ名を追加
             $item['categoryName'] = $this->getCategoryName((int)$item['category']);
+
+            // 作成日と登録日を追加
+            $item['createdAt'] = !empty($item['created_at']) ? strtotime($item['created_at']) : null;
+            $item['registeredAt'] = $item['api_created_at'] ?? '';
+            unset($item['created_at']);
+            unset($item['api_created_at']);
         }
         unset($item);
 
