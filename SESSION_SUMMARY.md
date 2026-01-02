@@ -1,11 +1,128 @@
 # Claude Code セッションサマリー
 
-**作成日時**: 2026-01-02
+**作成日時**: 2026-01-02（最終更新: 2026-01-03）
 **対象プロジェクト**: オプチャグラフα (openchat-alpha + oc-review-dev)
 
 ---
 
-## 最新の完了タスク（2026-01-02）
+## 最新の完了タスク（2026-01-03）
+
+### ✅ スクロールバーとレイアウトの改善（完了）
+
+**対象プロジェクト**: `/home/user/openchat-alpha/`
+
+#### 実装内容
+
+スクロールバーのデザインとレイアウトを全面的に改善しました。
+
+1. **ダークモードスクロールバーのモダン化**
+   - 幅: 8px（細くスタイリッシュに）
+   - Firefox: `scrollbar-width: thin`、`scrollbar-color`でカスタマイズ
+   - Chrome/Safari: `::-webkit-scrollbar`でカスタムデザイン
+   - ダークモード時の色: `hsl(217.2 32.6% 25%)`（thumb）、`hsl(222.2 84% 4.9%)`（track）
+   - border-radius: 4px（角丸で現代的なルック）
+   - ホバー時の色変更で優れたUX
+
+2. **マイリストページの上部マージン調整**
+   - 初期: フォルダがツールバーに被る問題
+   - 調整1: `pt-24`/`pt-36`に変更
+   - 調整2: 「空きすぎ」とのフィードバックで`pt-20`/`pt-32`に再調整
+   - 最終的にスペーサー要素方式に変更
+
+3. **詳細ページのスクロールバー位置修正**
+   - 問題: PC幅でスクロールバーが画面右端に表示され、境界線の外にある
+   - 解決: overflowプロパティを外側divから内側divに移動
+   - スクロールバーが`md:border-r`の内側に配置されるように
+
+4. **マイリストのスクロールバー位置の根本的修正**
+   - 問題: スクロールバーがツールバーの下に被っていた
+   - 原因: スクロールコンテナが`top-0`から始まり、fixedのツールバーと同じ位置だった
+   - 解決:
+     - スペーサー要素を削除
+     - スクロールコンテナの開始位置を`top-20`（フォルダなし）/`top-32`（フォルダあり）に変更
+     - これによりスクロールバーがツールバーの下から始まるように
+
+#### コミット履歴
+
+```
+9a4d67d4 fix: マイリストのスクロールバー位置を修正
+bbbf907  fix: 詳細ページのスクロールバーを境界線内に配置
+c6b611e  fix: マイリストのツールバー下にスペーサー要素を追加
+74aab38  fix: マイリストの上部マージンを調整
+```
+
+#### 変更されたファイル
+
+1. **src/index.css**
+   - モダンなスクロールバースタイルを追加（109-158行）
+   - Firefox用: `scrollbar-width`, `scrollbar-color`
+   - Webkit用: `::-webkit-scrollbar-*`疑似要素
+   - ダークモード専用スタイル
+
+2. **src/pages/MyListPage.tsx**
+   - スクロールコンテナの位置を調整:
+     - Before: `<div className="absolute top-0 left-0 right-0 bottom-0 overflow-y-auto overflow-x-hidden">`
+     - After: `<div className={`absolute left-0 right-0 bottom-0 overflow-y-auto overflow-x-hidden ${folderNav.currentFolderId ? 'top-32' : 'top-20'}`}>`
+   - スペーサー要素を削除（不要に）
+
+3. **src/App.tsx**
+   - マイリストコンテナから`overflowY: 'auto'`, `overflowX: 'hidden'`を削除
+   - スクロール制御をMyListPage内部に移動
+   - 詳細ページオーバーレイのoverflow位置を調整:
+     - 外側div: overflowを削除
+     - 内側div: `overflow-y-auto overflow-x-hidden`を追加、スクロールバーが`md:border-r`内に配置
+
+#### 技術的なポイント
+
+**問題1**: スクロールバーがツールバーの下に被る
+- **原因**: スクロールコンテナが`absolute top-0`で親の上端から開始し、fixedツールバー（`fixed top-12`）と同じ垂直位置だった
+- **解決**: スクロールコンテナをツールバーの高さ分下から開始（`top-20`または`top-32`）
+
+**問題2**: スペーサー要素では解決しない
+- **原因**: スペーサーはスクロール内容の上部余白を作るだけで、スクロールバー自体の開始位置は変わらない
+- **解決**: スクロールコンテナ自体の`top`位置を調整
+
+**問題3**: 詳細ページのスクロールバーが境界線の外
+- **原因**: 外側divにoverflowがあり、内側divにborderがあるため、スクロールバーがborderの外側に
+- **解決**: overflowと border を同じ要素に適用
+
+```typescript
+// スクロールバー位置の修正パターン
+// Before
+<div className="absolute top-0 left-0 right-0 bottom-0 overflow-y-auto">
+  <div className="h-20" /> {/* スペーサー */}
+  <div>コンテンツ</div>
+</div>
+
+// After
+<div className={`absolute left-0 right-0 bottom-0 overflow-y-auto ${
+  folderNav.currentFolderId ? 'top-32' : 'top-20'
+}`}>
+  <div>コンテンツ</div> {/* スペーサー不要 */}
+</div>
+```
+
+#### スクロールバーのデザイン仕様
+
+**ライトモード**:
+- Thumb: `hsl(var(--muted))`（システムカラー）
+- Track: `transparent`
+- Thumb hover: `hsl(var(--muted-foreground) / 0.5)`
+
+**ダークモード**:
+- Thumb: `hsl(217.2 32.6% 25%)`（スレートグレー）
+- Track: `hsl(222.2 84% 4.9%)`（ダークブルーブラック、背景色と同じ）
+- Thumb hover: `hsl(217.2 32.6% 35%)`（明るいスレートグレー）
+- Border: `2px solid hsl(222.2 84% 4.9%)`（背景色、padding-boxでクリップ）
+
+**共通**:
+- Width/Height: 8px
+- Border-radius: 4px
+- `background-clip: padding-box`（borderの内側のみ背景色適用）
+
+---
+
+## 前回の完了タスク #1（2026-01-02）
 
 ### ✅ マイリスト機能のファイルエクスプローラー方式への改修（完了）
 
