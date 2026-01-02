@@ -283,6 +283,75 @@ useEffect(() => {
 - Browser ES module caching requires different URLs to re-execute code
 - Avoid custom events for remounting - they don't work with cached modules
 
+### Navigation Patterns
+
+The Alpha SPA uses a **DOM persistence pattern** where main pages (Search, MyList, Settings) remain mounted with `display: none/block` switching, while detail pages are true overlays.
+
+#### Detail Page → Navigation Button Pattern
+
+When navigating from a detail page using navigation buttons (Search, MyList, Settings), the app performs a **browser back** operation to preserve the previous page's state:
+
+```typescript
+// useNavigationHandler.ts
+const navigateToSearch = useCallback((e?: React.MouseEvent) => {
+  if (e) e.preventDefault()
+
+  const isDetailPage = location.pathname.startsWith('/openchat/')
+
+  if (isDetailPage) {
+    // Detail page → Search button → Browser back to previous page
+    if (window.history.state?.idx > 0) {
+      navigate(-1)
+    } else {
+      // Fallback for direct access: navigate to search with saved query
+      const savedQuery = sessionStorage.getItem('searchPageQuery')
+      if (savedQuery) {
+        navigate(`/?q=${encodeURIComponent(savedQuery)}`)
+      } else {
+        navigate('/')
+      }
+    }
+  } else if (location.pathname === '/') {
+    // Search page → Search button → Reset to empty search
+    sessionStorage.removeItem('searchPageQuery')
+    navigate('/', { replace: true })
+  } else {
+    // Other pages → Search button → Navigate to search with restored query
+    const savedQuery = sessionStorage.getItem('searchPageQuery')
+    if (savedQuery) {
+      navigate(`/?q=${encodeURIComponent(savedQuery)}`)
+    } else {
+      navigate('/')
+    }
+  }
+}, [location.pathname, navigate])
+```
+
+#### Search Query Preservation
+
+To preserve search state when navigating to detail pages:
+
+```typescript
+// SearchPage.tsx
+const handleCardClick = useCallback((chatId: number) => {
+  // Save search query to sessionStorage before navigating
+  if (urlKeyword) {
+    sessionStorage.setItem('searchPageQuery', urlKeyword)
+  }
+  navigate(`/openchat/${chatId}`)
+}, [navigate, urlKeyword])
+```
+
+**Key Benefits:**
+- Search results, scroll position, and filter settings are preserved
+- Browser back/forward buttons work as expected
+- URL query parameters remain intact (e.g., `?q=keyword`)
+- MyList and Settings state are similarly preserved
+
+**E2E Tests:**
+- `e2e/detail-page-navigation.spec.ts` - Verifies detail → search/mylist navigation
+- `e2e/page-rerender-on-reclick.spec.ts` - Verifies same-page navigation re-rendering
+
 ## Deployment
 
 ### Scripts Location
