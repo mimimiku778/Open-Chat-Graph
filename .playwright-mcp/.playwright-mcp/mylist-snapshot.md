@@ -1,0 +1,70 @@
+### Page state
+- Page URL: http://localhost:5173/js/alpha/mylist
+- Page Title: openchat-alpha
+- Page Snapshot:
+```yaml
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e8]:
+        - img [ref=e9]
+        - generic [ref=e11]: オプチャグラフα
+      - navigation [ref=e12]:
+        - link "検索" [ref=e13] [cursor=pointer]:
+          - /url: /js/alpha
+          - img [ref=e14]
+          - generic [ref=e17]: 検索
+        - link "マイリスト" [ref=e18] [cursor=pointer]:
+          - /url: /js/alpha/mylist
+          - img [ref=e19]
+          - generic [ref=e21]: マイリスト
+        - link "設定" [ref=e22] [cursor=pointer]:
+          - /url: /js/alpha/settings
+          - img [ref=e23]
+          - generic [ref=e26]: 設定
+      - paragraph [ref=e28]: 統計監視ツール v0.1
+  - generic [ref=e29]:
+    - banner [ref=e31]:
+      - generic [ref=e33]: マイリスト 1件
+    - main [ref=e34]:
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - button "複数選択" [ref=e39] [cursor=pointer]:
+            - img
+            - text: 複数選択
+          - button "フォルダ作成" [ref=e40] [cursor=pointer]:
+            - img
+            - text: フォルダ作成
+        - navigation "breadcrumb" [ref=e41]:
+          - list [ref=e42]:
+            - listitem [ref=e43]:
+              - link "マイリスト" [disabled] [ref=e44]
+        - generic [ref=e45]:
+          - generic [ref=e46]: "並び替え:"
+          - button "人数" [ref=e47] [cursor=pointer]:
+            - text: 人数
+            - img
+          - button "降順" [ref=e48] [cursor=pointer]:
+            - text: 降順
+            - img
+        - generic [ref=e50] [cursor=pointer]:
+          - generic [ref=e52]:
+            - generic [ref=e54]:
+              - heading "【全学年】就活 インターンシップ 選考対策｜ES 面接 GD SPI 大学生 27卒 28卒 29卒" [level=3] [ref=e55]
+              - paragraph [ref=e56]:
+                - generic [ref=e57]: 6,224人
+                - generic [ref=e58]: 全体公開
+                - generic [ref=e59]: "作成: 2023/10/30"
+            - button [ref=e60]:
+              - img
+          - generic [ref=e62]:
+            - generic [ref=e63]:
+              - generic [ref=e64]: 1時間
+              - generic [ref=e65]: "-12"
+            - generic [ref=e66]:
+              - generic [ref=e67]: 24時間
+              - generic [ref=e68]: "0"
+            - generic [ref=e69]:
+              - generic [ref=e70]: 1週間
+              - generic [ref=e71]: "-6"
+```
