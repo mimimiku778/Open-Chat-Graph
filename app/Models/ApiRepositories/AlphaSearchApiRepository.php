@@ -109,7 +109,66 @@ class AlphaSearchApiRepository
 
         // キーワード検索がない場合
         if (!$args->keyword) {
-            // ランキングデータと補完データをUNION ALLで結合
+            // ランキングテーブルの総件数を取得
+            $countSql = "
+                SELECT count(*) as count
+                FROM open_chat AS oc
+                JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
+                WHERE {$categoryWhere}
+            ";
+            $rankingCount = DB::fetchColumn($countSql, $params);
+
+            // 最後のページかどうかを判定
+            $isLastPageOrBeyond = ($offset + $limit >= $rankingCount);
+
+            if (!$isLastPageOrBeyond) {
+                // 最後のページでない場合は、ランキングデータのみを返す
+                $sql = "
+                    SELECT
+                        oc.id,
+                        oc.name,
+                        oc.description,
+                        oc.member,
+                        oc.img_url,
+                        oc.emblem,
+                        oc.join_method_type,
+                        oc.category,
+                        oc.created_at,
+                        oc.api_created_at,
+                        h.diff_member AS hourly_diff,
+                        h.percent_increase AS hourly_percent,
+                        d.diff_member AS daily_diff,
+                        d.percent_increase AS daily_percent,
+                        w.diff_member AS weekly_diff,
+                        w.percent_increase AS weekly_percent
+                    FROM
+                        open_chat AS oc
+                        JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
+                        LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                        LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                        LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                    WHERE
+                        {$categoryWhere}
+                    ORDER BY
+                        {$sortColumn} {$args->order}
+                    LIMIT {$limit} OFFSET {$offset}
+                ";
+
+                $result = DB::fetchAll($sql, $params);
+
+                if (!$result || $args->page !== 0) {
+                    return $result;
+                }
+
+                // 1ページ目の場合は件数を含める（全体の件数）
+                $allCountSql = "SELECT count(*) as count FROM open_chat AS oc WHERE {$categoryWhere}";
+                $allCountParams = $args->category ? ['category' => $args->category] : [];
+                $result[0]['totalCount'] = DB::fetchColumn($allCountSql, $allCountParams);
+
+                return $result;
+            }
+
+            // 最後のページまたはそれ以降の場合は、補完データも含める
             $sql = "
                 SELECT * FROM (
                     SELECT
@@ -484,9 +543,109 @@ class AlphaSearchApiRepository
         $descCondition = implode(' AND ', $descConditions);
         $allCondition = implode(' AND ', $allConditions);
 
-        $sortColumnAlias = str_replace('sr.', '', $sortColumn);
+        // ランキングテーブルの総件数を取得
+        $rankingCountSql = "
+            SELECT count(*) as count
+            FROM open_chat AS oc
+            JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
+            WHERE {$categoryWhere} AND {$allCondition}
+        ";
+        DB::connect();
+        $rankingCountStmt = DB::$pdo->prepare($rankingCountSql);
+        $rankingCountStmt->execute($searchParams);
+        $rankingCount = $rankingCountStmt->fetchColumn();
 
-        // 3つのパート: 1) ランキング+名前一致, 2) ランキング+説明一致, 3) 補完データ
+        // 最後のページかどうかを判定
+        $isLastPageOrBeyond = ($offset + $limit >= $rankingCount);
+
+        if (!$isLastPageOrBeyond) {
+            // 最後のページでない場合は、ランキングデータのみを返す（2つのパート: 名前一致と説明一致）
+            $sql = "
+                SELECT * FROM (
+                    SELECT
+                        oc.id,
+                        oc.name,
+                        oc.description,
+                        oc.member,
+                        oc.img_url,
+                        oc.emblem,
+                        oc.join_method_type,
+                        oc.category,
+                        oc.created_at,
+                        oc.api_created_at,
+                        h.diff_member AS hourly_diff,
+                        h.percent_increase AS hourly_percent,
+                        d.diff_member AS daily_diff,
+                        d.percent_increase AS daily_percent,
+                        w.diff_member AS weekly_diff,
+                        w.percent_increase AS weekly_percent,
+                        {$sortColumn} AS sort_value,
+                        1 as priority
+                    FROM
+                        open_chat AS oc
+                        JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
+                        LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                        LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                        LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                    WHERE
+                        {$categoryWhere}
+                        AND ({$nameCondition})
+
+                    UNION
+
+                    SELECT
+                        oc.id,
+                        oc.name,
+                        oc.description,
+                        oc.member,
+                        oc.img_url,
+                        oc.emblem,
+                        oc.join_method_type,
+                        oc.category,
+                        oc.created_at,
+                        oc.api_created_at,
+                        h.diff_member AS hourly_diff,
+                        h.percent_increase AS hourly_percent,
+                        d.diff_member AS daily_diff,
+                        d.percent_increase AS daily_percent,
+                        w.diff_member AS weekly_diff,
+                        w.percent_increase AS weekly_percent,
+                        {$sortColumn} AS sort_value,
+                        2 as priority
+                    FROM
+                        open_chat AS oc
+                        JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
+                        LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                        LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                        LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                    WHERE
+                        {$categoryWhere}
+                        AND NOT ({$nameCondition})
+                        AND ({$descCondition})
+                ) AS combined
+                ORDER BY
+                    priority ASC, sort_value {$args->order}
+                LIMIT {$limit} OFFSET {$offset}
+            ";
+
+            $stmt = DB::$pdo->prepare($sql);
+            $stmt->execute($searchParams);
+            $result = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            if (!$result || $args->page !== 0) {
+                return $result;
+            }
+
+            // 1ページ目の場合は件数を含める（全体の件数）
+            $allCountSql = "SELECT count(*) as count FROM open_chat AS oc WHERE {$categoryWhere} AND {$allCondition}";
+            $allCountStmt = DB::$pdo->prepare($allCountSql);
+            $allCountStmt->execute($searchParams);
+            $result[0]['totalCount'] = $allCountStmt->fetchColumn();
+
+            return $result;
+        }
+
+        // 最後のページまたはそれ以降の場合は、補完データも含める（3つのパート）
         $sql = "
             SELECT * FROM (
                 SELECT
@@ -506,7 +665,7 @@ class AlphaSearchApiRepository
                     d.percent_increase AS daily_percent,
                     w.diff_member AS weekly_diff,
                     w.percent_increase AS weekly_percent,
-                    {$sortColumnAlias} AS sort_value,
+                    {$sortColumn} AS sort_value,
                     1 as priority
                 FROM
                     open_chat AS oc
@@ -537,7 +696,7 @@ class AlphaSearchApiRepository
                     d.percent_increase AS daily_percent,
                     w.diff_member AS weekly_diff,
                     w.percent_increase AS weekly_percent,
-                    {$sortColumnAlias} AS sort_value,
+                    {$sortColumn} AS sort_value,
                     2 as priority
                 FROM
                     open_chat AS oc
