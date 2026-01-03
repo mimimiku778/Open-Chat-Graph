@@ -153,9 +153,11 @@ class AlphaQueryBuilder
         $params = $category ? ['category' => $category] : [];
 
         $isWeekly = ($tableName === 'statistics_ranking_week');
+        // NULL値を下に配置
+        $nullHandling = "CASE WHEN sr.diff_member IS NULL THEN 1 ELSE 0 END ASC";
         $orderBy = $isWeekly
-            ? "sr.diff_member {$order}, oc.member DESC"
-            : "is_in_ranking DESC, sr.diff_member {$order}, oc.member DESC";
+            ? "{$nullHandling}, sr.diff_member {$order}, oc.member DESC"
+            : "is_in_ranking DESC, {$nullHandling}, sr.diff_member {$order}, oc.member DESC";
 
         $sql = "
             SELECT {$this->getSelectClause()}
@@ -187,9 +189,11 @@ class AlphaQueryBuilder
         $keywordWhere = implode(' AND ', $keywordConditions);
 
         $isWeekly = ($tableName === 'statistics_ranking_week');
+        // NULL値を下に配置
+        $nullHandling = "CASE WHEN sr.diff_member IS NULL THEN 1 ELSE 0 END ASC";
         $orderBy = $isWeekly
-            ? "sr.diff_member {$order}, oc.member DESC"
-            : "is_in_ranking DESC, sr.diff_member {$order}, oc.member DESC";
+            ? "{$nullHandling}, sr.diff_member {$order}, oc.member DESC"
+            : "is_in_ranking DESC, {$nullHandling}, sr.diff_member {$order}, oc.member DESC";
 
         $sql = "
             SELECT {$this->getSelectClause()}
@@ -213,9 +217,11 @@ class AlphaQueryBuilder
         $params = $category ? ['category' => $category] : [];
 
         $isWeekly = ($tableName === 'statistics_ranking_week');
+        // ランキングデータのないレコード（NULL値）を下に配置
+        $nullHandling = "CASE WHEN is_in_ranking = 0 THEN 1 ELSE 0 END ASC";
         $orderBy = $isWeekly
-            ? "priority ASC, sort_value {$order}, member DESC"
-            : "is_in_ranking DESC, priority ASC, sort_value {$order}, member DESC";
+            ? "{$nullHandling}, priority ASC, sort_value {$order}, member DESC"
+            : "is_in_ranking DESC, {$nullHandling}, priority ASC, sort_value {$order}, member DESC";
 
         $sql = "
             SELECT * FROM (
@@ -261,9 +267,11 @@ class AlphaQueryBuilder
         $keywordWhere = implode(' AND ', $keywordConditions);
 
         $isWeekly = ($tableName === 'statistics_ranking_week');
+        // ランキングデータのないレコード（NULL値）を下に配置
+        $nullHandling = "CASE WHEN is_in_ranking = 0 THEN 1 ELSE 0 END ASC";
         $orderBy = $isWeekly
-            ? "priority ASC, sort_value {$order}, member DESC"
-            : "is_in_ranking DESC, priority ASC, sort_value {$order}, member DESC";
+            ? "{$nullHandling}, priority ASC, sort_value {$order}, member DESC"
+            : "is_in_ranking DESC, {$nullHandling}, priority ASC, sort_value {$order}, member DESC";
 
         $sql = "
             SELECT * FROM (
