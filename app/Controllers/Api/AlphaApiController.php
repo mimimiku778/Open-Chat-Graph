@@ -51,7 +51,7 @@ class AlphaApiController
         $this->args->page = Validator::num(Reception::input('page', 0), min: 0, e: $error);
         $this->args->limit = Validator::num(Reception::input('limit', 20), min: 1, max: 100, e: $error);
         $this->args->category = (int)Validator::str(
-            Reception::input('category', '0'),
+            (string)Reception::input('category', '0'),
             regex: AppConfig::OPEN_CHAT_CATEGORY[MimimalCmsConfig::$urlRoot],
             e: $error
         );
