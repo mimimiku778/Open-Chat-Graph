@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models\ApiRepositories\Alpha;
 
+use App\Config\AppConfig;
+
 /**
  * Alpha API用SQLクエリビルダー
  * SQL断片の共通化により、重複を削減
@@ -15,6 +17,9 @@ class AlphaQueryBuilder
      */
     private function getSelectClause(): string
     {
+        $hourlyCronUpdatedAtDatetime = (new \DateTime(file_get_contents(AppConfig::getStorageFilePath('hourlyCronUpdatedAtDatetime'))))
+            ->format('Y-m-d H:i:s');
+
         return "
             oc.id,
             oc.name,
@@ -26,23 +31,24 @@ class AlphaQueryBuilder
             oc.category,
             oc.created_at,
             oc.api_created_at,
+            @is_in_ranking := (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id AND time = '{$hourlyCronUpdatedAtDatetime}'),
             CASE
-                WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                WHEN @is_in_ranking = 0 THEN NULL
                 WHEN h.diff_member IS NULL THEN 0
                 ELSE h.diff_member
             END AS hourly_diff,
             CASE
-                WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                WHEN @is_in_ranking = 0 THEN NULL
                 WHEN h.percent_increase IS NULL THEN 0
                 ELSE h.percent_increase
             END AS hourly_percent,
             CASE
-                WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                WHEN @is_in_ranking = 0 THEN NULL
                 WHEN d.diff_member IS NULL AND TIMESTAMPDIFF(HOUR, oc.created_at, NOW()) >= 24 THEN 0
                 ELSE d.diff_member
             END AS daily_diff,
             CASE
-                WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                WHEN @is_in_ranking = 0 THEN NULL
                 WHEN d.percent_increase IS NULL AND TIMESTAMPDIFF(HOUR, oc.created_at, NOW()) >= 24 THEN 0
                 ELSE d.percent_increase
             END AS daily_percent,
@@ -54,10 +60,10 @@ class AlphaQueryBuilder
                 WHEN w.percent_increase IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                 ELSE w.percent_increase
             END AS weekly_percent,
-            (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
-             FROM ocgraph_ranking.member AS m
-             WHERE m.open_chat_id = oc.id
-             AND m.time = (SELECT MAX(time) FROM ocgraph_ranking.member)) AS is_in_ranking";
+            CASE
+                WHEN @is_in_ranking = 0 THEN 0
+                ELSE 1
+            END AS is_in_ranking";
     }
 
     /**
