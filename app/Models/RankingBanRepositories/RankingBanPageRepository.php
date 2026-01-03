@@ -137,6 +137,16 @@ class RankingBanPageRepository
             ranking_ban AS rb
         WHERE
             rb.open_chat_id = :open_chat_id
+            AND (
+                -- 直近1週間以内のレコードは全て表示
+                rb.datetime >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                OR
+                -- 1週間より前で現在も未掲載（end_datetime が NULL）は表示
+                rb.end_datetime IS NULL
+                OR
+                -- 1週間より前で非掲載期間が1時間超は表示
+                TIMESTAMPDIFF(HOUR, rb.datetime, rb.end_datetime) > 1
+            )
         ORDER BY
             IFNULL(GREATEST(rb.datetime, rb.end_datetime), rb.datetime) DESC
         LIMIT 100";
