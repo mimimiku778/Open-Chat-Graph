@@ -153,6 +153,9 @@ class AlphaApiController
                 'diff1w' => $item['weekly_diff'] !== null ? (int)$item['weekly_diff'] : null,
                 'percent1w' => $item['weekly_percent'] !== null ? (float)$item['weekly_percent'] : null,
 
+                // ランキング掲載判定
+                'isInRanking' => isset($item['is_in_ranking']) ? (bool)$item['is_in_ranking'] : false,
+
                 // 作成日と登録日
                 'createdAt' => !empty($item['created_at']) ? strtotime($item['created_at']) : null,
                 'registeredAt' => $item['api_created_at'] ?? '',
@@ -192,12 +195,14 @@ class AlphaApiController
                 d.diff_member AS daily_diff_member,
                 d.percent_increase AS daily_percent_increase,
                 w.diff_member AS weekly_diff_member,
-                w.percent_increase AS weekly_percent_increase
+                w.percent_increase AS weekly_percent_increase,
+                CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking
             FROM
                 open_chat AS oc
             LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
             LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
             LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+            LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
             WHERE
                 oc.id = :id
         ";
@@ -316,6 +321,7 @@ class AlphaApiController
             'percent24h' => $ocData['daily_percent_increase'] !== null ? (float)$ocData['daily_percent_increase'] : null,
             'diff1w' => $ocData['weekly_diff_member'] !== null ? (int)$ocData['weekly_diff_member'] : null,
             'percent1w' => $ocData['weekly_percent_increase'] !== null ? (float)$ocData['weekly_percent_increase'] : null,
+            'isInRanking' => isset($ocData['is_in_ranking']) ? (bool)$ocData['is_in_ranking'] : false,
             'createdAt' => $ocData['created_at'] ? strtotime($ocData['created_at']) : null,
             'registeredAt' => $ocData['api_created_at'] ?? '',
             'joinMethodType' => (int)($ocData['join_method_type'] ?? 0),
@@ -370,12 +376,14 @@ class AlphaApiController
                 d.diff_member AS daily_diff,
                 d.percent_increase AS daily_percent,
                 w.diff_member AS weekly_diff,
-                w.percent_increase AS weekly_percent
+                w.percent_increase AS weekly_percent,
+                CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking
             FROM
                 open_chat AS oc
                 LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                 LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                 LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
             WHERE
                 oc.id IN ({$placeholders})
             ORDER BY
@@ -419,6 +427,9 @@ class AlphaApiController
                 // 1週間の差分（nullの場合はN/A表示）
                 'diff1w' => $item['weekly_diff'] !== null ? (int)$item['weekly_diff'] : null,
                 'percent1w' => $item['weekly_percent'] !== null ? (float)$item['weekly_percent'] : null,
+
+                // ランキング掲載判定
+                'isInRanking' => isset($item['is_in_ranking']) ? (bool)$item['is_in_ranking'] : false,
 
                 // 作成日と登録日
                 'createdAt' => !empty($item['created_at']) ? strtotime($item['created_at']) : null,

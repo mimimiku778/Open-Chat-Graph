@@ -53,12 +53,14 @@ class AlphaSearchApiRepository
                     d.diff_member AS daily_diff,
                     d.percent_increase AS daily_percent,
                     w.diff_member AS weekly_diff,
-                    w.percent_increase AS weekly_percent
+                    w.percent_increase AS weekly_percent,
+                    CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking
                 FROM
                     open_chat AS oc
                     LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                     LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                     LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                    LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                 WHERE
                     {$categoryWhere}
                 ORDER BY
@@ -95,7 +97,7 @@ class AlphaSearchApiRepository
             'rate' => 'sr.percent_increase',
         ];
 
-        $sortColumn = $sort[$args->sort] ?? $sort['rate'];
+        $sortColumn = $sort[$args->sort] ?? $sort['increase'];
 
         $offset = $args->page * $args->limit;
         $limit = $args->limit;
@@ -140,13 +142,15 @@ class AlphaSearchApiRepository
                         d.diff_member AS daily_diff,
                         d.percent_increase AS daily_percent,
                         w.diff_member AS weekly_diff,
-                        w.percent_increase AS weekly_percent
+                        w.percent_increase AS weekly_percent,
+                        CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking
                     FROM
                         open_chat AS oc
                         JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
                         LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                         LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                         LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                        LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                     WHERE
                         {$categoryWhere}
                     ORDER BY
@@ -188,6 +192,7 @@ class AlphaSearchApiRepository
                         d.percent_increase AS daily_percent,
                         w.diff_member AS weekly_diff,
                         w.percent_increase AS weekly_percent,
+                        CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking,
                         {$sortColumn} AS sort_value,
                         1 AS priority
                     FROM
@@ -196,6 +201,7 @@ class AlphaSearchApiRepository
                         LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                         LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                         LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                        LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                     WHERE
                         {$categoryWhere}
 
@@ -218,6 +224,7 @@ class AlphaSearchApiRepository
                         d.percent_increase AS daily_percent,
                         w.diff_member AS weekly_diff,
                         w.percent_increase AS weekly_percent,
+                        CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking,
                         oc.member AS sort_value,
                         2 AS priority
                     FROM
@@ -225,6 +232,7 @@ class AlphaSearchApiRepository
                         LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                         LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                         LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                        LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                     WHERE
                         {$categoryWhere}
                         AND oc.id NOT IN (
@@ -315,7 +323,7 @@ class AlphaSearchApiRepository
     }
 
     /**
-     * キーワード検索（名前優先）- member/created_at用
+     * キーワード検索 - member/created_at用
      */
     private function findByKeywordWithPriority(OpenChatApiArgs $args, string $sortColumn, string $categoryWhere): array
     {
@@ -326,8 +334,7 @@ class AlphaSearchApiRepository
             return [];
         }
 
-        $nameConditions = [];
-        $descConditions = [];
+        $allConditions = [];
         $offset = $args->page * $args->limit;
         $limit = $args->limit;
         $searchParams = [];
@@ -337,78 +344,43 @@ class AlphaSearchApiRepository
         }
 
         foreach ($keywords as $i => $kw) {
-            $nameConditions[] = "oc.name LIKE :keyword{$i}";
-            $descConditions[] = "oc.description LIKE :keyword{$i}";
+            $allConditions[] = "(oc.name LIKE :keyword{$i} OR oc.description LIKE :keyword{$i})";
             $searchParams["keyword{$i}"] = "%{$kw}%";
         }
 
-        $nameCondition = implode(' AND ', $nameConditions);
-        $descCondition = implode(' AND ', $descConditions);
+        $allCondition = implode(' AND ', $allConditions);
 
-        $sortColumnAlias = str_replace('oc.', '', $sortColumn);
-
-        // 名前一致を優先するUNIONクエリ
+        // タイトルまたは説明文に一致するものを取得
         $sql = "
-            SELECT * FROM (
-                SELECT
-                    oc.id,
-                    oc.name,
-                    oc.description,
-                    oc.member,
-                    oc.img_url,
-                    oc.emblem,
-                    oc.join_method_type,
-                    oc.category,
-                    oc.created_at,
-                    oc.api_created_at,
-                    h.diff_member AS hourly_diff,
-                    h.percent_increase AS hourly_percent,
-                    d.diff_member AS daily_diff,
-                    d.percent_increase AS daily_percent,
-                    w.diff_member AS weekly_diff,
-                    w.percent_increase AS weekly_percent,
-                    1 as priority
-                FROM
-                    open_chat AS oc
-                    LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
-                    LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
-                    LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                WHERE
-                    {$categoryWhere}
-                    AND ({$nameCondition})
-
-                UNION
-
-                SELECT
-                    oc.id,
-                    oc.name,
-                    oc.description,
-                    oc.member,
-                    oc.img_url,
-                    oc.emblem,
-                    oc.join_method_type,
-                    oc.category,
-                    oc.created_at,
-                    oc.api_created_at,
-                    h.diff_member AS hourly_diff,
-                    h.percent_increase AS hourly_percent,
-                    d.diff_member AS daily_diff,
-                    d.percent_increase AS daily_percent,
-                    w.diff_member AS weekly_diff,
-                    w.percent_increase AS weekly_percent,
-                    2 as priority
-                FROM
-                    open_chat AS oc
-                    LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
-                    LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
-                    LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                WHERE
-                    {$categoryWhere}
-                    AND NOT ({$nameCondition})
-                    AND ({$descCondition})
-            ) AS combined
+            SELECT
+                oc.id,
+                oc.name,
+                oc.description,
+                oc.member,
+                oc.img_url,
+                oc.emblem,
+                oc.join_method_type,
+                oc.category,
+                oc.created_at,
+                oc.api_created_at,
+                h.diff_member AS hourly_diff,
+                h.percent_increase AS hourly_percent,
+                d.diff_member AS daily_diff,
+                d.percent_increase AS daily_percent,
+                w.diff_member AS weekly_diff,
+                w.percent_increase AS weekly_percent,
+                CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking
+            FROM
+                open_chat AS oc
+                LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
+            WHERE
+                {$categoryWhere}
+                AND {$allCondition}
             ORDER BY
-                priority ASC, {$sortColumnAlias} {$args->order}
+                {$sortColumn} {$args->order}
             LIMIT {$limit} OFFSET {$offset}
         ";
 
@@ -422,18 +394,15 @@ class AlphaSearchApiRepository
         }
 
         // 1ページ目の場合は件数を含める
-        $allConditions = [];
         $countParams = [];
         if ($args->category) {
             $countParams['category'] = $args->category;
         }
 
         foreach ($keywords as $i => $kw) {
-            $allConditions[] = "(oc.name LIKE :keyword{$i} OR oc.description LIKE :keyword{$i})";
             $countParams["keyword{$i}"] = "%{$kw}%";
         }
 
-        $allCondition = implode(' AND ', $allConditions);
         $countSql = "SELECT count(*) as count FROM open_chat AS oc WHERE {$categoryWhere} AND {$allCondition}";
 
         $countStmt = DB::$pdo->prepare($countSql);
@@ -510,7 +479,7 @@ class AlphaSearchApiRepository
     }
 
     /**
-     * キーワード検索（名前優先）- stats ranking用
+     * キーワード検索 - stats ranking用
      */
     private function findByStatsRankingWithKeyword(OpenChatApiArgs $args, string $tableName, string $sortColumn, string $categoryWhere): array
     {
@@ -521,8 +490,6 @@ class AlphaSearchApiRepository
             return [];
         }
 
-        $nameConditions = [];
-        $descConditions = [];
         $allConditions = [];
         $offset = $args->page * $args->limit;
         $limit = $args->limit;
@@ -533,14 +500,10 @@ class AlphaSearchApiRepository
         }
 
         foreach ($keywords as $i => $kw) {
-            $nameConditions[] = "oc.name LIKE :keyword{$i}";
-            $descConditions[] = "oc.description LIKE :keyword{$i}";
             $allConditions[] = "(oc.name LIKE :keyword{$i} OR oc.description LIKE :keyword{$i})";
             $searchParams["keyword{$i}"] = "%{$kw}%";
         }
 
-        $nameCondition = implode(' AND ', $nameConditions);
-        $descCondition = implode(' AND ', $descConditions);
         $allCondition = implode(' AND ', $allConditions);
 
         // ランキングテーブルの総件数を取得
@@ -559,72 +522,38 @@ class AlphaSearchApiRepository
         $isLastPageOrBeyond = ($offset + $limit >= $rankingCount);
 
         if (!$isLastPageOrBeyond) {
-            // 最後のページでない場合は、ランキングデータのみを返す（2つのパート: 名前一致と説明一致）
+            // 最後のページでない場合は、ランキングデータのみを返す
             $sql = "
-                SELECT * FROM (
-                    SELECT
-                        oc.id,
-                        oc.name,
-                        oc.description,
-                        oc.member,
-                        oc.img_url,
-                        oc.emblem,
-                        oc.join_method_type,
-                        oc.category,
-                        oc.created_at,
-                        oc.api_created_at,
-                        h.diff_member AS hourly_diff,
-                        h.percent_increase AS hourly_percent,
-                        d.diff_member AS daily_diff,
-                        d.percent_increase AS daily_percent,
-                        w.diff_member AS weekly_diff,
-                        w.percent_increase AS weekly_percent,
-                        {$sortColumn} AS sort_value,
-                        1 as priority
-                    FROM
-                        open_chat AS oc
-                        JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
-                        LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
-                        LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
-                        LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                    WHERE
-                        {$categoryWhere}
-                        AND ({$nameCondition})
-
-                    UNION
-
-                    SELECT
-                        oc.id,
-                        oc.name,
-                        oc.description,
-                        oc.member,
-                        oc.img_url,
-                        oc.emblem,
-                        oc.join_method_type,
-                        oc.category,
-                        oc.created_at,
-                        oc.api_created_at,
-                        h.diff_member AS hourly_diff,
-                        h.percent_increase AS hourly_percent,
-                        d.diff_member AS daily_diff,
-                        d.percent_increase AS daily_percent,
-                        w.diff_member AS weekly_diff,
-                        w.percent_increase AS weekly_percent,
-                        {$sortColumn} AS sort_value,
-                        2 as priority
-                    FROM
-                        open_chat AS oc
-                        JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
-                        LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
-                        LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
-                        LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                    WHERE
-                        {$categoryWhere}
-                        AND NOT ({$nameCondition})
-                        AND ({$descCondition})
-                ) AS combined
+                SELECT
+                    oc.id,
+                    oc.name,
+                    oc.description,
+                    oc.member,
+                    oc.img_url,
+                    oc.emblem,
+                    oc.join_method_type,
+                    oc.category,
+                    oc.created_at,
+                    oc.api_created_at,
+                    h.diff_member AS hourly_diff,
+                    h.percent_increase AS hourly_percent,
+                    d.diff_member AS daily_diff,
+                    d.percent_increase AS daily_percent,
+                    w.diff_member AS weekly_diff,
+                    w.percent_increase AS weekly_percent,
+                    CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking
+                FROM
+                    open_chat AS oc
+                    JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
+                    LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                    LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                    LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                    LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
+                WHERE
+                    {$categoryWhere}
+                    AND {$allCondition}
                 ORDER BY
-                    priority ASC, sort_value {$args->order}
+                    {$sortColumn} {$args->order}
                 LIMIT {$limit} OFFSET {$offset}
             ";
 
@@ -645,7 +574,7 @@ class AlphaSearchApiRepository
             return $result;
         }
 
-        // 最後のページまたはそれ以降の場合は、補完データも含める（3つのパート）
+        // 最後のページまたはそれ以降の場合は、補完データも含める
         $sql = "
             SELECT * FROM (
                 SELECT
@@ -665,6 +594,7 @@ class AlphaSearchApiRepository
                     d.percent_increase AS daily_percent,
                     w.diff_member AS weekly_diff,
                     w.percent_increase AS weekly_percent,
+                    CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking,
                     {$sortColumn} AS sort_value,
                     1 as priority
                 FROM
@@ -673,41 +603,10 @@ class AlphaSearchApiRepository
                     LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                     LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                     LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                    LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                 WHERE
                     {$categoryWhere}
-                    AND ({$nameCondition})
-
-                UNION
-
-                SELECT
-                    oc.id,
-                    oc.name,
-                    oc.description,
-                    oc.member,
-                    oc.img_url,
-                    oc.emblem,
-                    oc.join_method_type,
-                    oc.category,
-                    oc.created_at,
-                    oc.api_created_at,
-                    h.diff_member AS hourly_diff,
-                    h.percent_increase AS hourly_percent,
-                    d.diff_member AS daily_diff,
-                    d.percent_increase AS daily_percent,
-                    w.diff_member AS weekly_diff,
-                    w.percent_increase AS weekly_percent,
-                    {$sortColumn} AS sort_value,
-                    2 as priority
-                FROM
-                    open_chat AS oc
-                    JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
-                    LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
-                    LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
-                    LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                WHERE
-                    {$categoryWhere}
-                    AND NOT ({$nameCondition})
-                    AND ({$descCondition})
+                    AND {$allCondition}
 
                 UNION ALL
 
@@ -728,16 +627,18 @@ class AlphaSearchApiRepository
                     d.percent_increase AS daily_percent,
                     w.diff_member AS weekly_diff,
                     w.percent_increase AS weekly_percent,
+                    CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking,
                     oc.member AS sort_value,
-                    3 as priority
+                    2 as priority
                 FROM
                     open_chat AS oc
                     LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                     LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                     LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                    LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                 WHERE
                     {$categoryWhere}
-                    AND ({$allCondition})
+                    AND {$allCondition}
                     AND oc.id NOT IN (
                         SELECT open_chat_id FROM {$tableName} WHERE 1
                     )
