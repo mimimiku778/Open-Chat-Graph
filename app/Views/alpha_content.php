@@ -7,11 +7,8 @@
     <?php echo $_meta ?>
     <link rel="icon" type="image/png" href="<?php echo fileUrl(\App\Config\AppConfig::SITE_ICON_FILE_PATH, urlRoot: '') ?>">
 
-    <?php
-    // TODO: Reactアプリのビルド後、以下のコメントを外す
-    // <link rel="stylesheet" href="<?php echo fileUrl('js/alpha/index.css', urlRoot: '') ">
-    // <script defer="defer" src="<?php echo fileUrl('js/alpha/index.js', urlRoot: '') "></script>
-    ?>
+    <link rel="stylesheet" href="<?php echo fileUrl('js/alpha/index.css', urlRoot: '') ?>">
+    <script defer="defer" src="<?php echo fileUrl('js/alpha/index.js', urlRoot: '') ?>"></script>
 
     <style>
         body {
