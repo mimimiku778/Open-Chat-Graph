@@ -189,25 +189,6 @@ class RankingBanTableUpdater
             return;
         }
 
-        // 前回の時間帯のランキング数を取得（障害検出用）
-        $previousHourTime = $this->rankingPositionHourRepository->getLastHour(1);
-        $currentHourTime = $this->rankingPositionHourRepository->getLastHour(0);
-
-        if ($previousHourTime && $currentHourTime) {
-            $previousHourTotalCount = $this->rankingPositionHourRepo->getTotalCount(new \DateTime($previousHourTime), false);
-            $currentHourTotalCount = $this->rankingPositionHourRepo->getTotalCount(new \DateTime($currentHourTime), false);
-
-            // 前回と今回のランキング総数を計算
-            $previousTotal = array_sum(array_column($previousHourTotalCount, 'total_count_ranking'));
-            $currentTotal = array_sum(array_column($currentHourTotalCount, 'total_count_ranking'));
-
-            // 今回のランキング数が前回の半分以下なら障害と判断してスキップ
-            if ($currentTotal > 0 && $previousTotal > 0 && $currentTotal < ($previousTotal / 2)) {
-                addCronLog("RankingBanTableUpdater: Current hour ranking count ({$currentTotal}) is less than half of previous hour ({$previousTotal}). Skipping processing to prevent mass false bans.");
-                return;
-            }
-        }
-
         $openChatArray = DB::fetchAll(
             "SELECT
                 oc.id,
