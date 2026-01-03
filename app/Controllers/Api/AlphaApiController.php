@@ -187,12 +187,17 @@ class AlphaApiController
                 oc.created_at,
                 oc.join_method_type,
                 oc.url,
-                sr.diff_member AS hourly_diff_member,
-                sr.percent_increase AS hourly_percent_increase
+                h.diff_member AS hourly_diff_member,
+                h.percent_increase AS hourly_percent_increase,
+                d.diff_member AS daily_diff_member,
+                d.percent_increase AS daily_percent_increase,
+                w.diff_member AS weekly_diff_member,
+                w.percent_increase AS weekly_percent_increase
             FROM
                 open_chat AS oc
-            LEFT JOIN
-                statistics_ranking_hour AS sr ON oc.id = sr.open_chat_id
+            LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+            LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+            LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
             WHERE
                 oc.id = :id
         ";
@@ -229,25 +234,6 @@ class AlphaApiController
         foreach ($rows as $row) {
             $dates[] = $row['date'];
             $members[] = (int)$row['member'];
-        }
-
-        // 24時間と1週間の差分を計算
-        $maxIndex = count($members) - 1;
-        $diff24h = null;
-        $percent24h = null;
-        $diff1w = null;
-        $percent1w = null;
-
-        if ($maxIndex >= 1 && $members[$maxIndex - 1] > 0) {
-            $diff24h = $members[$maxIndex] - $members[$maxIndex - 1];
-            $percent24h = ($diff24h / $members[$maxIndex - 1]) * 100;
-            $percent24h = floor($percent24h * 1000000) / 1000000;
-        }
-
-        if ($maxIndex >= 7 && $members[$maxIndex - 7] > 0) {
-            $diff1w = $members[$maxIndex] - $members[$maxIndex - 7];
-            $percent1w = ($diff1w / $members[$maxIndex - 7]) * 100;
-            $percent1w = floor($percent1w * 1000000) / 1000000;
         }
 
         // ランキングデータ取得（barパラメータがrankingまたはrisingの場合）
@@ -326,10 +312,10 @@ class AlphaApiController
             'emblem' => (int)($ocData['emblem'] ?? 0),
             'hourlyDiff' => $ocData['hourly_diff_member'] !== null ? (int)$ocData['hourly_diff_member'] : null,
             'hourlyPercentage' => $ocData['hourly_percent_increase'] !== null ? (float)$ocData['hourly_percent_increase'] : null,
-            'diff24h' => $diff24h,
-            'percent24h' => $percent24h,
-            'diff1w' => $diff1w,
-            'percent1w' => $percent1w,
+            'diff24h' => $ocData['daily_diff_member'] !== null ? (int)$ocData['daily_diff_member'] : null,
+            'percent24h' => $ocData['daily_percent_increase'] !== null ? (float)$ocData['daily_percent_increase'] : null,
+            'diff1w' => $ocData['weekly_diff_member'] !== null ? (int)$ocData['weekly_diff_member'] : null,
+            'percent1w' => $ocData['weekly_percent_increase'] !== null ? (float)$ocData['weekly_percent_increase'] : null,
             'createdAt' => $ocData['created_at'] ? strtotime($ocData['created_at']) : null,
             'registeredAt' => $ocData['api_created_at'] ?? '',
             'joinMethodType' => (int)($ocData['join_method_type'] ?? 0),
