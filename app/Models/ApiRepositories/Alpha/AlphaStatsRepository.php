@@ -99,28 +99,11 @@ class AlphaStatsRepository
             return [];
         }
 
-        // IN句用のプレースホルダー作成
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-
-        $sql = "
-            SELECT
-                {$this->queryBuilder->buildAllColumns()}
-            FROM
-                open_chat AS oc
-                {$this->queryBuilder->buildStatsJoins()}
-            WHERE
-                oc.id IN ({$placeholders})
-            ORDER BY
-                FIELD(oc.id, {$placeholders})
-        ";
-
         DB::connect();
-        $stmt = DB::$pdo->prepare($sql);
-        // パラメータを2回バインド（IN句とORDER BY FIELD用）
-        $params = array_merge($ids, $ids);
-        $stmt->execute($params);
+        $query = $this->queryBuilder->buildBatchQuery($ids);
+        $result = DB::fetchAll($query['sql'], $query['params']);
 
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return $result;
     }
 
     /**
