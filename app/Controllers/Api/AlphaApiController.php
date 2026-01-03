@@ -187,12 +187,12 @@ class AlphaApiController
                 oc.created_at,
                 oc.join_method_type,
                 oc.url,
-                COALESCE(sr.diff_member, 0) AS hourly_diff_member,
-                COALESCE(sr.percent_increase, 0) AS hourly_percent_increase
+                sr.diff_member AS hourly_diff_member,
+                sr.percent_increase AS hourly_percent_increase
             FROM
                 open_chat AS oc
             LEFT JOIN
-                statistics_ranking_hour24 AS sr ON oc.id = sr.open_chat_id
+                statistics_ranking_hour AS sr ON oc.id = sr.open_chat_id
             WHERE
                 oc.id = :id
         ";
