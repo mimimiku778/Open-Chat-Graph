@@ -5,7 +5,188 @@
 
 ---
 
-## 最新の完了タスク（2026-01-03 - セッション3）
+## 最新の完了タスク（2026-01-03 - セッション4）
+
+### ✅ カードタイトルとバッジの表示改善（完了）
+
+**対象プロジェクト**: `/home/user/openchat-alpha/`
+
+#### 実装内容
+
+OpenChatCardコンポーネントのタイトルとバッジの表示を全面的に改善し、レイアウトとタイポグラフィを最適化しました。
+
+1. **バッジとタイトルの改行問題修正**
+   - 問題: `flex-wrap`により、タイトルが長いとバッジの後で改行されていた
+   - 解決: `flex-wrap`を削除し、タイトルに`flex-1 min-w-0`を追加
+   - 結果: バッジとタイトルが常に同じ行に配置され、タイトル自体が複数行に折り返す
+
+2. **バッジの縦位置を1行目に固定**
+   - 問題: `items-center`により、タイトルが複数行のときバッジが中央配置されていた
+   - 解決: `items-center` → `items-start`に変更
+   - 結果: タイトルが複数行でもバッジは1行目の位置に固定
+
+3. **バッジとテキストの垂直位置調整**
+   - 問題: バッジが文字に対して上付きになっていた
+   - 解決: バッジに`mt-1` (4px)を追加してテキストの1行目と中央を揃える
+   - 結果: バッジとテキストが視覚的に美しく整列
+
+4. **バッジをインライン要素として再構築**（根本的解決）
+   - 問題: 改行した文字がバッジの下から始まっていた
+   - 原因: flexコンテナで別々の要素として扱われていた
+   - 解決:
+     - flexコンテナを削除
+     - バッジをCardTitle内に配置
+     - `inline-block`と`align-middle`でテキストフローの一部として扱う
+   - 結果: 改行時に左端から文字が始まり、自然なテキストフローに
+
+5. **バッジの微調整**
+   - 解決: `-mt-0.5` (2px上)を追加して最適な位置に調整
+   - 結果: 完璧な垂直位置を実現
+
+#### コミット履歴
+
+**openchat-alpha プロジェクト**:
+```
+f06a961 fix: カードタイトルとバッジの改行を修正
+dac306e fix: バッジの縦位置を上揃えに修正
+c516576 fix: バッジとテキストの垂直位置を調整
+958a25f refactor: バッジをインライン要素として再構築
+c2ca866 fix: バッジの垂直位置を微調整
+```
+
+**oc-review-dev プロジェクト**:
+```
+99e33303 chore: フロントエンドビルド成果物を更新（タイトル改行修正反映）
+fbfcd381 chore: フロントエンドビルド成果物を更新（バッジ位置修正反映）
+b9c82924 chore: フロントエンドビルド成果物を更新（バッジ位置調整反映）
+631f897e chore: フロントエンドビルド成果物を更新（バッジインライン化反映）
+96b87fd2 chore: フロントエンドビルド成果物を更新（バッジ位置微調整反映）
+```
+
+#### 変更されたファイル
+
+**src/components/OpenChat/OpenChatCard.tsx**
+
+最終的な構造:
+```tsx
+// Before（問題のある構造）
+<div className="flex-1 min-w-0">
+  <div className="flex items-center gap-1 md:gap-2 mb-1 flex-wrap">
+    {chat.emblem === 2 && (
+      <img src="/icons/official.svg" alt="公式認証" className="w-5 h-5 flex-shrink-0" />
+    )}
+    {chat.emblem === 1 && (
+      <img src="/icons/special.svg" alt="スペシャル" className="w-[21px] h-5 flex-shrink-0" />
+    )}
+    <CardTitle className="text-base md:text-lg break-words max-w-full">{chat.name}</CardTitle>
+  </div>
+  {/* ... */}
+</div>
+
+// After（最終的な構造）
+<div className="flex-1 min-w-0">
+  <CardTitle className="text-base md:text-lg break-words mb-1">
+    {chat.emblem === 2 && (
+      <img
+        src="/icons/official.svg"
+        alt="公式認証"
+        className="w-5 h-5 inline-block align-middle mr-1 md:mr-2 -mt-0.5"
+      />
+    )}
+    {chat.emblem === 1 && (
+      <img
+        src="/icons/special.svg"
+        alt="スペシャル"
+        className="w-[21px] h-5 inline-block align-middle mr-1 md:mr-2 -mt-0.5"
+      />
+    )}
+    {chat.name}
+  </CardTitle>
+  {/* ... */}
+</div>
+```
+
+#### 技術的なポイント
+
+**段階的な問題解決のプロセス**:
+
+1. **第1段階**: flex-wrapの削除
+   - `flex-wrap` → 削除
+   - CardTitleに`flex-1 min-w-0`を追加
+   - 結果: バッジとタイトルが同じ行に、ただし複数行時にバッジが中央配置
+
+2. **第2段階**: 縦位置の調整
+   - `items-center` → `items-start`
+   - 結果: バッジが1行目に固定、ただし上すぎる
+
+3. **第3段階**: マージン調整
+   - バッジに`mt-1` (4px)を追加
+   - 結果: バッジとテキストが揃う、ただし改行時にバッジの下から文字が続く
+
+4. **第4段階**: インライン要素化（根本的解決）
+   - flexコンテナを削除
+   - バッジを`inline-block`でテキストフロー内に配置
+   - `align-middle`でベースライン調整
+   - 結果: 改行時に左端から文字が始まる、ただし位置が少しズレる
+
+5. **最終段階**: 微調整
+   - `-mt-0.5` (2px上)を追加
+   - 結果: 完璧な位置に
+
+**重要なCSSプロパティ**:
+
+```css
+/* バッジのクラス */
+inline-block    /* テキストフローの一部として扱う */
+align-middle    /* テキストベースラインと中央揃え */
+mr-1 md:mr-2    /* バッジとテキストの間隔 */
+-mt-0.5         /* 2px上に微調整 */
+
+/* タイトルのクラス */
+text-base md:text-lg  /* レスポンシブなフォントサイズ */
+break-words           /* 長い単語を折り返し */
+mb-1                  /* 下マージン */
+```
+
+**レイアウトパターン**:
+
+```
+1行の場合:
+[バッジ] タイトルテキスト
+
+複数行の場合:
+[バッジ] タイトルテキストが長くて折り返し
+       て2行目以降も左端から続く
+```
+
+#### ビルド成果物
+
+本番ビルドが完了し、以下のファイルが更新されました：
+```
+../oc-review-dev/public/js/alpha/index.html    0.46 kB │ gzip:   0.28 kB
+../oc-review-dev/public/js/alpha/index.css    32.72 kB │ gzip:   6.64 kB
+../oc-review-dev/public/js/alpha/index.js    428.28 kB │ gzip: 138.58 kB
+✓ built in 3.31s
+```
+
+#### 改善のまとめ
+
+1. **自然なテキストフロー** ✨
+   - バッジとテキストが同じインラインフロー内に配置
+   - 改行時に左端から文字が続く自然な表示
+
+2. **完璧な垂直位置** 💅
+   - バッジとテキストの1行目が視覚的に美しく整列
+   - レスポンシブ対応（モバイル・デスクトップ）
+
+3. **シンプルな構造** 🎯
+   - 不要なflexコンテナを削除
+   - CSSのみで完結する実装
+   - 保守性の向上
+
+---
+
+## 前回の完了タスク（2026-01-03 - セッション3）
 
 ### ✅ マイリスト選択モードの大幅改善（完了）
 
@@ -425,7 +606,7 @@ c6b611e  fix: マイリストのツールバー下にスペーサー要素を追
 #### マイリスト関連コンポーネント
 - `src/components/MyList/FolderList.tsx` - ファイルエクスプローラー方式のリスト表示
 - `src/components/MyList/BulkActionBar.tsx` - 一括操作バー（PC版、モバイル版分離）
-- `src/components/OpenChat/OpenChatCard.tsx` - カードコンポーネント（範囲選択、ドラッグ検出実装）
+- `src/components/OpenChat/OpenChatCard.tsx` - カードコンポーネント（範囲選択、ドラッグ検出、バッジインライン化実装）
 
 #### カスタムフック
 - `src/hooks/useMyListSelection.ts` - 選択モード管理（範囲選択機能追加済み）
@@ -434,6 +615,12 @@ c6b611e  fix: マイリストのツールバー下にスペーサー要素を追
 ---
 
 ## 注意事項
+
+### OpenChatCardコンポーネントについて
+
+- **バッジ表示**: `inline-block`でテキストフローの一部として配置
+- **垂直位置**: `align-middle -mt-0.5`で最適な位置に調整
+- **改行動作**: タイトルが複数行でも左端から文字が続く自然な表示
 
 ### マイリスト選択機能について
 
