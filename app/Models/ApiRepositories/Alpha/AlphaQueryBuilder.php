@@ -84,12 +84,19 @@ class AlphaQueryBuilder
         $categoryWhere = $category ? "oc.category = :category" : "1";
         $params = $category ? ['category' => $category] : [];
 
+        // NULL値を下に配置（作成日ソート時はNULLグループ内を人数順に）
+        if ($sort === 'created_at') {
+            $orderBy = "CASE WHEN oc.api_created_at IS NULL THEN 1 ELSE 0 END ASC, oc.api_created_at {$order}, oc.member {$order}";
+        } else {
+            $orderBy = "CASE WHEN {$sortColumn} IS NULL THEN 1 ELSE 0 END ASC, {$sortColumn} {$order}";
+        }
+
         $sql = "
             SELECT {$this->getSelectClause()}
             FROM open_chat AS oc
             {$this->getStatsJoins()}
             WHERE {$categoryWhere}
-            ORDER BY {$sortColumn} {$order}
+            ORDER BY {$orderBy}
             LIMIT {$limit} OFFSET {$offset}
         ";
 
@@ -118,12 +125,19 @@ class AlphaQueryBuilder
         }
         $keywordWhere = implode(' AND ', $keywordConditions);
 
+        // NULL値を下に配置（作成日ソート時はNULLグループ内を人数順に）
+        if ($sort === 'created_at') {
+            $orderBy = "CASE WHEN oc.api_created_at IS NULL THEN 1 ELSE 0 END ASC, oc.api_created_at {$order}, oc.member {$order}";
+        } else {
+            $orderBy = "CASE WHEN {$sortColumn} IS NULL THEN 1 ELSE 0 END ASC, {$sortColumn} {$order}";
+        }
+
         $sql = "
             SELECT {$this->getSelectClause()}
             FROM open_chat AS oc
             {$this->getStatsJoins()}
             WHERE {$categoryWhere} AND {$keywordWhere}
-            ORDER BY {$sortColumn} {$order}
+            ORDER BY {$orderBy}
             LIMIT {$limit} OFFSET {$offset}
         ";
 
