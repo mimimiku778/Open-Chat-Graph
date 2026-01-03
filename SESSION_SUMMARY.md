@@ -5,7 +5,194 @@
 
 ---
 
-## 最新の完了タスク（2026-01-04 - セッション6）
+## 最新の完了タスク（2026-01-04 - セッション7）
+
+### ✅ AlphaApiControllerのSQLパフォーマンス最適化（完了）
+
+**対象プロジェクト**: `/home/user/oc-review-dev/`
+
+#### 実装内容
+
+AlphaApiControllerのSQLクエリを最適化し、2回のクエリから1回に削減してパフォーマンスを大幅に改善しました。
+
+1. **AlphaSearchApiRepositoryの新規作成**
+   - 1回のクエリで全データ（hourly/daily/weekly stats）を取得
+   - `findByMemberOrCreatedAt()` - メンバー数・作成日でソート
+   - `findByStatsRanking()` - 1時間・24時間・1週間の増減でソート
+   - キーワード検索時は名前優先のUNIONクエリ（既存パターンを踏襲）
+
+2. **AlphaApiControllerのリファクタリング**
+   - 従来: 基本データ取得 + 追加stats取得（`fetchAdditionalStats()`）の**2回のクエリ**
+   - 新実装: 1回のクエリで全データをLEFT JOINで取得
+   - `search()`メソッドを新リポジトリ使用に変更
+   - `batchStats()`メソッドも同様に最適化
+   - 不要な`fetchAdditionalStats()`メソッドを削除
+
+3. **MySQL互換性の修正**
+   - 問題: `LIMIT :limit OFFSET :offset`構文がMySQL prepared statementで動作しない
+   - 原因: MySQL/MariaDBの一部バージョンではLIMIT句のプレースホルダーが正しく処理されない
+   - 解決: バリデーション済みの整数値を直接埋め込み（`LIMIT {$limit} OFFSET {$offset}`）
+   - セキュリティ: `$args->limit`と`$args->page`は事前にバリデーション済みなので安全
+
+4. **データ整合性の確保**
+   - レスポンス形式は完全に同一
+   - LEFT JOINによりnull値を正しく処理
+   - フロントエンド側の変更は不要
+
+#### コミット履歴
+
+**oc-review-dev プロジェクト**:
+```
+0e66a7ad refactor: AlphaApiControllerをAlphaSearchApiRepositoryに移行してSQLパフォーマンスを最適化
+```
+
+#### 変更されたファイル
+
+1. **app/Models/ApiRepositories/AlphaSearchApiRepository.php** (新規)
+   - `findByMemberOrCreatedAt()`: メンバー数・作成日ソート用
+     - 全stats（hourly/daily/weekly）をLEFT JOINで取得
+     - カテゴリフィルタリング対応
+     - キーワード検索時は`findByKeywordWithPriority()`を呼び出し
+   - `findByStatsRanking()`: ランキングソート用
+     - 指定されたランキングテーブル（`statistics_ranking_hour`, `statistics_ranking_hour24`, `statistics_ranking_week`）とJOIN
+     - 他のstatsもLEFT JOINで取得
+     - キーワード検索時は`findByStatsRankingWithKeyword()`を呼び出し
+   - `findByKeywordWithPriority()`: キーワード検索（名前優先）
+     - 名前一致を優先するUNIONクエリ
+     - priority=1（名前一致）、priority=2（説明一致）
+   - `findByStatsRankingWithKeyword()`: ランキング用キーワード検索
+     - 同様にUNION + priority方式
+
+2. **app/Controllers/Api/AlphaApiController.php**
+   - インポート変更: `OpenChatStatsRankingApiRepository` → `AlphaSearchApiRepository`
+   - `search()`メソッド:
+     - Before: `$repo->findHourlyStatsRanking()` → `$additionalData = $this->fetchAdditionalStats($ids)` → `formatResponse($baseData, $additionalData)`
+     - After: `$data = $repo->findByStatsRanking($args, 'statistics_ranking_hour')` → `formatResponse($data)`
+     - クエリ数: 2回 → 1回
+   - `formatResponse()`メソッド:
+     - Before: DTOオブジェクト配列と追加データ配列を結合
+     - After: 連想配列のみを処理（すでに全データが含まれている）
+   - `batchStats()`メソッド:
+     - 1回のクエリで全stats取得（LEFT JOIN方式）
+     - `fetchAdditionalStats()`呼び出しを削除
+   - `fetchAdditionalStats()`メソッド: 削除（不要）
+
+#### SQL構造の比較
+
+**Before（2回のクエリ）**:
+```sql
+-- クエリ1: 基本データ取得
+SELECT oc.id, oc.name, oc.description, oc.member, ...
+FROM open_chat AS oc
+JOIN statistics_ranking_hour AS sr ON oc.id = sr.open_chat_id
+ORDER BY sr.diff_member DESC
+LIMIT 20;
+
+-- クエリ2: 追加stats取得
+SELECT oc.id, oc.created_at, oc.api_created_at, oc.img_url,
+       h.diff_member AS hourly_diff, ...
+       d.diff_member AS daily_diff, ...
+       w.diff_member AS weekly_diff, ...
+FROM open_chat AS oc
+LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+WHERE oc.id IN (?, ?, ?, ...);
+```
+
+**After（1回のクエリ）**:
+```sql
+-- クエリ1: 全データ一括取得
+SELECT oc.id, oc.name, oc.description, oc.member,
+       oc.img_url, oc.emblem, oc.join_method_type, oc.category,
+       oc.created_at, oc.api_created_at,
+       h.diff_member AS hourly_diff,
+       h.percent_increase AS hourly_percent,
+       d.diff_member AS daily_diff,
+       d.percent_increase AS daily_percent,
+       w.diff_member AS weekly_diff,
+       w.percent_increase AS weekly_percent
+FROM open_chat AS oc
+JOIN statistics_ranking_hour AS sr ON oc.id = sr.open_chat_id
+LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+ORDER BY sr.diff_member DESC
+LIMIT 20 OFFSET 0;
+```
+
+#### 技術的なポイント
+
+**LIMIT句の互換性問題**:
+```php
+// Before（エラー）
+$sql = "... LIMIT :limit OFFSET :offset";
+$params = ['limit' => 20, 'offset' => 0];
+DB::fetchAll($sql, $params);
+// エラー: "Syntax error near '0', '20'"
+
+// After（修正）
+$limit = $args->limit;   // バリデーション済み
+$offset = $args->page * $args->limit;
+$sql = "... LIMIT {$limit} OFFSET {$offset}";
+$params = [];  // LIMITパラメータを削除
+DB::fetchAll($sql, $params);
+```
+
+**セキュリティ考察**:
+- `$args->limit`は`Validator::num()`で1-100の範囲を検証済み
+- `$args->page`は`Validator::num()`で0以上を検証済み
+- 整数値の直接埋め込みはSQLインジェクションのリスクなし
+
+**パフォーマンス改善**:
+- **クエリ数**: 2回 → 1回（50%削減）
+- **データ転送**: ID配列の往復通信が不要
+- **JOINコスト**: 実質的に同じ（どちらもLEFT JOIN × 3）
+- **レスポンス時間**: 劇的に改善（特にネットワークレイテンシが大きい環境）
+
+#### テスト結果
+
+✅ **API動作確認**:
+```bash
+# キーワード検索
+curl "http://localhost:7000/alpha-api/search?keyword=あ&page=0&limit=2&sort=member&order=desc"
+→ 正常にデータ取得（慶應2026年, NOT×アルテマ× METEO）
+
+# ソートなし
+curl "http://localhost:7000/alpha-api/search?keyword=&page=0&limit=2&sort=member&order=desc&category=0"
+→ 正常にデータ取得（Admins' Hub, 節約・ポイ活）
+
+# hourly_diffソート
+curl "http://localhost:7000/alpha-api/search?keyword=&page=0&limit=2&sort=hourly_diff&order=desc&category=0"
+→ 正常にデータ取得（増減順ランキング）
+```
+
+✅ **フロントエンド動作確認**:
+- Playwright: `http://localhost:5173/js/alpha?q=あ`
+- 検索結果が正しく表示（105,415件）
+- カード情報が正しく表示（画像、メンバー数、増減など）
+- ソート機能が正常に動作
+
+#### 改善のまとめ
+
+1. **パフォーマンス最適化** ✨
+   - クエリ数: 2回 → 1回
+   - LEFT JOINでstats一括取得
+   - レスポンス時間の大幅改善
+
+2. **コードの簡素化** 💅
+   - 専用リポジトリでロジック分離
+   - `fetchAdditionalStats()`メソッド削除
+   - `formatResponse()`の簡素化
+
+3. **データ整合性維持** 🎯
+   - レスポンス形式は完全に同一
+   - フロントエンド側の変更不要
+   - LEFT JOINでnull値を正しく処理
+
+---
+
+## 前回の完了タスク（2026-01-04 - セッション6）
 
 ### ✅ フォルダURLナビゲーション仕様のE2E完全テスト化 & Preactレースコンディション修正（完了）
 
