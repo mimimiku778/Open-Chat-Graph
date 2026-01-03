@@ -69,12 +69,10 @@ class AlphaSearchApiRepository
                         ELSE d.percent_increase
                     END AS daily_percent,
                     CASE
-                        WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                         WHEN w.diff_member IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                         ELSE w.diff_member
                     END AS weekly_diff,
                     CASE
-                        WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                         WHEN w.percent_increase IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                         ELSE w.percent_increase
                     END AS weekly_percent,
@@ -200,6 +198,12 @@ class AlphaSearchApiRepository
             }
 
             // 最後のページまたはそれ以降の場合は、補完データも含める
+            // 1・24時間ソートの場合のみ is_in_ranking を優先（ランキング非掲載を最下位に）
+            $isWeeklySort = ($tableName === 'statistics_ranking_week');
+            $orderByClause = $isWeeklySort
+                ? "priority ASC, sort_value {$args->order}, member DESC"
+                : "is_in_ranking DESC, priority ASC, sort_value {$args->order}, member DESC";
+
             $sql = "
                 SELECT * FROM (
                     SELECT
@@ -269,9 +273,7 @@ class AlphaSearchApiRepository
                         )
                 ) AS combined
                 ORDER BY
-                    priority ASC,
-                    sort_value {$args->order},
-                    member DESC
+                    {$orderByClause}
                 LIMIT {$limit} OFFSET {$offset}
             ";
 
@@ -414,12 +416,10 @@ class AlphaSearchApiRepository
                     ELSE d.percent_increase
                 END AS daily_percent,
                 CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                     WHEN w.diff_member IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                     ELSE w.diff_member
                 END AS weekly_diff,
                 CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                     WHEN w.percent_increase IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                     ELSE w.percent_increase
                 END AS weekly_percent,
@@ -576,6 +576,12 @@ class AlphaSearchApiRepository
         // 最後のページかどうかを判定
         $isLastPageOrBeyond = ($offset + $limit >= $rankingCount);
 
+        // 1・24時間ソートの場合のみ is_in_ranking を優先（ランキング非掲載を最下位に）
+        $isWeeklySort = ($tableName === 'statistics_ranking_week');
+        $simpleOrderBy = $isWeeklySort
+            ? "{$sortColumn} {$args->order}, oc.member DESC"
+            : "is_in_ranking DESC, {$sortColumn} {$args->order}, oc.member DESC";
+
         if (!$isLastPageOrBeyond) {
             // 最後のページでない場合は、ランキングデータのみを返す
             $sql = "
@@ -611,12 +617,10 @@ class AlphaSearchApiRepository
                         ELSE d.percent_increase
                     END AS daily_percent,
                     CASE
-                        WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                         WHEN w.diff_member IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                         ELSE w.diff_member
                     END AS weekly_diff,
                     CASE
-                        WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                         WHEN w.percent_increase IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                         ELSE w.percent_increase
                     END AS weekly_percent,
@@ -633,8 +637,7 @@ class AlphaSearchApiRepository
                     {$categoryWhere}
                     AND {$allCondition}
                 ORDER BY
-                    {$sortColumn} {$args->order},
-                    oc.member DESC
+                    {$simpleOrderBy}
                 LIMIT {$limit} OFFSET {$offset}
             ";
 
@@ -656,6 +659,12 @@ class AlphaSearchApiRepository
         }
 
         // 最後のページまたはそれ以降の場合は、補完データも含める
+        // 1・24時間ソートの場合のみ is_in_ranking を優先（ランキング非掲載を最下位に）
+        $isWeeklySort = ($tableName === 'statistics_ranking_week');
+        $orderByClause = $isWeeklySort
+            ? "priority ASC, sort_value {$args->order}, member DESC"
+            : "is_in_ranking DESC, priority ASC, sort_value {$args->order}, member DESC";
+
         $sql = "
             SELECT * FROM (
                 SELECT
@@ -690,12 +699,10 @@ class AlphaSearchApiRepository
                         ELSE d.percent_increase
                     END AS daily_percent,
                     CASE
-                        WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                         WHEN w.diff_member IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                         ELSE w.diff_member
                     END AS weekly_diff,
                     CASE
-                        WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                         WHEN w.percent_increase IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                         ELSE w.percent_increase
                     END AS weekly_percent,
@@ -748,12 +755,10 @@ class AlphaSearchApiRepository
                         ELSE d.percent_increase
                     END AS daily_percent,
                     CASE
-                        WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                         WHEN w.diff_member IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                         ELSE w.diff_member
                     END AS weekly_diff,
                     CASE
-                        WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                         WHEN w.percent_increase IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                         ELSE w.percent_increase
                     END AS weekly_percent,
@@ -775,7 +780,7 @@ class AlphaSearchApiRepository
                     )
             ) AS combined
             ORDER BY
-                priority ASC, sort_value {$args->order}, member DESC
+                {$orderByClause}
             LIMIT {$limit} OFFSET {$offset}
         ";
 

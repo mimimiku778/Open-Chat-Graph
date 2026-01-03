@@ -417,12 +417,10 @@ class AlphaApiController
                     ELSE d.percent_increase
                 END AS daily_percent,
                 CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                     WHEN w.diff_member IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                     ELSE w.diff_member
                 END AS weekly_diff,
                 CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
                     WHEN w.percent_increase IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
                     ELSE w.percent_increase
                 END AS weekly_percent,
