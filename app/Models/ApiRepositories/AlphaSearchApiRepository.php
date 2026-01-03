@@ -142,6 +142,12 @@ class AlphaSearchApiRepository
 
             $result = DB::fetchAll($sql, $params);
 
+            // 結果が不足している場合、人数順で補完
+            if ($result && count($result) < $limit) {
+                $supplement = $this->findSupplementByMember($args, $categoryWhere, array_column($result, 'id'), $limit - count($result));
+                $result = array_merge($result, $supplement);
+            }
+
             if (!$result || $args->page !== 0) {
                 return $result;
             }
@@ -154,13 +160,77 @@ class AlphaSearchApiRepository
                 WHERE {$categoryWhere}
             ";
             $countParams = $args->category ? ['category' => $args->category] : [];
-            $result[0]['totalCount'] = DB::fetchColumn($countSql, $countParams);
+            $rankingCount = DB::fetchColumn($countSql, $countParams);
+
+            // 全体の件数（ランキング + 補完可能な件数）
+            $allCountSql = "SELECT count(*) as count FROM open_chat AS oc WHERE {$categoryWhere}";
+            $allCountParams = $args->category ? ['category' => $args->category] : [];
+            $result[0]['totalCount'] = DB::fetchColumn($allCountSql, $allCountParams);
 
             return $result;
         }
 
         // キーワード検索時：名前優先のUNIONクエリ
         return $this->findByStatsRankingWithKeyword($args, $tableName, $sortColumn, $categoryWhere);
+    }
+
+    /**
+     * 人数順で補完データを取得（ランキングテーブルにないレコード）
+     */
+    private function findSupplementByMember(OpenChatApiArgs $args, string $categoryWhere, array $excludeIds, int $supplementLimit): array
+    {
+        if ($supplementLimit <= 0) {
+            return [];
+        }
+
+        $params = [];
+        if ($args->category) {
+            $params['category'] = $args->category;
+        }
+
+        // 除外ID条件
+        $excludeWhere = '1';
+        if (!empty($excludeIds)) {
+            $placeholders = implode(',', array_fill(0, count($excludeIds), '?'));
+            $excludeWhere = "oc.id NOT IN ({$placeholders})";
+            $params = array_merge($params, $excludeIds);
+        }
+
+        $sql = "
+            SELECT
+                oc.id,
+                oc.name,
+                oc.description,
+                oc.member,
+                oc.img_url,
+                oc.emblem,
+                oc.join_method_type,
+                oc.category,
+                oc.created_at,
+                oc.api_created_at,
+                h.diff_member AS hourly_diff,
+                h.percent_increase AS hourly_percent,
+                d.diff_member AS daily_diff,
+                d.percent_increase AS daily_percent,
+                w.diff_member AS weekly_diff,
+                w.percent_increase AS weekly_percent
+            FROM
+                open_chat AS oc
+                LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+            WHERE
+                {$categoryWhere}
+                AND {$excludeWhere}
+            ORDER BY
+                oc.member {$args->order}
+            LIMIT {$supplementLimit}
+        ";
+
+        DB::connect();
+        $stmt = DB::$pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     /**
@@ -293,6 +363,72 @@ class AlphaSearchApiRepository
     }
 
     /**
+     * 人数順で補完データを取得（キーワード検索、ランキングテーブルにないレコード）
+     */
+    private function findSupplementByMemberWithKeyword(OpenChatApiArgs $args, string $categoryWhere, array $keywords, array $excludeIds, int $supplementLimit): array
+    {
+        if ($supplementLimit <= 0 || empty($keywords)) {
+            return [];
+        }
+
+        $params = [];
+        if ($args->category) {
+            $params['category'] = $args->category;
+        }
+
+        // キーワード条件
+        $keywordConditions = [];
+        foreach ($keywords as $i => $kw) {
+            $keywordConditions[] = "(oc.name LIKE :keyword{$i} OR oc.description LIKE :keyword{$i})";
+            $params["keyword{$i}"] = "%{$kw}%";
+        }
+        $keywordCondition = implode(' AND ', $keywordConditions);
+
+        // 除外ID条件
+        $excludeWhere = '1';
+        if (!empty($excludeIds)) {
+            $excludeWhere = "oc.id NOT IN (" . implode(',', array_map('intval', $excludeIds)) . ")";
+        }
+
+        $sql = "
+            SELECT
+                oc.id,
+                oc.name,
+                oc.description,
+                oc.member,
+                oc.img_url,
+                oc.emblem,
+                oc.join_method_type,
+                oc.category,
+                oc.created_at,
+                oc.api_created_at,
+                h.diff_member AS hourly_diff,
+                h.percent_increase AS hourly_percent,
+                d.diff_member AS daily_diff,
+                d.percent_increase AS daily_percent,
+                w.diff_member AS weekly_diff,
+                w.percent_increase AS weekly_percent
+            FROM
+                open_chat AS oc
+                LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+            WHERE
+                {$categoryWhere}
+                AND {$excludeWhere}
+                AND ({$keywordCondition})
+            ORDER BY
+                oc.member {$args->order}
+            LIMIT {$supplementLimit}
+        ";
+
+        DB::connect();
+        $stmt = DB::$pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
      * キーワード検索（名前優先）- stats ranking用
      */
     private function findByStatsRankingWithKeyword(OpenChatApiArgs $args, string $tableName, string $sortColumn, string $categoryWhere): array
@@ -401,6 +537,12 @@ class AlphaSearchApiRepository
         $stmt->execute($searchParams);
         $result = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
+        // 結果が不足している場合、人数順で補完
+        if ($result && count($result) < $limit) {
+            $supplement = $this->findSupplementByMemberWithKeyword($args, $categoryWhere, $keywords, array_column($result, 'id'), $limit - count($result));
+            $result = array_merge($result, $supplement);
+        }
+
         if (!$result || $args->page !== 0) {
             return $result;
         }
@@ -418,16 +560,22 @@ class AlphaSearchApiRepository
         }
 
         $allCondition = implode(' AND ', $allConditions);
-        $countSql = "
+
+        // ランキングテーブルとJOINした件数
+        $rankingCountSql = "
             SELECT count(*) as count
             FROM open_chat AS oc
             JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
             WHERE {$categoryWhere} AND {$allCondition}
         ";
+        $rankingCountStmt = DB::$pdo->prepare($rankingCountSql);
+        $rankingCountStmt->execute($countParams);
 
-        $countStmt = DB::$pdo->prepare($countSql);
-        $countStmt->execute($countParams);
-        $result[0]['totalCount'] = $countStmt->fetchColumn();
+        // 全体の件数（ランキング + 補完可能な件数）
+        $allCountSql = "SELECT count(*) as count FROM open_chat AS oc WHERE {$categoryWhere} AND {$allCondition}";
+        $allCountStmt = DB::$pdo->prepare($allCountSql);
+        $allCountStmt->execute($countParams);
+        $result[0]['totalCount'] = $allCountStmt->fetchColumn();
 
         return $result;
     }
