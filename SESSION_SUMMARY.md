@@ -5,7 +5,180 @@
 
 ---
 
-## 最新の完了タスク（2026-01-03 - セッション4）
+## 最新の完了タスク（2026-01-03 - セッション5）
+
+### ✅ マイリストのフォルダURLをブラウザ履歴に対応（完了）
+
+**対象プロジェクト**: `/home/user/openchat-alpha/`, `/home/user/oc-review-dev/`
+
+#### 実装内容
+
+マイリストのフォルダ遷移にURL対応を実装し、ブラウザのバック/フォワードボタンでフォルダ間を移動できるようにしました。
+
+1. **ルーティングの拡張**
+   - `/mylist` - ルートフォルダ
+   - `/mylist/:folderId` - 特定フォルダ
+   - App.tsxのページ表示判定を修正（`/mylist/:folderId`も含める）
+
+2. **URLを真実の情報源（Source of Truth）として採用**
+   - 問題: sessionStorageとURLの二重管理
+   - 解決: URLをフォルダ状態の単一の情報源に
+   - sessionStorageは「最後のフォルダ」記憶用のみに使用（メニューから戻るため）
+
+3. **useFolderNavigationフックの改修**
+   - 引数: `currentFolderId`（URLから取得した値）
+   - `navigateToFolder`: `navigate()`でURL遷移
+   - `getLastFolderId`: sessionStorageから最後のフォルダIDを取得
+
+4. **メニューのhrefを動的に生成**
+   - DashboardLayout: `useMemo`で最後のフォルダに応じてhrefを変更
+   - MobileBottomNav: 同様に動的href対応
+   - isActiveの判定を`/mylist/*`すべてでアクティブに
+
+5. **useNavigationHandlerの改修**
+   - マイリストボタン: 最後のフォルダ状態を復元して遷移
+   - 詳細ページから: ブラウザバックで元のフォルダに戻る
+   - 同じページ: 再レンダリング（現在のURLを維持）
+
+6. **E2Eテストの作成**
+   - `e2e/mylist-folder-url-navigation.spec.ts` を新規作成
+   - フォルダ遷移時のURL変更テスト
+   - ブラウザバック/フォワードテスト
+   - メニューからの復帰テスト
+   - URL直接アクセステスト
+
+#### コミット履歴
+
+**openchat-alpha プロジェクト**:
+```
+818227a feat: マイリストのフォルダURLをブラウザ履歴に対応
+9f722e6 test: フォルダURLナビゲーションのE2Eテストを追加
+```
+
+**oc-review-dev プロジェクト**:
+```
+62573f55 chore: フロントエンドビルド成果物を更新（フォルダURL対応反映）
+```
+
+#### 変更されたファイル
+
+1. **src/App.tsx**
+   - マイリストページの表示判定を修正
+   - `/mylist`と`/mylist/:folderId`の両方で表示
+
+2. **src/components/Layout/DashboardLayout.tsx**
+   - `getLastFolderId`をインポート
+   - navigation配列を`useMemo`で動的生成
+   - ページタイトル取得でURLからフォルダIDを抽出
+   - isActive判定を`/mylist/*`すべてに対応
+
+3. **src/components/Layout/MobileBottomNav.tsx**
+   - navItems配列を`useMemo`で動的生成
+   - isActive判定を`/mylist/*`すべてに対応
+
+4. **src/hooks/useFolderNavigation.tsx**
+   - 引数として`currentFolderId`を受け取る
+   - `navigate()`でURL遷移
+   - sessionStorageは最後のフォルダ記憶用のみ
+   - `getLastFolderId`関数をエクスポート
+
+5. **src/hooks/useNavigationHandler.ts**
+   - `getLastFolderId`をインポート
+   - `navigateToMylist`で最後のフォルダに復帰
+   - 詳細ページからはブラウザバック
+
+6. **src/pages/MyListPage.tsx**
+   - `useParams`で`folderId`を取得
+   - `useFolderNavigation(folderId)`に渡す
+   - useEffectの判定を`/mylist/*`に対応
+
+7. **e2e/mylist-folder-url-navigation.spec.ts** (新規)
+   - 8つのテストケース
+   - フォルダURL遷移の動作確認
+
+#### 技術的なポイント
+
+**アーキテクチャ決定: URL状態を真実の情報源に**
+
+2つのアプローチを検討：
+- **アプローチA**: メニューのURLを動的に変える
+- **アプローチB**: 遷移後にURLを書き換える
+
+**採用: アプローチAとCの組み合わせ**
+1. URLをフォルダ状態の真実の情報源にする
+2. sessionStorageは「最後のフォルダ」記憶用のみ
+3. メニューのhrefを動的に生成
+
+**メリット**:
+- URLとUI状態が常に一致
+- ブラウザバック/フォワードが自動的に動作
+- URLシェア可能（将来的に便利）
+- sessionStorageとの二重管理を回避
+
+**実装パターン**:
+
+```typescript
+// useFolderNavigation
+export function useFolderNavigation(currentFolderId: string | null | undefined) {
+  const navigate = useNavigate()
+
+  const navigateToFolder = useCallback((folderId: string | null) => {
+    if (folderId) {
+      sessionStorage.setItem(STORAGE_KEY, folderId)
+      navigate(`/mylist/${folderId}`)
+    } else {
+      sessionStorage.removeItem(STORAGE_KEY)
+      navigate('/mylist')
+    }
+  }, [navigate])
+
+  return {
+    currentFolderId: currentFolderId ?? null,
+    navigateToFolder,
+    resetNavigation: () => navigateToFolder(null),
+  }
+}
+
+// メニューの動的href
+const navigation = useMemo(() => {
+  const lastFolderId = getLastFolderId()
+  const mylistHref = lastFolderId ? `/mylist/${lastFolderId}` : '/mylist'
+  return [
+    { name: '検索', href: '/', icon: Search },
+    { name: 'マイリスト', href: mylistHref, icon: FolderOpen },
+    { name: '設定', href: '/settings', icon: Settings },
+  ]
+}, [location.pathname])
+```
+
+#### ビルド成果物
+
+本番ビルドが完了し、以下のファイルが更新されました：
+```
+../oc-review-dev/public/js/alpha/index.html    0.46 kB │ gzip:   0.28 kB
+../oc-review-dev/public/js/alpha/index.css    32.72 kB │ gzip:   6.64 kB
+../oc-review-dev/public/js/alpha/index.js    428.84 kB │ gzip: 138.71 kB
+✓ built in 3.36s
+```
+
+#### 新機能のまとめ
+
+1. **ブラウザ履歴対応** ✨
+   - フォルダ遷移がURLに反映
+   - バック/フォワードボタンで移動可能
+
+2. **直感的なナビゲーション** 💅
+   - メニューから前回のフォルダに戻る
+   - URL直接アクセス可能
+
+3. **シンプルなアーキテクチャ** 🎯
+   - URLが単一の情報源
+   - sessionStorageは補助的な役割のみ
+   - React Routerの標準的な使い方
+
+---
+
+## 前回の完了タスク（2026-01-03 - セッション4）
 
 ### ✅ カードタイトルとバッジの表示改善（完了）
 
