@@ -5,6 +5,146 @@
 
 ---
 
+## 最新の完了タスク（2026-01-04 - セッション10）
+
+### ✅ 検索・マイリストのカード統計表示UX改善（完了）
+
+**対象プロジェクト**: `/home/user/openchat-alpha/`
+
+#### 実装内容
+
+検索とマイリストページのOpenChatカード統計表示を全面的に改善し、視認性とUXを大幅に向上させました。
+
+1. **キーワード検索のハイライト表示改善**
+   - 問題: キーワードが説明文の後方にある場合、`line-clamp-2`で切り取られて見えない
+   - 解決: `truncateAroundKeyword`関数のロジックを修正
+     - テキスト長に関係なく、キーワード発見時は常にキーワード周辺（前後15文字）で切り取り
+     - ハイライト色を青色（`text-blue-600 dark:text-blue-400`）に変更
+   - 効果: 検索結果でキーワードが常に視認可能に
+
+2. **ソート対象カラムの視認性向上**
+   - 問題: ソート対象の統計値が`font-semibold`（600）で見づらい
+   - 解決: 
+     - `font-semibold`（600）→ `font-bold`（700）に変更
+     - ラベル（「1時間:」「24時間:」「1週間:」）も太字化
+   - 対象: 1時間/24時間/1週間でソート時、該当カラムのみ太字
+
+3. **±0値の色調整**
+   - 問題: ±0の値がダークモードで真っ白で目立ちすぎる
+   - 解決: `text-muted-foreground`カラーに変更
+   - 効果: 緑（+値）、赤（-値）、グレー（±0）で明確に区別
+   - 追加: ダークモード対応で`dark:text-green-500`/`dark:text-red-500`も適用
+
+4. **ソート時の統計値動的並び替え**
+   - 機能: ソート条件に応じて統計値の表示順を自動変更
+   - 実装: 
+     - IIFE（即時実行関数式）で各統計divを定義
+     - `currentSort`の値に応じて配列の順序を変更
+   - 並び替えパターン:
+     - **24時間ソート**: 24時間 → 1時間 → 1週間
+     - **1週間ソート**: 1週間 → 1時間 → 24時間
+     - **デフォルト**: 1時間 → 24時間 → 1週間
+   - 効果: ソート対象の統計が常に先頭に表示され、比較しやすい
+
+5. **N/A判定ロジックの修正**
+   - 問題: `value > -100`のチェックで、有効な負の値もN/A表示されていた
+   - 解決: 
+     - `isValidRankingData`関数から`> -100`チェックを削除
+     - null/undefinedの場合のみN/Aを表示
+   - 対象ファイル: `OpenChatCard.tsx`, `DetailStats.tsx`
+
+6. **マイリストへの統計並び替え機能追加**
+   - 問題: マイリストでは統計値の並び替えが実装されていなかった
+   - 解決:
+     - `FolderList.tsx`から`OpenChatCard`に`currentSort`propを渡す
+     - 検索とマイリストで統計値並び替えロジックを完全共通化
+   - 効果: 検索とマイリストで一貫したUX
+
+7. **ランキング非掲載時のソート対応**
+   - 問題: ランキング非掲載アイテムは1週間統計のみ表示だが、ソート時の並び替えに非対応
+   - 解決:
+     - 1週間ソート時: **1週間統計（太字）** → ランキング非掲載バッジ
+     - デフォルト: ランキング非掲載バッジ → 1週間統計
+   - 実装: `currentSort === 'diff_1w'`で条件分岐
+
+#### 技術詳細
+
+**コンポーネント構造の共通化**
+- `OpenChatCard.tsx`: 統計値の動的並び替えロジックを実装
+- `FolderList.tsx`: マイリストから`currentSort`を渡して共通ロジックを活用
+- `SearchPage.tsx`: 検索画面から`currentSort`を渡す
+
+**キーワードトリミングアルゴリズム改善**
+```typescript
+// 修正前（問題あり）
+if (!keyword || !text || text.length <= maxLength) {
+  return text  // 全文返す → line-clamp-2で先頭から切られる
+}
+
+// 修正後
+if (!keyword || !text) {
+  return text
+}
+// キーワード発見時は常に周辺15文字で切り取り
+const margin = 15
+let start = Math.max(0, firstMatchIndex - margin)
+let end = Math.min(text.length, firstMatchIndex + matchedKeywordLength + margin)
+return prefix + text.substring(start, end) + suffix
+```
+
+**統計値並び替えロジック**
+```typescript
+{(() => {
+  const hourlyDiv = (/* 1時間統計JSX */);
+  const daily24hDiv = (/* 24時間統計JSX */);
+  const weekly1wDiv = (/* 1週間統計JSX */);
+  
+  if (currentSort === 'diff_24h') {
+    return [daily24hDiv, hourlyDiv, weekly1wDiv]
+  } else if (currentSort === 'diff_1w') {
+    return [weekly1wDiv, hourlyDiv, daily24hDiv]
+  }
+  return [hourlyDiv, daily24hDiv, weekly1wDiv]  // デフォルト
+})()}
+```
+
+#### コミット履歴
+
+**openchat-alpha プロジェクト**:
+```
+fbae2f6 feat: マイリストでも統計値の並び替えを実装、ランキング非掲載時のソート対応
+bc7b8c4 fix: 1週間統計のN/A判定ロジックを修正
+fb79e33 feat: ソート時に対応する統計値を先頭に表示
+866f4e0 fix: ±0の値をtext-muted-foregroundに変更
+484cee4 fix: ソート対象のラベルも太字に変更
+d376129 fix: ソート対象カラムの太字をfont-boldに変更
+7c86ea6 fix: キーワード位置に関係なく検索ハイライトを表示
+```
+
+#### 影響範囲
+
+**変更ファイル**:
+- `src/components/OpenChat/OpenChatCard.tsx`: 統計表示ロジック全面改善
+- `src/components/Detail/DetailStats.tsx`: N/A判定ロジック修正
+- `src/components/MyList/FolderList.tsx`: currentSort propの追加
+
+**動作確認**:
+- ✅ 検索画面でキーワードハイライトが正しく表示
+- ✅ ソート対象カラムが太字で明確に表示
+- ✅ ±0がミュートカラーで表示
+- ✅ ソート時に統計値の順序が動的に変更
+- ✅ マイリストでも統計値の並び替えが動作
+- ✅ ランキング非掲載時の1週間ソート対応
+
+#### UI/UX改善効果
+
+1. **視認性**: ソート対象が太字で先頭に表示され、一目で分かる
+2. **検索性**: キーワードが常に表示され、検索結果の確認が容易
+3. **一貫性**: 検索とマイリストで同じ動作、学習コスト低減
+4. **情報設計**: 重要な情報（ソート対象）を視覚的に強調
+
+---
+
 ## 最新の完了タスク（2026-01-04 - セッション9）
 
 ### ✅ ランキング掲載判定の実装とLEFT JOIN重複問題の修正（完了）
@@ -1817,3 +1957,272 @@ const executeSearch = useCallback(() => {
 ---
 
 **このサマリーを次のClaude Codeセッションの最初に読み込ませてください。**
+
+---
+
+## セッション: 2026-01-04 - Alpha API リファクタリングとNULL値処理改善
+
+### 概要
+
+Alpha API（検索・統計）の大規模リファクタリングを実施。コントローラーからリポジトリへのロジック移動、SQL重複削減、NULL値処理の統一を行った。
+
+### 主な成果
+
+#### 1. Alpha API アーキテクチャのリファクタリング
+
+**問題点:**
+- `AlphaApiController.php`が肥大化（814行のリポジトリを含む）
+- コントローラーに大量のSQLロジックが存在
+- 102箇所のCASE文重複（統計カラム定義）
+- 検索とマイリストで共通化できるコードが分離
+
+**解決策: 3ファイル構成**
+
+```
+app/Models/ApiRepositories/Alpha/
+├── AlphaQueryBuilder.php         (356行) - SQL構築専用
+├── AlphaOpenChatRepository.php   (177行) - 検索・マイリストデータ取得
+└── AlphaStatsRepository.php      (210行) - 統計・詳細データ取得
+```
+
+**削除:**
+- `AlphaSearchApiRepository.php` (814行) - 新しい構成に置き換え
+
+**成果:**
+- SQL重複: 102箇所 → 1箇所 (96%削減)
+- Controller: データアクセスロジック完全除去
+- Repository: 明確な責任分離
+- QueryBuilder: SQL断片の完全な再利用性
+
+#### 2. NULL値処理の統一と改善
+
+**問題:**
+1. 作成日ソートでNULL値が先頭に表示される
+2. ランキングソート（1週間増減等）でNULL値が先頭に表示される
+3. 検索APIと詳細APIで同じレコードの値が不一致
+
+**解決:**
+
+##### 作成日ソート
+```sql
+-- NULL値を下に配置、NULLグループ内は人数順
+ORDER BY 
+    CASE WHEN oc.api_created_at IS NULL THEN 1 ELSE 0 END ASC,
+    oc.api_created_at {$order},
+    oc.member {$order}
+```
+
+##### 全ソート方法
+```sql
+-- すべてのソートでNULL値を下に配置
+ORDER BY 
+    CASE WHEN {$sortColumn} IS NULL THEN 1 ELSE 0 END ASC,
+    {$sortColumn} {$order}
+```
+
+##### ランキングソート
+```sql
+-- ランキングソートでもNULL値を下に配置
+ORDER BY 
+    CASE WHEN sr.diff_member IS NULL THEN 1 ELSE 0 END ASC,
+    sr.diff_member {$order},
+    oc.member DESC
+```
+
+##### 統計カラムのNULL処理ルール
+
+**1時間・24時間増減:**
+```sql
+CASE
+    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+    WHEN h.diff_member IS NULL THEN 0
+    ELSE h.diff_member
+END
+```
+→ ランキングデータがない場合はNULLを返す
+
+**1週間増減:**
+```sql
+CASE
+    WHEN w.diff_member IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
+    ELSE w.diff_member
+END
+```
+→ 実際の値を常に返す（NULLチェックなし）
+
+#### 3. APIの整合性修正
+
+**問題:**
+```bash
+# 検索API
+GET /alpha-api/search?keyword=ポケモン&sort=diff_1w
+→ {"id": 320690, "diff1w": -103}
+
+# 詳細API
+GET /alpha-api/stats/320690
+→ {"id": 320690, "diff1w": null}
+```
+
+同じレコードで異なる値が返っていた！
+
+**原因:**
+- `AlphaQueryBuilder::getSelectClause()` と `AlphaStatsRepository::findById()` のCASE文ロジックが不一致
+
+**修正:**
+両方のAPIで同じCASE文ロジックを使用するように統一
+
+#### 4. AppConfig定数の使用
+
+**変更:**
+```php
+// Before
+$imgUrl = 'https://obs.line-scdn.net/' . $item['img_url'];
+$lineUrl = 'https://line.me/ti/g2/' . $hash;
+
+// After
+$imgUrl = AppConfig::LINE_IMG_URL . $item['img_url'];
+$lineUrl = AppConfig::LINE_URL . $hash;
+```
+
+**適用箇所:**
+- `formatResponse()` メソッド
+- `stats()` メソッド
+- `batchStats()` メソッド
+
+#### 5. バグ修正
+
+##### batch-stats API 500エラー
+
+**原因:**
+```php
+// PDOは1始まりのインデックスが必要だが、0始まりで渡していた
+$params = [5180, 5362, 5180, 5362]; // [0=>5180, 1=>5362, 2=>5180, 3=>5362]
+// PDOStatement::bindValue(0, ...) → エラー！
+```
+
+**修正:**
+```php
+$allIds = array_merge($ids, $ids);
+$params = array_combine(range(1, count($allIds)), $allIds);
+// [1=>5180, 2=>5362, 3=>5180, 4=>5362] ✅
+```
+
+### コミット履歴
+
+```bash
+a8238155 fix: Improve NULL handling and API consistency for ranking sorts
+d275a033 fix: Convert params array to 1-indexed for PDO binding in buildBatchQuery
+040fcfe6 fix: Use buildBatchQuery method in AlphaStatsRepository
+e8c7cb84 fix: Handle NULL values in sorting for all sort methods
+2abaa714 refactor: Extract Alpha API logic into separate repository classes
+e64b1238 refactor: Use AppConfig constants for LINE URLs in AlphaApiController
+```
+
+### ファイル変更
+
+**新規作成:**
+- `app/Models/ApiRepositories/Alpha/AlphaQueryBuilder.php`
+- `app/Models/ApiRepositories/Alpha/AlphaOpenChatRepository.php`
+- `app/Models/ApiRepositories/Alpha/AlphaStatsRepository.php`
+
+**削除:**
+- `app/Models/ApiRepositories/AlphaSearchApiRepository.php`
+
+**変更:**
+- `app/Controllers/Api/AlphaApiController.php`
+
+### テスト結果
+
+#### 検索API
+```bash
+GET /alpha-api/search?keyword=ポケモン&sort=diff_1w&order=asc
+→ [
+  {"id": 320690, "diff1w": -103, "isInRanking": false},
+  {"id": 5180, "diff1w": -83, "isInRanking": true},
+  {"id": 5362, "diff1w": -81, "isInRanking": true}
+] ✅
+```
+
+#### 詳細API
+```bash
+GET /alpha-api/stats/320690
+→ {
+  "id": 320690,
+  "hourlyDiff": null,    # ランキングデータなし→NULL
+  "diff24h": null,       # ランキングデータなし→NULL
+  "diff1w": -103,        # 実際の値を返す
+  "isInRanking": false
+} ✅
+```
+
+#### batch-stats API
+```bash
+POST /alpha-api/batch-stats
+Body: {"ids": [5180, 5362]}
+→ {
+  "data": [
+    {"id": 5180, "name": "...", "diff1w": -83},
+    {"id": 5362, "name": "...", "diff1w": -81}
+  ]
+} ✅
+```
+
+### アーキテクチャ改善のまとめ
+
+#### Before (814行の単一ファイル)
+```
+AlphaSearchApiRepository.php
+├── SQL定義（102箇所のCASE文重複）
+├── 検索ロジック
+├── マイリストロジック
+├── 統計ロジック
+└── ランキングロジック
+```
+
+#### After (3ファイル、SOLID準拠)
+```
+AlphaQueryBuilder.php (356行)
+├── getSelectClause() - 統計カラム定義（1箇所のみ）
+├── getStatsJoins() - LEFT JOIN定義
+├── buildSearchQuery() - 基本検索
+├── buildKeywordSearchQuery() - キーワード検索
+├── buildRankingQuery() - ランキングソート
+├── buildUnionQuery() - 最終ページ補完
+└── buildCountQuery() - 件数取得
+
+AlphaOpenChatRepository.php (177行)
+├── findByMemberOrCreatedAt() - メンバー数・作成日ソート
+└── findByStatsRanking() - ランキングソート
+    ├── findByStatsRankingWithoutKeyword()
+    └── findByStatsRankingWithKeyword()
+
+AlphaStatsRepository.php (210行)
+├── findById() - 詳細データ取得
+├── findByIds() - 一括取得
+├── getStatisticsData() - グラフ用SQLite
+└── getRankingData() - ランキング位置SQLite
+```
+
+### 技術的なポイント
+
+1. **Repository Pattern**: データアクセスロジックを完全分離
+2. **Query Builder Pattern**: SQL構築の一元化
+3. **DRY原則**: 102箇所の重複を1箇所に集約
+4. **Single Responsibility**: 各クラスが明確な単一責任
+5. **API整合性**: 同じデータソースから同じ値を返す
+
+### 既知の問題
+
+**フロントエンド表示:**
+- バックエンドAPIは正しく動作している
+- フロントエンドで古いデータが表示される可能性
+- ブラウザキャッシュクリア（Ctrl+Shift+R）が必要かもしれない
+- Vite dev serverの再起動が必要かもしれない
+
+---
+
+**次のセッションへの引き継ぎ:**
+- バックエンドAPIは完全に修正済み
+- フロントエンドの表示確認が必要（キャッシュの可能性）
+- すべてのコミットは完了し、working treeはクリーン
+

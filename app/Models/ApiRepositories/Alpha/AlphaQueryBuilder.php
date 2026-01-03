@@ -56,7 +56,8 @@ class AlphaQueryBuilder
             END AS weekly_percent,
             (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
              FROM ocgraph_ranking.member AS m
-             WHERE m.open_chat_id = oc.id) AS is_in_ranking";
+             WHERE m.open_chat_id = oc.id
+             AND m.time = (SELECT MAX(time) FROM ocgraph_ranking.member)) AS is_in_ranking";
     }
 
     /**
