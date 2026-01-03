@@ -204,13 +204,31 @@ class RankingBanTableUpdater
                 AND oc.category != 0"
         );
 
+        // 全体のOpenChat数を取得
+        $totalOpenChatCount = DB::fetch(
+            "SELECT COUNT(*) as count
+            FROM open_chat
+            WHERE api_created_at IS NOT NULL
+                AND category IS NOT NULL
+                AND category != 0"
+        )['count'];
+
+        // 非掲載候補が全体の10%を超える場合は処理をスキップ（障害検出）
+        $banCandidateCount = count($openChatArray);
+        $banCandidatePercentage = $totalOpenChatCount > 0 ? ($banCandidateCount / $totalOpenChatCount) * 100 : 0;
+
+        if ($banCandidatePercentage > 10) {
+            addCronLog("RankingBanTableUpdater: Ban candidate percentage ({$banCandidatePercentage}%) exceeds 10%. Skipping processing to prevent mass false bans. Candidates: {$banCandidateCount} / Total: {$totalOpenChatCount}");
+            return;
+        }
+
         $existsListArray = DB::fetchAll(
             "SELECT
                 open_chat_id,
                 datetime
-            FROM 
+            FROM
                 ranking_ban
-            WHERE 
+            WHERE
                 flag = 0"
         );
 
