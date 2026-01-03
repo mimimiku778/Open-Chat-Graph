@@ -5,7 +5,468 @@
 
 ---
 
-## 最新の完了タスク（2026-01-04 - セッション7）
+## 最新の完了タスク（2026-01-04 - セッション9）
+
+### ✅ ランキング掲載判定の実装とLEFT JOIN重複問題の修正（完了）
+
+**対象プロジェクト**: `/home/user/oc-review-dev/`, `/home/user/openchat-alpha/`
+
+#### 実装内容
+
+ランキング掲載状態を`ocgraph_ranking.member`テーブルで正確に判定する機能を実装し、LEFT JOINによるレコード重複問題を解決しました。
+
+1. **ランキング掲載判定の実装**
+   - 問題: N/A値（`!hasHourlyData && !has24hData`）でランキング非掲載を判定していた
+   - 要求: `ocgraph_ranking.member`テーブルの実在チェックで正確に判定
+   - 解決:
+     - バックエンド: `is_in_ranking`フィールドを全APIレスポンスに追加
+     - SQL: サブクエリで`ocgraph_ranking.member`テーブルをチェック
+     - フロントエンド: `isInRanking`フィールドを型定義に追加、コンポーネントで使用
+
+2. **LEFT JOIN重複問題の修正**
+   - 問題: 同じレコードが大量に重複表示される
+   - 原因: `LEFT JOIN ocgraph_ranking.member`で、同じ`open_chat_id`が複数存在する場合に重複
+   - 解決:
+     - LEFT JOINをサブクエリに変更
+     - `(SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM ocgraph_ranking.member WHERE ...)`
+     - 全10箇所のSQLクエリを修正（AlphaSearchApiRepository × 8、AlphaApiController × 2）
+
+3. **フロントエンドの対応**
+   - `OpenChat`インターフェースに`isInRanking: boolean`を追加
+   - `StatsResponse`インターフェースに`isInRanking: boolean`を追加
+   - `OpenChatCard`の判定ロジックを`!chat.isInRanking`に変更
+   - `DetailStats`の判定ロジックを`!isInRanking`に変更
+   - `DetailPage`で`isInRanking`プロップを渡す
+
+#### コミット履歴
+
+**oc-review-dev プロジェクト**:
+```
+eee26ce7 feat: ランキング掲載判定をDB JOIN方式に変更
+687173c6 chore: フロントエンドビルド成果物を更新（isInRanking対応）
+16ae4f84 fix: LEFT JOINによる重複レコード問題を修正
+```
+
+**openchat-alpha プロジェクト**:
+```
+1966b7d feat: ランキング掲載判定をisInRankingフィールドに変更
+```
+
+#### 変更されたファイル
+
+1. **app/Models/ApiRepositories/AlphaSearchApiRepository.php**
+   - 8箇所のSQLクエリを修正
+   - Before: `LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id` + `CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END`
+   - After: サブクエリで`COUNT(*) > 0`をチェック
+   - 修正箇所:
+     - `findByMemberOrCreatedAt()` (Line 57-63)
+     - `findByStatsRanking()` - ランキングデータのみ (Line 147-149)
+     - `findByStatsRanking()` - UNION ALL ランキング (Line 197-199)
+     - `findByStatsRanking()` - UNION ALL 補完 (Line 230-232)
+     - `findByKeywordWithPriority()` (Line 376-378)
+     - `findByStatsRankingWithKeyword()` - ランキングのみ (Line 549-551)
+     - `findByStatsRankingWithKeyword()` - UNION ALL ランキング (Line 603-605)
+     - `findByStatsRankingWithKeyword()` - UNION ALL 補完 (Line 637-639)
+
+2. **app/Controllers/Api/AlphaApiController.php**
+   - 2箇所のSQLクエリを修正
+   - `stats()` APIレスポンス (Line 199-201, 324)
+   - `batchStats()` APIレスポンス (Line 381-383, 432)
+   - `formatResponse()`に`isInRanking`フィールド追加 (Line 157)
+
+3. **src/types/api.ts**
+   - `OpenChat`インターフェースに`isInRanking: boolean`追加 (Line 19)
+   - `StatsResponse`インターフェースに`isInRanking: boolean`追加 (Line 60)
+
+4. **src/components/OpenChat/OpenChatCard.tsx**
+   - `isNotInRanking`の計算を変更 (Line 149)
+   - Before: `const isNotInRanking = !hasHourlyData && !has24hData`
+   - After: `const isNotInRanking = !chat.isInRanking`
+
+5. **src/components/Detail/DetailStats.tsx**
+   - propsに`isInRanking: boolean`追加 (Line 14)
+   - `isNotInRanking`の計算を変更 (Line 65)
+   - Before: `const isNotInRanking = !hasHourlyData && !has24hData && !has1wData`
+   - After: `const isNotInRanking = !isInRanking`
+
+6. **src/pages/DetailPage.tsx**
+   - `DetailStats`に`isInRanking={data.isInRanking}`を渡す (Line 263)
+
+#### SQL構造の比較
+
+**Before（LEFT JOIN - 重複発生）**:
+```sql
+SELECT
+    oc.id, oc.name, ...,
+    CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking
+FROM open_chat AS oc
+LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id  -- ← 重複の原因
+WHERE ...
+```
+
+**After（サブクエリ - 重複解消）**:
+```sql
+SELECT
+    oc.id, oc.name, ...,
+    (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+     FROM ocgraph_ranking.member AS m
+     WHERE m.open_chat_id = oc.id) AS is_in_ranking
+FROM open_chat AS oc
+LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+WHERE ...
+```
+
+#### 技術的なポイント
+
+**LEFT JOINによる重複問題**:
+- `ocgraph_ranking.member`テーブルに同じ`open_chat_id`が複数レコード存在する場合、LEFT JOINで行が倍増
+- 例: `open_chat_id=123`が3レコード存在 → 検索結果で同じOpenChatが3回表示
+
+**サブクエリによる解決**:
+```sql
+-- 各行ごとにサブクエリが実行され、0 or 1 を返す
+(SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+ FROM ocgraph_ranking.member AS m
+ WHERE m.open_chat_id = oc.id) AS is_in_ranking
+
+-- ↑ これにより、memberテーブルに何件あっても結果は1件のみ
+```
+
+**フロントエンドの簡素化**:
+```typescript
+// Before（N/A値で判定）
+const hasHourlyData = isValidRankingData(chat.increasedMember)
+const has24hData = isValidRankingData(chat.diff24h)
+const isNotInRanking = !hasHourlyData && !has24hData
+
+// After（APIフィールドで判定）
+const isNotInRanking = !chat.isInRanking
+```
+
+#### テスト結果
+
+✅ **API動作確認**:
+```bash
+# 検索結果の確認（重複なし）
+curl "http://localhost:7000/alpha-api/search?keyword=テスト"
+→ 異なるOpenChatが正しく表示される
+→ 「ランキング非掲載」バッジが正しく表示される
+```
+
+✅ **フロントエンド動作確認**:
+- Playwright: `http://localhost:5173/js/alpha?q=テスト`
+- 異なるOpenChatが表示される（重複なし）
+- ランキング非掲載のOpenChatにバッジが表示される
+- ランキング掲載済みのOpenChatは1時間・24時間・1週間の統計が表示
+
+#### 改善のまとめ
+
+1. **正確なランキング判定** ✨
+   - N/A値ベースの推測から、DB実在チェックによる正確な判定に改善
+   - `ocgraph_ranking.member`テーブルが真実の情報源
+
+2. **重複問題の根本解決** 💅
+   - LEFT JOINをサブクエリに変更
+   - 同じレコードが複数回表示される問題を完全に解消
+   - 全10箇所のSQLクエリを統一的に修正
+
+3. **シンプルなフロントエンド** 🎯
+   - APIから提供される`isInRanking`フィールドを直接使用
+   - 複雑な条件判定を削除
+   - コードの可読性向上
+
+---
+
+## 前回の完了タスク（2026-01-04 - セッション8）
+
+### ✅ ランキングソートの補完機能とパフォーマンス最適化（完了）
+
+**対象プロジェクト**: `/home/user/oc-review-dev/`, `/home/user/openchat-alpha/`
+
+#### 実装内容
+
+1時間・24時間のランキングソートで、ランキングテーブルにないレコードも表示できるように補完機能を実装し、パフォーマンスを最適化しました。
+
+1. **stats() APIのデータソース修正**
+   - 問題: 24時間・1週間の増減データをSQLiteから計算していた
+   - 解決: MySQLランキングテーブル（`statistics_ranking_hour24`, `statistics_ranking_week`）から取得
+   - LEFT JOINで全statsを一括取得
+   - null値を正しく処理（nullのまま返す、フロントは"N/A"表示）
+
+2. **補完機能の実装**
+   - 問題: hourly_diff/diff_24hでソート時、ランキングテーブルにないレコードが除外される
+   - 要求: 「最後のページまたはそれ以降の場合は人数順で結果を合体させる」
+   - 解決:
+     - ランキングテーブルの総件数を取得
+     - 最後のページかどうかを判定（`$offset + $limit >= $rankingCount`）
+     - 最後のページ以外: ランキングデータのみ返却（パフォーマンス優先）
+     - 最後のページ: UNION ALLでランキングデータ + 補完データ（人数順）を返却
+   - priority方式: priority=1（ランキング）、priority=2（補完）でソート
+
+3. **ページング・重複ID問題の修正**
+   - 問題1: page=3などで結果が0件になる
+   - 問題2: 同じIDが重複して返される
+   - 問題3: NA要素が最後に出ない
+   - 解決:
+     - UNION ALLで全体を統合し、全体にLIMIT/OFFSETを適用
+     - priority + sort_valueでソート順を制御
+     - NA要素（補完データ）が常に最後に表示される
+
+4. **パフォーマンス最適化**
+   - 問題: 全ページでUNION ALLを実行するとパフォーマンス低下
+   - 解決: 最後のページ以外ではランキングデータのみ返却
+   - キーワード検索時も同様に最適化
+   - SQLエラー修正（`percent_increase`の曖昧さ解消）
+
+5. **フロントエンドのビジュアル改善**
+   - 補完データ（ランキングテーブルにないレコード）を視覚的に区別
+   - hourly_diff/diff_24hでソート時、該当データがnullの場合タイトルを赤く表示
+   - SearchPageから`currentSort`をOpenChatCardに渡す
+   - 条件: `(currentSort === 'hourly_diff' && !hasHourlyData) || (currentSort === 'diff_24h' && !has24hData)`
+
+#### コミット履歴
+
+**oc-review-dev プロジェクト**:
+```
+399dbd67 fix: stats() APIで24時間・1週間の増減データをMySQLランキングテーブルから取得するように修正
+2f426697 feat: 1時間・24時間ソートで結果不足時に人数順で補完する機能を追加
+9a8a8314 chore: フロントエンドビルド成果物を更新（1時間・24時間ソート補完機能追加）
+e827fc4c fix: ランキングソートのページングと重複ID問題を修正
+a8ae03b5 perf: 最後のページ以外でUNION ALLを使用しないように最適化
+```
+
+**openchat-alpha プロジェクト**:
+```
+010f390 feat: 1時間・24時間ソートでデータがN/Aの場合にタイトルを赤く表示
+```
+
+#### 変更されたファイル
+
+1. **app/Controllers/Api/AlphaApiController.php**
+   - `stats()`メソッド:
+     - LEFT JOINで24時間・1週間のランキングデータを取得
+     - SQLiteからの計算コードを削除
+     - レスポンスで`daily_diff_member`, `daily_percent_increase`, `weekly_diff_member`, `weekly_percent_increase`を使用
+   - null値処理の統一（`formatResponse()`, `batchStats()`, `stats()`）
+
+2. **app/Models/ApiRepositories/AlphaSearchApiRepository.php**
+   - `findByStatsRanking()`メソッド:
+     - ランキングテーブルの総件数を取得
+     - 最後のページ判定ロジック追加
+     - 最後のページ以外: シンプルなJOINクエリ（パフォーマンス優先）
+     - 最後のページ: UNION ALLでランキング + 補完データ
+     - priority方式でソート順制御
+   - `findByStatsRankingWithKeyword()`メソッド: 同様の最適化を適用
+   - 補完用メソッド:
+     - `findSupplementByMember()`: キーワードなし時の補完
+     - `findSupplementByMemberWithKeyword()`: キーワードあり時の補完
+
+3. **src/pages/SearchPage.tsx**
+   - `currentSort`を`OpenChatCard`に渡す（Line 197）
+   - ソート条件をプロップとして追加
+
+4. **src/components/OpenChat/OpenChatCard.tsx**
+   - `currentSort`プロップを追加（Line 23）
+   - `shouldHighlightTitle`ロジック追加（Line 79-82）:
+     ```typescript
+     const shouldHighlightTitle =
+       (currentSort === 'hourly_diff' && !hasHourlyData) ||
+       (currentSort === 'diff_24h' && !has24hData)
+     ```
+   - CardTitleに条件付きクラス追加（Line 197）: `${shouldHighlightTitle ? 'text-red-600' : ''}`
+
+#### SQL構造の比較
+
+**Before（stats() API - SQLiteから計算）**:
+```php
+// SQLiteから統計データを取得して計算
+$diff24h = null;
+$percent24h = null;
+if ($maxIndex >= 1 && $members[$maxIndex - 1] > 0) {
+    $diff24h = $members[$maxIndex] - $members[$maxIndex - 1];
+    $percent24h = ($diff24h / $members[$maxIndex - 1]) * 100;
+}
+```
+
+**After（stats() API - MySQLから取得）**:
+```sql
+SELECT
+    oc.id, oc.name, oc.member, ...
+    h.diff_member AS hourly_diff_member,
+    h.percent_increase AS hourly_percent_increase,
+    d.diff_member AS daily_diff_member,
+    d.percent_increase AS daily_percent_increase,
+    w.diff_member AS weekly_diff_member,
+    w.percent_increase AS weekly_percent_increase
+FROM open_chat AS oc
+LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+WHERE oc.id = :id
+```
+
+**補完機能のSQL（最後のページ以外）**:
+```sql
+-- ランキングデータのみ（パフォーマンス優先）
+SELECT oc.id, oc.name, ...
+FROM open_chat AS oc
+JOIN statistics_ranking_hour AS sr ON oc.id = sr.open_chat_id
+LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+WHERE category = :category
+ORDER BY sr.diff_member DESC
+LIMIT 20 OFFSET 0
+```
+
+**補完機能のSQL（最後のページ）**:
+```sql
+-- ランキングデータ + 補完データ
+SELECT * FROM (
+    -- ランキングテーブルにあるデータ
+    SELECT oc.id, oc.name, ...,
+           sr.diff_member AS sort_value,
+           1 AS priority
+    FROM open_chat AS oc
+    JOIN statistics_ranking_hour AS sr ON oc.id = sr.open_chat_id
+    LEFT JOIN ...
+    WHERE category = :category
+
+    UNION ALL
+
+    -- 補完データ（ランキングテーブルにない）
+    SELECT oc.id, oc.name, ...,
+           oc.member AS sort_value,
+           2 AS priority
+    FROM open_chat AS oc
+    LEFT JOIN ...
+    WHERE category = :category
+      AND oc.id NOT IN (SELECT open_chat_id FROM statistics_ranking_hour)
+) AS combined
+ORDER BY priority ASC, sort_value DESC
+LIMIT 20 OFFSET 60
+```
+
+#### 技術的なポイント
+
+**最後のページ判定**:
+```php
+$rankingCount = DB::fetchColumn($countSql, $params);
+$isLastPageOrBeyond = ($offset + $limit >= $rankingCount);
+
+if (!$isLastPageOrBeyond) {
+    // 最後のページでない → ランキングデータのみ（パフォーマンス優先）
+    $sql = "SELECT ... FROM ... JOIN {$tableName} ...";
+} else {
+    // 最後のページ → UNION ALLで補完データも含める
+    $sql = "SELECT * FROM (... UNION ALL ...) AS combined";
+}
+```
+
+**priority方式のソート**:
+- priority=1: ランキングテーブルにあるデータ（sort_value = ランキング値）
+- priority=2: 補完データ（sort_value = member数）
+- ORDER BY: `priority ASC, sort_value DESC`
+- 結果: ランキングデータが先、その後に補完データ（人数順）
+
+**null値処理の統一**:
+```php
+// Before（間違い）
+'diff24h' => $item['daily_diff'] !== null ? (int)$item['daily_diff'] : 0,
+
+// After（正しい）
+'diff24h' => $item['daily_diff'] !== null ? (int)$item['daily_diff'] : null,
+```
+
+**フロントエンドのビジュアルフィードバック**:
+```typescript
+// SearchPage.tsx
+<OpenChatCard
+  key={chat.id}
+  chat={chat}
+  currentSort={sort}  // ← ソート条件を渡す
+  // ...
+/>
+
+// OpenChatCard.tsx
+const shouldHighlightTitle =
+  (currentSort === 'hourly_diff' && !hasHourlyData) ||
+  (currentSort === 'diff_24h' && !has24hData)
+
+<CardTitle className={`... ${shouldHighlightTitle ? 'text-red-600' : ''}`}>
+  {chat.name}
+</CardTitle>
+```
+
+#### テスト結果
+
+✅ **API動作確認**:
+```bash
+# hourly_diffソート（補完データが表示される）
+curl "http://localhost:7000/alpha-api/search?keyword=【沖縄県取り締まり情報会】&sort=hourly_diff"
+→ increasedMember: null（補完データ）, diff1w: 120（人数順で表示）
+
+# page=3のページング
+curl "http://localhost:7000/alpha-api/search?keyword=沖縄県&page=3&sort=hourly_diff"
+→ 正常にデータ取得（ページングが正しく動作）
+
+# 0件の場合
+curl "http://localhost:7000/alpha-api/search?keyword=zzzzzzzzzz&sort=hourly_diff"
+→ {"data":[],"totalCount":0}（正常）
+
+# member順（通常のソート）
+curl "http://localhost:7000/alpha-api/search?keyword=沖縄県&sort=member"
+→ 正常にデータ取得
+```
+
+✅ **フロントエンド動作確認**:
+- Playwright: `http://localhost:5173/`
+- hourly_diffソートで補完データのタイトルが赤く表示される
+- NA要素が最後に表示される
+- ページングが正しく動作
+
+#### パフォーマンス改善
+
+1. **最後のページ以外の最適化** ✨
+   - UNION ALLを使用しない（補完データを含めない）
+   - ランキングデータのみをシンプルなJOINで取得
+   - クエリ実行時間を大幅に短縮
+
+2. **最後のページのみ補完** 💅
+   - ユーザー要求に沿った実装
+   - ランキングテーブルにないレコードも表示
+   - 人数順で自然な並び
+
+3. **正しいデータソース** 🎯
+   - SQLiteからの計算を廃止
+   - MySQLランキングテーブルをデータソースに
+   - データの一貫性向上
+
+#### 改善のまとめ
+
+1. **補完機能** ✨
+   - ランキングテーブルにないレコードも表示
+   - NA要素が最後に表示される自然な並び
+   - 視覚的フィードバック（赤いタイトル）
+
+2. **パフォーマンス最適化** 💅
+   - 最後のページ以外ではUNION ALLを使用しない
+   - シンプルなJOINクエリで高速化
+   - キーワード検索時も同様に最適化
+
+3. **データ整合性** 🎯
+   - MySQLランキングテーブルをデータソースに
+   - null値を正しく処理
+   - フロントエンドで"N/A"表示
+
+---
+
+## 前回の完了タスク（2026-01-04 - セッション7）
 
 ### ✅ AlphaApiControllerのSQLパフォーマンス最適化（完了）
 
@@ -1236,6 +1697,122 @@ c6b611e  fix: マイリストのツールバー下にスペーサー要素を追
 - **ドラッグ検出**: 5px以上移動でドラッグと判定し、クリックイベントを無視
 - **テキスト選択無効化**: 選択モード時は`select-none`でカード内テキスト選択を防止
 - **コンテキストメニュー防止**: 長押し時のブラウザメニューを`onContextMenu`で防止
+
+---
+
+**このサマリーを次のClaude Codeセッションの最初に読み込ませてください。**
+
+## 今回の完了タスク（2026-01-04）
+
+### ✅ 同じキーワードでの再検索機能実装（完了）
+
+**対象プロジェクト**: `/home/user/openchat-alpha/`
+
+#### 実装内容
+
+検索ページで同じキーワードを再度検索できる機能を実装しました。
+
+#### 問題と解決プロセス
+
+1. **最初の試み: タイムスタンプパラメータ**
+   - URLパラメータに`t=timestamp`を追加する方法
+   - ユーザーからの指摘: "タイムスタンプではなくキャッシュクリアで実装すべき"
+   - 却下
+
+2. **2番目の試み: mutate()方式**
+   - `force-search`カスタムイベントを発火
+   - SearchPage.tsxで`mutate()`を呼び出してキャッシュクリア
+   - 問題: `dedupingInterval: 60000`の設定により、60秒以内の同じキーワード検索がブロックされた
+   - 失敗
+
+3. **最終解決策: refreshKey方式** ✅
+   - `refreshKey`ステート変数を追加
+   - SWRのキーに`refreshKey`を含める
+   - 検索実行時に`refreshKey`をインクリメント
+   - refreshKeyが変わることで、SWRは新しいリクエストとして認識し、dedupingIntervalを無視して再フェッチ
+   - 成功
+
+#### コミット履歴
+
+**openchat-alpha プロジェクト**:
+```
+bec20a4 fix: 同じキーワードでの再検索機能を実装
+3b1ca0e fix: 同じキーワードでの再検索機能を修正（refreshKey方式）
+```
+
+#### 変更されたファイル
+
+1. **src/components/Layout/DashboardLayout.tsx**
+   - `useCallback`のimport追加
+   - `executeSearch`関数を追加（検索実行時に`force-search`イベントを発火）
+   - 検索ボタンとEnterキーハンドラーを`executeSearch`を使うように変更
+
+2. **src/pages/SearchPage.tsx**
+   - `refreshKey`ステートを追加（初期値: 0）
+   - `getKey`関数のキー配列に`refreshKey`を追加
+   - `force-search`イベントリスナーで`refreshKey`をインクリメント
+
+#### 技術的なポイント
+
+**問題**: SWRの`dedupingInterval`により、同じキーワードでの再フェッチがブロックされる
+
+**解決**: refreshKeyをSWRキーに含めることで、キーワードが同じでもrefreshKeyが変われば新しいリクエストとして扱われる
+
+```typescript
+// SearchPage.tsx
+const [refreshKey, setRefreshKey] = useState(0)
+
+const getKey = useCallback(
+  (pageIndex: number, previousPageData: SearchResponse | null) => {
+    if (!urlKeyword) return null
+    if (previousPageData && previousPageData.data.length === 0) return null
+    return ['search', urlKeyword, sort, order, pageIndex, LIMIT, refreshKey]
+  },
+  [urlKeyword, sort, order, refreshKey]
+)
+
+useEffect(() => {
+  const handleForceSearch = () => {
+    setRefreshKey(prev => prev + 1)
+  }
+  window.addEventListener('force-search', handleForceSearch)
+  return () => window.removeEventListener('force-search', handleForceSearch)
+}, [])
+```
+
+```typescript
+// DashboardLayout.tsx
+const executeSearch = useCallback(() => {
+  if (mobileSearchValue.trim()) {
+    setSearchParams({ q: mobileSearchValue.trim() })
+    window.dispatchEvent(new CustomEvent('force-search'))
+  } else {
+    setSearchParams({})
+  }
+}, [mobileSearchValue, setSearchParams])
+```
+
+#### テスト結果
+
+✅ **Playwright E2E テスト**
+- 検索ボタンクリック: 同じキーワードで再フェッチが動作
+- Enterキー: 同じキーワードで再フェッチが動作
+- ネットワークログ: 同じAPIが2回呼ばれることを確認
+
+#### 実装のまとめ
+
+1. **シンプルなAPI** ✨
+   - URLパラメータを変更せずに再検索が可能
+   - ユーザーには透明な実装
+
+2. **確実な動作** 💅
+   - dedupingIntervalの影響を受けない
+   - 常に新しいリクエストとして扱われる
+
+3. **保守性の高さ** 🎯
+   - ステート管理のみで完結
+   - カスタムイベントで疎結合
+   - コンポーネント間の依存が少ない
 
 ---
 
