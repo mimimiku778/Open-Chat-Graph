@@ -54,13 +54,14 @@ class AlphaSearchApiRepository
                     d.percent_increase AS daily_percent,
                     w.diff_member AS weekly_diff,
                     w.percent_increase AS weekly_percent,
-                    CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking
+                    (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                     FROM ocgraph_ranking.member AS m
+                     WHERE m.open_chat_id = oc.id) AS is_in_ranking
                 FROM
                     open_chat AS oc
                     LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                     LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                     LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                    LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                 WHERE
                     {$categoryWhere}
                 ORDER BY
@@ -143,14 +144,15 @@ class AlphaSearchApiRepository
                         d.percent_increase AS daily_percent,
                         w.diff_member AS weekly_diff,
                         w.percent_increase AS weekly_percent,
-                        CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking
+                        (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                         FROM ocgraph_ranking.member AS m
+                         WHERE m.open_chat_id = oc.id) AS is_in_ranking
                     FROM
                         open_chat AS oc
                         JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
                         LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                         LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                         LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                        LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                     WHERE
                         {$categoryWhere}
                     ORDER BY
@@ -192,7 +194,9 @@ class AlphaSearchApiRepository
                         d.percent_increase AS daily_percent,
                         w.diff_member AS weekly_diff,
                         w.percent_increase AS weekly_percent,
-                        CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking,
+                        (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                         FROM ocgraph_ranking.member AS m
+                         WHERE m.open_chat_id = oc.id) AS is_in_ranking,
                         {$sortColumn} AS sort_value,
                         1 AS priority
                     FROM
@@ -201,7 +205,6 @@ class AlphaSearchApiRepository
                         LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                         LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                         LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                        LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                     WHERE
                         {$categoryWhere}
 
@@ -224,7 +227,9 @@ class AlphaSearchApiRepository
                         d.percent_increase AS daily_percent,
                         w.diff_member AS weekly_diff,
                         w.percent_increase AS weekly_percent,
-                        CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking,
+                        (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                         FROM ocgraph_ranking.member AS m
+                         WHERE m.open_chat_id = oc.id) AS is_in_ranking,
                         oc.member AS sort_value,
                         2 AS priority
                     FROM
@@ -232,7 +237,6 @@ class AlphaSearchApiRepository
                         LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                         LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                         LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                        LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                     WHERE
                         {$categoryWhere}
                         AND oc.id NOT IN (
@@ -369,13 +373,14 @@ class AlphaSearchApiRepository
                 d.percent_increase AS daily_percent,
                 w.diff_member AS weekly_diff,
                 w.percent_increase AS weekly_percent,
-                CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking
+                (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                 FROM ocgraph_ranking.member AS m
+                 WHERE m.open_chat_id = oc.id) AS is_in_ranking
             FROM
                 open_chat AS oc
                 LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                 LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                 LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
             WHERE
                 {$categoryWhere}
                 AND {$allCondition}
@@ -541,14 +546,15 @@ class AlphaSearchApiRepository
                     d.percent_increase AS daily_percent,
                     w.diff_member AS weekly_diff,
                     w.percent_increase AS weekly_percent,
-                    CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking
+                    (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                     FROM ocgraph_ranking.member AS m
+                     WHERE m.open_chat_id = oc.id) AS is_in_ranking
                 FROM
                     open_chat AS oc
                     JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
                     LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                     LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                     LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                    LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                 WHERE
                     {$categoryWhere}
                     AND {$allCondition}
@@ -594,7 +600,9 @@ class AlphaSearchApiRepository
                     d.percent_increase AS daily_percent,
                     w.diff_member AS weekly_diff,
                     w.percent_increase AS weekly_percent,
-                    CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking,
+                    (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                     FROM ocgraph_ranking.member AS m
+                     WHERE m.open_chat_id = oc.id) AS is_in_ranking,
                     {$sortColumn} AS sort_value,
                     1 as priority
                 FROM
@@ -603,7 +611,6 @@ class AlphaSearchApiRepository
                     LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                     LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                     LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                    LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                 WHERE
                     {$categoryWhere}
                     AND {$allCondition}
@@ -627,7 +634,9 @@ class AlphaSearchApiRepository
                     d.percent_increase AS daily_percent,
                     w.diff_member AS weekly_diff,
                     w.percent_increase AS weekly_percent,
-                    CASE WHEN m.open_chat_id IS NOT NULL THEN 1 ELSE 0 END AS is_in_ranking,
+                    (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                     FROM ocgraph_ranking.member AS m
+                     WHERE m.open_chat_id = oc.id) AS is_in_ranking,
                     oc.member AS sort_value,
                     2 as priority
                 FROM
@@ -635,7 +644,6 @@ class AlphaSearchApiRepository
                     LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
                     LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
                     LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                    LEFT JOIN ocgraph_ranking.member AS m ON oc.id = m.open_chat_id
                 WHERE
                     {$categoryWhere}
                     AND {$allCondition}
