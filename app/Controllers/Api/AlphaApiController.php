@@ -190,12 +190,36 @@ class AlphaApiController
                 oc.created_at,
                 oc.join_method_type,
                 oc.url,
-                h.diff_member AS hourly_diff_member,
-                h.percent_increase AS hourly_percent_increase,
-                d.diff_member AS daily_diff_member,
-                d.percent_increase AS daily_percent_increase,
-                w.diff_member AS weekly_diff_member,
-                w.percent_increase AS weekly_percent_increase,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN h.diff_member IS NULL THEN 0
+                    ELSE h.diff_member
+                END AS hourly_diff_member,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN h.percent_increase IS NULL THEN 0
+                    ELSE h.percent_increase
+                END AS hourly_percent_increase,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN d.diff_member IS NULL AND TIMESTAMPDIFF(HOUR, oc.created_at, NOW()) >= 24 THEN 0
+                    ELSE d.diff_member
+                END AS daily_diff_member,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN d.percent_increase IS NULL AND TIMESTAMPDIFF(HOUR, oc.created_at, NOW()) >= 24 THEN 0
+                    ELSE d.percent_increase
+                END AS daily_percent_increase,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN w.diff_member IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
+                    ELSE w.diff_member
+                END AS weekly_diff_member,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN w.percent_increase IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
+                    ELSE w.percent_increase
+                END AS weekly_percent_increase,
                 (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
                  FROM ocgraph_ranking.member AS m
                  WHERE m.open_chat_id = oc.id) AS is_in_ranking
@@ -372,12 +396,36 @@ class AlphaApiController
                 oc.join_method_type,
                 oc.created_at,
                 oc.api_created_at,
-                h.diff_member AS hourly_diff,
-                h.percent_increase AS hourly_percent,
-                d.diff_member AS daily_diff,
-                d.percent_increase AS daily_percent,
-                w.diff_member AS weekly_diff,
-                w.percent_increase AS weekly_percent,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN h.diff_member IS NULL THEN 0
+                    ELSE h.diff_member
+                END AS hourly_diff,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN h.percent_increase IS NULL THEN 0
+                    ELSE h.percent_increase
+                END AS hourly_percent,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN d.diff_member IS NULL AND TIMESTAMPDIFF(HOUR, oc.created_at, NOW()) >= 24 THEN 0
+                    ELSE d.diff_member
+                END AS daily_diff,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN d.percent_increase IS NULL AND TIMESTAMPDIFF(HOUR, oc.created_at, NOW()) >= 24 THEN 0
+                    ELSE d.percent_increase
+                END AS daily_percent,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN w.diff_member IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
+                    ELSE w.diff_member
+                END AS weekly_diff,
+                CASE
+                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
+                    WHEN w.percent_increase IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
+                    ELSE w.percent_increase
+                END AS weekly_percent,
                 (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
                  FROM ocgraph_ranking.member AS m
                  WHERE m.open_chat_id = oc.id) AS is_in_ranking
