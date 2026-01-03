@@ -180,7 +180,8 @@ class AlphaSearchApiRepository
                     WHERE
                         {$categoryWhere}
                     ORDER BY
-                        {$sortColumn} {$args->order}
+                        {$sortColumn} {$args->order},
+                        oc.member DESC
                     LIMIT {$limit} OFFSET {$offset}
                 ";
 
@@ -269,7 +270,8 @@ class AlphaSearchApiRepository
                 ) AS combined
                 ORDER BY
                     priority ASC,
-                    sort_value {$args->order}
+                    sort_value {$args->order},
+                    member DESC
                 LIMIT {$limit} OFFSET {$offset}
             ";
 
@@ -631,7 +633,8 @@ class AlphaSearchApiRepository
                     {$categoryWhere}
                     AND {$allCondition}
                 ORDER BY
-                    {$sortColumn} {$args->order}
+                    {$sortColumn} {$args->order},
+                    oc.member DESC
                 LIMIT {$limit} OFFSET {$offset}
             ";
 
@@ -772,7 +775,7 @@ class AlphaSearchApiRepository
                     )
             ) AS combined
             ORDER BY
-                priority ASC, sort_value {$args->order}
+                priority ASC, sort_value {$args->order}, member DESC
             LIMIT {$limit} OFFSET {$offset}
         ";
 
