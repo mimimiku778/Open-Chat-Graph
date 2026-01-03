@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Api;
 
 use App\Config\AppConfig;
-use App\Models\ApiRepositories\OpenChatStatsRankingApiRepository;
+use App\Models\ApiRepositories\AlphaSearchApiRepository;
 use App\Models\ApiRepositories\OpenChatApiArgs;
 use App\Models\Repositories\DB;
 use App\Models\SQLite\SQLiteStatistics;
@@ -42,7 +42,7 @@ class AlphaApiController
      * 検索API
      * GET /alpha-api/search?keyword=xxx&category=0&page=0&limit=20&sort=member&order=desc
      */
-    function search(OpenChatStatsRankingApiRepository $repo)
+    function search(AlphaSearchApiRepository $repo)
     {
         $error = BadRequestException::class;
         Reception::$isJson = true;
@@ -67,62 +67,42 @@ class AlphaApiController
             $this->args->keyword = $keyword;
         }
 
-        // ソート条件に応じて適切なリポジトリメソッドを呼ぶ
-        // OpenChatStatsRankingApiRepositoryのメソッドに合わせてargsを調整
+        // ソート条件に応じて適切なリポジトリメソッドを呼ぶ（1回のクエリで全データ取得）
         switch ($this->args->sort) {
             case 'hourly_diff':
                 // 1時間でソート
-                $this->args->list = 'hourly';
-                $this->args->sort = 'increase'; // diff_member順
-                $baseData = $repo->findHourlyStatsRanking($this->args);
+                $data = $repo->findByStatsRanking($this->args, 'statistics_ranking_hour');
                 break;
 
             case 'diff_24h':
                 // 24時間でソート
-                $this->args->list = 'daily';
-                $this->args->sort = 'increase';
-                $baseData = $repo->findDailyStatsRanking($this->args);
+                $data = $repo->findByStatsRanking($this->args, 'statistics_ranking_hour24');
                 break;
 
             case 'diff_1w':
                 // 1週間でソート
-                $this->args->list = 'weekly';
-                $this->args->sort = 'increase';
-                $baseData = $repo->findWeeklyStatsRanking($this->args);
+                $data = $repo->findByStatsRanking($this->args, 'statistics_ranking_week');
                 break;
 
             case 'created_at':
-                // 作成日でソート
-                $this->args->list = 'all';
-                $this->args->sort = 'created_at';
-                $baseData = $repo->findStatsAll($this->args);
-                break;
-
             case 'member':
             default:
-                // メンバー数でソート
-                $this->args->list = 'all';
-                $this->args->sort = 'member';
-                $baseData = $repo->findStatsAll($this->args);
+                // メンバー数または作成日でソート
+                $data = $repo->findByMemberOrCreatedAt($this->args);
                 break;
         }
 
-        // OpenChatListDtoオブジェクトをIDリストに変換
-        $ids = array_map(fn($item) => $item->id, $baseData);
-        $totalCount = $baseData[0]->totalCount ?? 0;
+        $totalCount = $data[0]['totalCount'] ?? 0;
 
-        if (empty($ids)) {
+        if (empty($data)) {
             return response([
                 'data' => [],
                 'totalCount' => 0,
             ]);
         }
 
-        // 不足しているデータを追加のSQLで取得
-        $additionalData = $this->fetchAdditionalStats($ids);
-
         // レスポンスを整形
-        $responseData = $this->formatResponse($baseData, $additionalData);
+        $responseData = $this->formatResponse($data);
 
         return response([
             'data' => $responseData,
@@ -131,98 +111,51 @@ class AlphaApiController
     }
 
     /**
-     * 不足データを一括取得（LEFT JOINでnullを許容）
-     */
-    private function fetchAdditionalStats(array $ids): array
-    {
-        DB::connect();
-
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-
-        // hourly, daily, weeklyのデータを一括取得
-        // 登録日（api_created_at）と作成日（created_at）、画像URLも取得
-        $sql = "
-            SELECT
-                oc.id,
-                oc.created_at,
-                oc.api_created_at,
-                oc.img_url,
-                h.diff_member AS hourly_diff,
-                h.percent_increase AS hourly_percent,
-                d.diff_member AS daily_diff,
-                d.percent_increase AS daily_percent,
-                w.diff_member AS weekly_diff,
-                w.percent_increase AS weekly_percent
-            FROM
-                open_chat AS oc
-                LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
-                LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
-                LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-            WHERE
-                oc.id IN ($placeholders)
-            ORDER BY
-                FIELD(oc.id, $placeholders)
-        ";
-
-        $stmt = DB::$pdo->prepare($sql);
-        // パラメータを2回バインド（IN句とORDER BY FIELD用）
-        $params = array_merge($ids, $ids);
-        $stmt->execute($params);
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        // IDをキーにした連想配列に変換
-        $result = [];
-        foreach ($rows as $row) {
-            $result[$row['id']] = $row;
-        }
-
-        return $result;
-    }
-
-    /**
      * レスポンスをフロントエンドインターフェイスに合わせて整形
      */
-    private function formatResponse(array $baseData, array $additionalData): array
+    private function formatResponse(array $data): array
     {
         $result = [];
 
-        foreach ($baseData as $item) {
-            $id = $item->id;
-            $additional = $additionalData[$id] ?? null;
+        foreach ($data as $item) {
+            // totalCountキーをスキップ
+            if (!isset($item['id'])) {
+                continue;
+            }
 
             // フロントエンドのOpenChatインターフェイスに合わせる
             // img_urlをobs.line-scdn.net形式に変換
             $imgUrl = '';
-            if (!empty($additional['img_url'])) {
-                $imgUrl = 'https://obs.line-scdn.net/' . $additional['img_url'];
+            if (!empty($item['img_url'])) {
+                $imgUrl = 'https://obs.line-scdn.net/' . $item['img_url'];
             }
 
             $result[] = [
-                'id' => $item->id,
-                'name' => $item->name,
-                'desc' => $item->desc,
-                'member' => $item->member,
+                'id' => (int)$item['id'],
+                'name' => $item['name'],
+                'desc' => $item['description'] ?? '',
+                'member' => (int)$item['member'],
                 'img' => $imgUrl,
-                'emblem' => $item->emblem,
-                'category' => $item->category,
-                'categoryName' => $this->getCategoryName($item->category),
-                'join_method_type' => $item->joinMethodType,
+                'emblem' => (int)$item['emblem'],
+                'category' => (int)$item['category'],
+                'categoryName' => $this->getCategoryName((int)$item['category']),
+                'join_method_type' => (int)$item['join_method_type'],
 
                 // 1時間の差分（number）
-                'increasedMember' => $additional['hourly_diff'] !== null ? (int)$additional['hourly_diff'] : 0,
-                'percentageIncrease' => $additional['hourly_percent'] !== null ? (float)$additional['hourly_percent'] : 0.0,
+                'increasedMember' => $item['hourly_diff'] !== null ? (int)$item['hourly_diff'] : 0,
+                'percentageIncrease' => $item['hourly_percent'] !== null ? (float)$item['hourly_percent'] : 0.0,
 
                 // 24時間の差分（number）
-                'diff24h' => $additional['daily_diff'] !== null ? (int)$additional['daily_diff'] : 0,
-                'percent24h' => $additional['daily_percent'] !== null ? (float)$additional['daily_percent'] : 0.0,
+                'diff24h' => $item['daily_diff'] !== null ? (int)$item['daily_diff'] : 0,
+                'percent24h' => $item['daily_percent'] !== null ? (float)$item['daily_percent'] : 0.0,
 
                 // 1週間の差分（number）
-                'diff1w' => $additional['weekly_diff'] !== null ? (int)$additional['weekly_diff'] : 0,
-                'percent1w' => $additional['weekly_percent'] !== null ? (float)$additional['weekly_percent'] : 0.0,
+                'diff1w' => $item['weekly_diff'] !== null ? (int)$item['weekly_diff'] : 0,
+                'percent1w' => $item['weekly_percent'] !== null ? (float)$item['weekly_percent'] : 0.0,
 
                 // 作成日と登録日
-                'createdAt' => !empty($additional['created_at']) ? strtotime($additional['created_at']) : null,
-                'registeredAt' => $additional['api_created_at'] ?? '',
+                'createdAt' => !empty($item['created_at']) ? strtotime($item['created_at']) : null,
+                'registeredAt' => $item['api_created_at'] ?? '',
             ];
         }
 
@@ -433,6 +366,7 @@ class AlphaApiController
         // IN句用のプレースホルダー作成
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
+        // 1回のクエリで全データ取得（hourly, daily, weekly含む）
         $sql = "
             SELECT
                 oc.id,
@@ -440,14 +374,22 @@ class AlphaApiController
                 oc.description AS `desc`,
                 oc.member,
                 oc.img_url,
-                oc.local_img_url,
                 oc.emblem,
                 oc.category,
                 oc.join_method_type,
                 oc.created_at,
-                oc.api_created_at
+                oc.api_created_at,
+                h.diff_member AS hourly_diff,
+                h.percent_increase AS hourly_percent,
+                d.diff_member AS daily_diff,
+                d.percent_increase AS daily_percent,
+                w.diff_member AS weekly_diff,
+                w.percent_increase AS weekly_percent
             FROM
                 open_chat AS oc
+                LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
             WHERE
                 oc.id IN ({$placeholders})
             ORDER BY
@@ -460,15 +402,9 @@ class AlphaApiController
         $stmt->execute($params);
         $data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        // 不足しているデータを追加のSQLで取得
-        $additionalData = $this->fetchAdditionalStats($ids);
-
         // レスポンスを整形
         $result = [];
         foreach ($data as $item) {
-            $id = $item['id'];
-            $additional = $additionalData[$id] ?? null;
-
             // img_urlをobs.line-scdn.net形式に変換
             $imgUrl = '';
             if (!empty($item['img_url'])) {
@@ -476,7 +412,7 @@ class AlphaApiController
             }
 
             $result[] = [
-                'id' => $item['id'],
+                'id' => (int)$item['id'],
                 'name' => $item['name'],
                 'desc' => $item['desc'],
                 'member' => (int)$item['member'],
@@ -487,16 +423,16 @@ class AlphaApiController
                 'join_method_type' => (int)$item['join_method_type'],
 
                 // 1時間の差分（number）
-                'increasedMember' => $additional['hourly_diff'] !== null ? (int)$additional['hourly_diff'] : 0,
-                'percentageIncrease' => $additional['hourly_percent'] !== null ? (float)$additional['hourly_percent'] : 0.0,
+                'increasedMember' => $item['hourly_diff'] !== null ? (int)$item['hourly_diff'] : 0,
+                'percentageIncrease' => $item['hourly_percent'] !== null ? (float)$item['hourly_percent'] : 0.0,
 
                 // 24時間の差分（number）
-                'diff24h' => $additional['daily_diff'] !== null ? (int)$additional['daily_diff'] : 0,
-                'percent24h' => $additional['daily_percent'] !== null ? (float)$additional['daily_percent'] : 0.0,
+                'diff24h' => $item['daily_diff'] !== null ? (int)$item['daily_diff'] : 0,
+                'percent24h' => $item['daily_percent'] !== null ? (float)$item['daily_percent'] : 0.0,
 
                 // 1週間の差分（number）
-                'diff1w' => $additional['weekly_diff'] !== null ? (int)$additional['weekly_diff'] : 0,
-                'percent1w' => $additional['weekly_percent'] !== null ? (float)$additional['weekly_percent'] : 0.0,
+                'diff1w' => $item['weekly_diff'] !== null ? (int)$item['weekly_diff'] : 0,
+                'percent1w' => $item['weekly_percent'] !== null ? (float)$item['weekly_percent'] : 0.0,
 
                 // 作成日と登録日
                 'createdAt' => !empty($item['created_at']) ? strtotime($item['created_at']) : null,
