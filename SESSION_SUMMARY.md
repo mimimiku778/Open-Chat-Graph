@@ -5,7 +5,162 @@
 
 ---
 
-## 最新の完了タスク（2026-01-04 - セッション10）
+## 最新の完了タスク（2026-01-04 - セッション11）
+
+### ✅ AlphaApiControllerの大規模リファクタリングとNULL処理改善（完了）
+
+**対象プロジェクト**: `/home/user/oc-review-dev/`
+
+#### 実装内容
+
+AlphaApiControllerの責務分離リファクタリングを実施し、102箇所の重複CASE文を統一。NULL処理とランキング判定ロジックも大幅に改善しました。
+
+1. **リポジトリクラスへの責務分離**
+   - 問題: `AlphaApiController`と`AlphaSearchApiRepository`に同じSQLロジックが重複
+   - 解決: 新しいディレクトリ構造`app/Models/ApiRepositories/Alpha/`を作成
+   - 新規クラス:
+     - `AlphaQueryBuilder.php`: SQL SELECT句・JOIN句・ORDER BY句の共通化
+     - `AlphaOpenChatRepository.php`: 検索・マイリスト用データアクセス
+     - `AlphaStatsRepository.php`: stats/batchStats用データアクセス
+   - 削除: 旧`AlphaSearchApiRepository.php`を新クラスに置き換え
+
+2. **102箇所の重複CASE文を1箇所に統一**
+   - Before: 各SQLクエリに同じCASE文が個別に記述
+   - After: `AlphaQueryBuilder::getSelectClause()`に統一
+   - 効果: メンテナンス性向上、バグ発生リスク低減
+
+3. **AppConfig定数の使用**
+   - ハードコード`'https://obs.line-scdn.net/'` → `AppConfig::LINE_IMG_URL`
+   - ハードコード`'https://line.me/ti/g2/'` → `AppConfig::LINE_URL`
+   - 対象: `formatResponse()`, `stats()`, `batchStats()`
+
+4. **NULL値のソート順処理改善**
+   - 全ソートメソッドでNULL値を下に配置
+   - 作成日ソート: NULLグループ内は人数順でソート
+   - ランキングソート: NULL値を最下位に配置
+
+5. **batchStats APIのPDOバインディング修正**
+   - 問題: `buildBatchQuery`メソッドの`?`プレースホルダーが0-indexedだった
+   - 解決: PDO bindValueは1-basedのため、`array_combine`で1-indexedに変換
+
+6. **ランキング判定ロジックの根本的改善**
+   - 問題: `ocgraph_ranking.member`テーブルの最新時刻が固定値だった
+   - 解決: `hourlyCronUpdatedAtDatetime`ファイルから動的に取得
+   - 実装: `@is_in_ranking`変数でランキング掲載状態を判定
+   - 効果: ランキング更新タイミングに追従した正確な判定
+
+7. **API一貫性の確保**
+   - 1週間増減: 実際の値を返す（`ocgraph_ranking.member`チェックなし）
+   - 1時間・24時間: `ocgraph_ranking.member`にデータがない場合はNULL
+   - 検索APIと詳細APIで同じ値を返すように統一
+
+#### コミット履歴
+
+```
+d4212f15 fix: 更新日時に基づくランキング判定ロジックの改善とNULL処理の一貫性向上
+76fa2139 fix: 修正されたメンバーの最新時間に基づくランキング判定ロジックの改善
+3eac9e78 Refactor code structure for improved readability and maintainability
+a8238155 fix: Improve NULL handling and API consistency for ranking sorts
+d275a033 fix: Convert params array to 1-indexed for PDO binding in buildBatchQuery
+040fcfe6 fix: Use buildBatchQuery method in AlphaStatsRepository
+e8c7cb84 fix: Handle NULL values in sorting for all sort methods
+2abaa714 refactor: Extract Alpha API logic into separate repository classes
+e64b1238 refactor: Use AppConfig constants for LINE URLs in AlphaApiController
+f2280dc4 fix: ランキング非掲載レコードのソート順修正
+ef15a5b7 fix: ランキングソート時に人数順を副次ソートとして追加
+4026375a fix: ランキング統計のnull→0変換ロジックを修正
+```
+
+#### 変更されたファイル
+
+1. **app/Models/ApiRepositories/Alpha/AlphaQueryBuilder.php（新規）**
+   - `getSelectClause()`: 全統計カラムのSELECT句
+   - `getStatsJoins()`: 統計テーブルのLEFT JOIN句
+   - `getSortOrderBy()`: ソート別ORDER BY句
+   - ランキング判定を`hourlyCronUpdatedAtDatetime`ファイルから動的取得
+
+2. **app/Models/ApiRepositories/Alpha/AlphaOpenChatRepository.php（新規）**
+   - `findByMemberOrCreatedAt()`: 人数順・作成日順検索
+   - `findByStatsRanking()`: ランキング統計順検索
+   - `findByKeywordWithPriority()`: キーワード検索（優先度付き）
+   - `findByStatsRankingWithKeyword()`: キーワード+ランキング統計検索
+   - `findMyListByIds()`: マイリスト取得
+
+3. **app/Models/ApiRepositories/Alpha/AlphaStatsRepository.php（新規）**
+   - `stats()`: 単一OpenChat統計取得
+   - `batchStats()`: 複数OpenChat統計一括取得
+   - `buildBatchQuery()`: バッチクエリ構築
+
+4. **app/Controllers/Api/AlphaApiController.php**
+   - 新リポジトリクラスへの依存注入
+   - `formatResponse()`でAppConfig定数使用
+   - stats/batchStatsを新リポジトリに委譲
+
+5. **app/Models/ApiRepositories/AlphaSearchApiRepository.php（削除）**
+   - 新しい3クラスに分割・統合
+
+#### 技術詳細
+
+**ディレクトリ構造の変更**
+```
+app/Models/ApiRepositories/
+├── Alpha/                      # 新規ディレクトリ
+│   ├── AlphaQueryBuilder.php   # SQL断片の共通化
+│   ├── AlphaOpenChatRepository.php  # 検索・一覧
+│   └── AlphaStatsRepository.php     # 統計API
+├── AlphaSearchApiRepository.php     # 削除
+└── ...（その他既存ファイル）
+```
+
+**ランキング判定SQLの改善**
+```sql
+-- Before（固定時刻）
+SELECT COUNT(*) FROM ocgraph_ranking.member 
+WHERE open_chat_id = oc.id AND time = (SELECT MAX(time) FROM ocgraph_ranking.member)
+
+-- After（動的時刻）
+@is_in_ranking := (SELECT COUNT(*) FROM ocgraph_ranking.member 
+WHERE open_chat_id = oc.id AND time = '{$hourlyCronUpdatedAtDatetime}')
+```
+
+**CASE文の統一**
+```php
+// Before（各メソッドに個別記述）
+CASE
+    WHEN h.diff_member IS NULL THEN 0
+    ELSE h.diff_member
+END AS hourly_diff
+
+// After（AlphaQueryBuilder::getSelectClause()で一元管理）
+CASE
+    WHEN @is_in_ranking = 0 THEN NULL
+    WHEN h.diff_member IS NULL THEN 0
+    ELSE h.diff_member
+END AS hourly_diff
+```
+
+#### 改善のまとめ
+
+1. **責務分離** 🏗️
+   - Controller: ルーティング・バリデーション・レスポンス整形
+   - Repository: データアクセス・SQL実行
+   - QueryBuilder: SQL断片の組み立て
+
+2. **重複排除** 🎯
+   - 102箇所のCASE文を1箇所に統一
+   - コード量削減、保守性向上
+
+3. **正確なランキング判定** ⏰
+   - 更新日時ファイルから動的に判定
+   - クーロン実行タイミングに追従
+
+4. **API一貫性** 📊
+   - 検索APIと詳細APIで同じ値を返却
+   - フロントエンドの条件分岐を簡素化
+
+---
+
+## 前回の完了タスク（2026-01-04 - セッション10）
 
 ### ✅ 検索・マイリストのカード統計表示UX改善（完了）
 
@@ -145,7 +300,7 @@ d376129 fix: ソート対象カラムの太字をfont-boldに変更
 
 ---
 
-## 最新の完了タスク（2026-01-04 - セッション9）
+## 過去の完了タスク（2026-01-04 - セッション9）
 
 ### ✅ ランキング掲載判定の実装とLEFT JOIN重複問題の修正（完了）
 
