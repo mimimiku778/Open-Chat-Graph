@@ -109,60 +109,82 @@ class AlphaSearchApiRepository
 
         // キーワード検索がない場合
         if (!$args->keyword) {
+            // ランキングデータと補完データをUNION ALLで結合
             $sql = "
-                SELECT
-                    oc.id,
-                    oc.name,
-                    oc.description,
-                    oc.member,
-                    oc.img_url,
-                    oc.emblem,
-                    oc.join_method_type,
-                    oc.category,
-                    oc.created_at,
-                    oc.api_created_at,
-                    h.diff_member AS hourly_diff,
-                    h.percent_increase AS hourly_percent,
-                    d.diff_member AS daily_diff,
-                    d.percent_increase AS daily_percent,
-                    w.diff_member AS weekly_diff,
-                    w.percent_increase AS weekly_percent
-                FROM
-                    open_chat AS oc
-                    JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
-                    LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
-                    LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
-                    LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-                WHERE
-                    {$categoryWhere}
+                SELECT * FROM (
+                    SELECT
+                        oc.id,
+                        oc.name,
+                        oc.description,
+                        oc.member,
+                        oc.img_url,
+                        oc.emblem,
+                        oc.join_method_type,
+                        oc.category,
+                        oc.created_at,
+                        oc.api_created_at,
+                        h.diff_member AS hourly_diff,
+                        h.percent_increase AS hourly_percent,
+                        d.diff_member AS daily_diff,
+                        d.percent_increase AS daily_percent,
+                        w.diff_member AS weekly_diff,
+                        w.percent_increase AS weekly_percent,
+                        {$sortColumn} AS sort_value,
+                        1 AS priority
+                    FROM
+                        open_chat AS oc
+                        JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
+                        LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                        LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                        LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                    WHERE
+                        {$categoryWhere}
+
+                    UNION ALL
+
+                    SELECT
+                        oc.id,
+                        oc.name,
+                        oc.description,
+                        oc.member,
+                        oc.img_url,
+                        oc.emblem,
+                        oc.join_method_type,
+                        oc.category,
+                        oc.created_at,
+                        oc.api_created_at,
+                        h.diff_member AS hourly_diff,
+                        h.percent_increase AS hourly_percent,
+                        d.diff_member AS daily_diff,
+                        d.percent_increase AS daily_percent,
+                        w.diff_member AS weekly_diff,
+                        w.percent_increase AS weekly_percent,
+                        oc.member AS sort_value,
+                        2 AS priority
+                    FROM
+                        open_chat AS oc
+                        LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                        LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                        LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                    WHERE
+                        {$categoryWhere}
+                        AND oc.id NOT IN (
+                            SELECT open_chat_id FROM {$tableName} WHERE 1
+                        )
+                ) AS combined
                 ORDER BY
-                    {$sortColumn} {$args->order}
+                    priority ASC,
+                    sort_value {$args->order}
                 LIMIT {$limit} OFFSET {$offset}
             ";
 
             $result = DB::fetchAll($sql, $params);
 
-            // 結果が不足している場合、人数順で補完
-            if ($result && count($result) < $limit) {
-                $supplement = $this->findSupplementByMember($args, $categoryWhere, array_column($result, 'id'), $limit - count($result));
-                $result = array_merge($result, $supplement);
-            }
-
             if (!$result || $args->page !== 0) {
                 return $result;
             }
 
-            // 1ページ目の場合は件数を含める
-            $countSql = "
-                SELECT count(*) as count
-                FROM open_chat AS oc
-                JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
-                WHERE {$categoryWhere}
-            ";
-            $countParams = $args->category ? ['category' => $args->category] : [];
-            $rankingCount = DB::fetchColumn($countSql, $countParams);
-
-            // 全体の件数（ランキング + 補完可能な件数）
+            // 1ページ目の場合は件数を含める（全体の件数）
             $allCountSql = "SELECT count(*) as count FROM open_chat AS oc WHERE {$categoryWhere}";
             $allCountParams = $args->category ? ['category' => $args->category] : [];
             $result[0]['totalCount'] = DB::fetchColumn($allCountSql, $allCountParams);
@@ -442,6 +464,7 @@ class AlphaSearchApiRepository
 
         $nameConditions = [];
         $descConditions = [];
+        $allConditions = [];
         $offset = $args->page * $args->limit;
         $limit = $args->limit;
         $searchParams = [];
@@ -453,15 +476,17 @@ class AlphaSearchApiRepository
         foreach ($keywords as $i => $kw) {
             $nameConditions[] = "oc.name LIKE :keyword{$i}";
             $descConditions[] = "oc.description LIKE :keyword{$i}";
+            $allConditions[] = "(oc.name LIKE :keyword{$i} OR oc.description LIKE :keyword{$i})";
             $searchParams["keyword{$i}"] = "%{$kw}%";
         }
 
         $nameCondition = implode(' AND ', $nameConditions);
         $descCondition = implode(' AND ', $descConditions);
+        $allCondition = implode(' AND ', $allConditions);
 
         $sortColumnAlias = str_replace('sr.', '', $sortColumn);
 
-        // 名前一致を優先するUNIONクエリ
+        // 3つのパート: 1) ランキング+名前一致, 2) ランキング+説明一致, 3) 補完データ
         $sql = "
             SELECT * FROM (
                 SELECT
@@ -481,8 +506,7 @@ class AlphaSearchApiRepository
                     d.percent_increase AS daily_percent,
                     w.diff_member AS weekly_diff,
                     w.percent_increase AS weekly_percent,
-                    sr.diff_member,
-                    sr.percent_increase,
+                    {$sortColumnAlias} AS sort_value,
                     1 as priority
                 FROM
                     open_chat AS oc
@@ -513,8 +537,7 @@ class AlphaSearchApiRepository
                     d.percent_increase AS daily_percent,
                     w.diff_member AS weekly_diff,
                     w.percent_increase AS weekly_percent,
-                    sr.diff_member,
-                    sr.percent_increase,
+                    {$sortColumnAlias} AS sort_value,
                     2 as priority
                 FROM
                     open_chat AS oc
@@ -526,9 +549,42 @@ class AlphaSearchApiRepository
                     {$categoryWhere}
                     AND NOT ({$nameCondition})
                     AND ({$descCondition})
+
+                UNION ALL
+
+                SELECT
+                    oc.id,
+                    oc.name,
+                    oc.description,
+                    oc.member,
+                    oc.img_url,
+                    oc.emblem,
+                    oc.join_method_type,
+                    oc.category,
+                    oc.created_at,
+                    oc.api_created_at,
+                    h.diff_member AS hourly_diff,
+                    h.percent_increase AS hourly_percent,
+                    d.diff_member AS daily_diff,
+                    d.percent_increase AS daily_percent,
+                    w.diff_member AS weekly_diff,
+                    w.percent_increase AS weekly_percent,
+                    oc.member AS sort_value,
+                    3 as priority
+                FROM
+                    open_chat AS oc
+                    LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                    LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                    LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
+                WHERE
+                    {$categoryWhere}
+                    AND ({$allCondition})
+                    AND oc.id NOT IN (
+                        SELECT open_chat_id FROM {$tableName} WHERE 1
+                    )
             ) AS combined
             ORDER BY
-                priority ASC, {$sortColumnAlias} {$args->order}
+                priority ASC, sort_value {$args->order}
             LIMIT {$limit} OFFSET {$offset}
         ";
 
@@ -537,41 +593,20 @@ class AlphaSearchApiRepository
         $stmt->execute($searchParams);
         $result = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        // 結果が不足している場合、人数順で補完
-        if ($result && count($result) < $limit) {
-            $supplement = $this->findSupplementByMemberWithKeyword($args, $categoryWhere, $keywords, array_column($result, 'id'), $limit - count($result));
-            $result = array_merge($result, $supplement);
-        }
-
         if (!$result || $args->page !== 0) {
             return $result;
         }
 
-        // 1ページ目の場合は件数を含める
-        $allConditions = [];
+        // 1ページ目の場合は件数を含める（全体の件数）
         $countParams = [];
         if ($args->category) {
             $countParams['category'] = $args->category;
         }
 
         foreach ($keywords as $i => $kw) {
-            $allConditions[] = "(oc.name LIKE :keyword{$i} OR oc.description LIKE :keyword{$i})";
             $countParams["keyword{$i}"] = "%{$kw}%";
         }
 
-        $allCondition = implode(' AND ', $allConditions);
-
-        // ランキングテーブルとJOINした件数
-        $rankingCountSql = "
-            SELECT count(*) as count
-            FROM open_chat AS oc
-            JOIN {$tableName} AS sr ON oc.id = sr.open_chat_id
-            WHERE {$categoryWhere} AND {$allCondition}
-        ";
-        $rankingCountStmt = DB::$pdo->prepare($rankingCountSql);
-        $rankingCountStmt->execute($countParams);
-
-        // 全体の件数（ランキング + 補完可能な件数）
         $allCountSql = "SELECT count(*) as count FROM open_chat AS oc WHERE {$categoryWhere} AND {$allCondition}";
         $allCountStmt = DB::$pdo->prepare($allCountSql);
         $allCountStmt->execute($countParams);
