@@ -8,6 +8,8 @@ use App\Config\AppConfig;
 use App\Models\ApiRepositories\Alpha\AlphaOpenChatRepository;
 use App\Models\ApiRepositories\Alpha\AlphaStatsRepository;
 use App\Models\ApiRepositories\OpenChatApiArgs;
+use App\Models\RankingBanRepositories\RankingBanPageRepository;
+use App\Models\Repositories\DB;
 use Shadow\Kernel\Reception;
 use Shadow\Kernel\Validator;
 use Shared\Exceptions\BadRequestException;
@@ -308,6 +310,41 @@ class AlphaApiController
                 'registeredAt' => $item['api_created_at'] ?? '',
             ];
         }
+
+        return response([
+            'data' => $result,
+        ]);
+    }
+
+    /**
+     * ランキング掲載履歴取得API
+     * GET /alpha-api/ranking-history/{open_chat_id}
+     */
+    function rankingHistory(RankingBanPageRepository $rankingBanRepo, int $open_chat_id)
+    {
+        Reception::$isJson = true;
+
+        // 現在のメンバー数を取得
+        $currentMemberSql = "SELECT member FROM open_chat WHERE id = :id";
+        $currentMember = DB::fetchColumn($currentMemberSql, ['id' => $open_chat_id]);
+
+        // 履歴データ取得
+        $history = $rankingBanRepo->findHistoryByOpenChatId($open_chat_id);
+
+        // レスポンス整形
+        $result = array_map(function ($item) use ($currentMember) {
+            return [
+                'datetime' => $item['datetime'],
+                'endDatetime' => $item['end_datetime'],
+                'status' => $item['end_datetime'] === null ? '未掲載' : '再掲載済み',
+                'hasContentChange' => $item['updated_at'] >= 1 || !empty($item['update_items']),
+                'updateItems' => $item['update_items'] ?? [],
+                'member' => (int)$item['member'],
+                'currentMember' => (int)$currentMember,
+                'memberDiff' => (int)$currentMember - (int)$item['member'],
+                'percentage' => (int)$item['percentage'],
+            ];
+        }, $history);
 
         return response([
             'data' => $result,

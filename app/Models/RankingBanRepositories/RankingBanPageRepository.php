@@ -117,4 +117,42 @@ class RankingBanPageRepository
 
         return "rb.percentage <= {$percent} {$updatedAtValue} {$endDatetime} {$member}";
     }
+
+    /**
+     * 特定のOpenChatのランキング掲載履歴を取得
+     * @param int $openChatId OpenChat ID
+     * @return array
+     */
+    public function findHistoryByOpenChatId(int $openChatId): array
+    {
+        $sql = "SELECT
+            rb.datetime,
+            rb.end_datetime,
+            rb.flag,
+            rb.updated_at,
+            rb.update_items,
+            rb.member,
+            rb.percentage
+        FROM
+            ranking_ban AS rb
+        WHERE
+            rb.open_chat_id = :open_chat_id
+        ORDER BY
+            IFNULL(GREATEST(rb.datetime, rb.end_datetime), rb.datetime) DESC
+        LIMIT 100";
+
+        $result = DB::fetchAll($sql, ['open_chat_id' => $openChatId]);
+
+        // update_itemsをJSONデコード
+        return array_map(function ($row) {
+            if (!empty($row['update_items'])) {
+                $row['update_items'] = array_keys(
+                    array_filter(json_decode($row['update_items'], true) ?? [])
+                );
+            } else {
+                $row['update_items'] = [];
+            }
+            return $row;
+        }, $result);
+    }
 }

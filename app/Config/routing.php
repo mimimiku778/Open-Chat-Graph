@@ -486,5 +486,10 @@ Route::path('alpha-api/stats/{open_chat_id}', [AlphaApiController::class, 'stats
 Route::path('alpha-api/batch-stats@post', [AlphaApiController::class, 'batchStats'])
     ->match(fn() => MimimalCmsConfig::$urlRoot === '');
 
+// Alpha API - ランキング掲載履歴取得
+Route::path('alpha-api/ranking-history/{open_chat_id}', [AlphaApiController::class, 'rankingHistory'])
+    ->matchNum('open_chat_id', min: 1)
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+
 cache();
 Route::run();
