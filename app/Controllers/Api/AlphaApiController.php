@@ -4,21 +4,32 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
+use App\Config\AppConfig;
+use App\Models\ApiRepositories\OpenChatStatsRankingApiRepository;
+use App\Models\ApiRepositories\OpenChatApiArgs;
 use App\Models\Repositories\DB;
 use App\Models\SQLite\SQLiteStatistics;
 use App\Models\SQLite\SQLiteRankingPosition;
 use Shadow\Kernel\Reception;
 use Shadow\Kernel\Validator;
 use Shared\Exceptions\BadRequestException;
+use Shared\MimimalCmsConfig;
 
 class AlphaApiController
 {
+    private OpenChatApiArgs $args;
+
+    function __construct(OpenChatApiArgs $argsObj)
+    {
+        $this->args = $argsObj;
+    }
+
     /**
      * カテゴリIDから名前を取得
      */
     private function getCategoryName(int $categoryId): string
     {
-        $categories = \App\Config\AppConfig::OPEN_CHAT_CATEGORY[''];
+        $categories = AppConfig::OPEN_CHAT_CATEGORY[''];
         foreach ($categories as $name => $id) {
             if ($id === $categoryId) {
                 return $name;
@@ -29,173 +40,186 @@ class AlphaApiController
 
     /**
      * 検索API
-     * GET /alpha-api/search?keyword=xxx&category=0&page=0&limit=20
+     * GET /alpha-api/search?keyword=xxx&category=0&page=0&limit=20&sort=member&order=desc
      */
-    function search(
-        string $keyword = '',
-        int $category = 0,
-        int $page = 0,
-        int $limit = 20
-    ) {
+    function search(OpenChatStatsRankingApiRepository $repo)
+    {
+        $error = BadRequestException::class;
+        Reception::$isJson = true;
+
+        // バリデーション
+        $this->args->page = Validator::num(Reception::input('page', 0), min: 0, e: $error);
+        $this->args->limit = Validator::num(Reception::input('limit', 20), min: 1, max: 100, e: $error);
+        $this->args->category = (int)Validator::str(
+            Reception::input('category', '0'),
+            regex: AppConfig::OPEN_CHAT_CATEGORY[MimimalCmsConfig::$urlRoot],
+            e: $error
+        );
+        $this->args->order = Validator::str(Reception::input('order', 'desc'), regex: ['asc', 'desc'], e: $error);
+        $this->args->sort = Validator::str(
+            Reception::input('sort', 'member'),
+            regex: ['member', 'created_at', 'hourly_diff', 'diff_24h', 'diff_1w'],
+            e: $error
+        );
+
+        $keyword = Validator::str(Reception::input('keyword', ''), emptyAble: true, maxLen: 1000, e: $error);
+        if ($keyword) {
+            $this->args->keyword = $keyword;
+        }
+
+        // ソート条件に応じて適切なリポジトリメソッドを呼ぶ
+        // OpenChatStatsRankingApiRepositoryのメソッドに合わせてargsを調整
+        switch ($this->args->sort) {
+            case 'hourly_diff':
+                // 1時間でソート
+                $this->args->list = 'hourly';
+                $this->args->sort = 'increase'; // diff_member順
+                $baseData = $repo->findHourlyStatsRanking($this->args);
+                break;
+
+            case 'diff_24h':
+                // 24時間でソート
+                $this->args->list = 'daily';
+                $this->args->sort = 'increase';
+                $baseData = $repo->findDailyStatsRanking($this->args);
+                break;
+
+            case 'diff_1w':
+                // 1週間でソート
+                $this->args->list = 'weekly';
+                $this->args->sort = 'increase';
+                $baseData = $repo->findWeeklyStatsRanking($this->args);
+                break;
+
+            case 'created_at':
+                // 作成日でソート
+                $this->args->list = 'all';
+                $this->args->sort = 'created_at';
+                $baseData = $repo->findStatsAll($this->args);
+                break;
+
+            case 'member':
+            default:
+                // メンバー数でソート
+                $this->args->list = 'all';
+                $this->args->sort = 'member';
+                $baseData = $repo->findStatsAll($this->args);
+                break;
+        }
+
+        // OpenChatListDtoオブジェクトをIDリストに変換
+        $ids = array_map(fn($item) => $item->id, $baseData);
+        $totalCount = $baseData[0]->totalCount ?? 0;
+
+        if (empty($ids)) {
+            return response([
+                'data' => [],
+                'totalCount' => 0,
+            ]);
+        }
+
+        // 不足しているデータを追加のSQLで取得
+        $additionalData = $this->fetchAdditionalStats($ids);
+
+        // レスポンスを整形
+        $responseData = $this->formatResponse($baseData, $additionalData);
+
+        return response([
+            'data' => $responseData,
+            'totalCount' => $totalCount,
+        ]);
+    }
+
+    /**
+     * 不足データを一括取得（LEFT JOINでnullを許容）
+     */
+    private function fetchAdditionalStats(array $ids): array
+    {
         DB::connect();
 
-        $offset = $page * $limit;
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
+        // hourly, daily, weeklyのデータを一括取得
+        // 登録日（api_created_at）と作成日（created_at）も取得
         $sql = "
             SELECT
                 oc.id,
-                oc.name,
-                oc.description AS `desc`,
-                oc.member,
-                oc.img_url,
-                oc.local_img_url AS img,
-                oc.emblem,
-                oc.category,
-                oc.join_method_type,
-                COALESCE(sr.diff_member, 0) AS increasedMember,
-                COALESCE(sr.percent_increase, 0) AS percentageIncrease,
                 oc.created_at,
-                oc.api_created_at
+                oc.api_created_at,
+                h.diff_member AS hourly_diff,
+                h.percent_increase AS hourly_percent,
+                d.diff_member AS daily_diff,
+                d.percent_increase AS daily_percent,
+                w.diff_member AS weekly_diff,
+                w.percent_increase AS weekly_percent
             FROM
                 open_chat AS oc
-                LEFT JOIN statistics_ranking_hour24 AS sr ON oc.id = sr.open_chat_id
+                LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
+                LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
+                LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
             WHERE
-                1=1
-        ";
-
-        $params = [];
-
-        // キーワード検索（スペース区切りでAND検索）
-        if ($keyword !== '') {
-            $keywords = preg_split('/\s+/', trim($keyword), -1, PREG_SPLIT_NO_EMPTY);
-            foreach ($keywords as $index => $kw) {
-                $paramKey = "keyword{$index}";
-                $sql .= " AND (oc.name LIKE :{$paramKey} OR oc.description LIKE :{$paramKey})";
-                $params[$paramKey] = '%' . $kw . '%';
-            }
-        }
-
-        // カテゴリフィルター
-        if ($category > 0) {
-            $sql .= " AND oc.category = :category";
-            $params['category'] = $category;
-        }
-
-        $sql .= "
-            ORDER BY oc.member DESC
-            LIMIT :offset, :limit
+                oc.id IN ($placeholders)
+            ORDER BY
+                FIELD(oc.id, $placeholders)
         ";
 
         $stmt = DB::$pdo->prepare($sql);
+        // パラメータを2回バインド（IN句とORDER BY FIELD用）
+        $params = array_merge($ids, $ids);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        // 文字列パラメータをバインド
-        foreach ($params as $key => $value) {
-            $stmt->bindValue($key, $value, \PDO::PARAM_STR);
+        // IDをキーにした連想配列に変換
+        $result = [];
+        foreach ($rows as $row) {
+            $result[$row['id']] = $row;
         }
 
-        // LIMIT パラメータを整数としてバインド
-        $stmt->bindValue('offset', $offset, \PDO::PARAM_INT);
-        $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
+        return $result;
+    }
 
-        $stmt->execute();
-        $data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    /**
+     * レスポンスをフロントエンドインターフェイスに合わせて整形
+     */
+    private function formatResponse(array $baseData, array $additionalData): array
+    {
+        $result = [];
 
-        // 画像URLを変換し、IDリストを作成
-        $ids = [];
-        foreach ($data as &$item) {
-            $ids[] = $item['id'];
-            // img_urlをobs.line-scdn.net形式に変換
-            if (!empty($item['img_url'])) {
-                $item['img'] = 'https://obs.line-scdn.net/' . $item['img_url'];
-            }
-            unset($item['img_url']);
+        foreach ($baseData as $item) {
+            $id = $item->id;
+            $additional = $additionalData[$id] ?? null;
 
-            // カテゴリ名を追加
-            $item['categoryName'] = $this->getCategoryName((int)$item['category']);
+            // フロントエンドのOpenChatインターフェイスに合わせる
+            $result[] = [
+                'id' => $item->id,
+                'name' => $item->name,
+                'desc' => $item->desc,
+                'member' => $item->member,
+                'img' => $item->img,
+                'emblem' => $item->emblem,
+                'category' => $item->category,
+                'categoryName' => $this->getCategoryName($item->category),
+                'join_method_type' => $item->joinMethodType,
 
-            // 作成日と登録日を追加
-            $item['createdAt'] = !empty($item['created_at']) ? strtotime($item['created_at']) : null;
-            $item['registeredAt'] = $item['api_created_at'] ?? '';
-            unset($item['created_at']);
-            unset($item['api_created_at']);
-        }
-        unset($item);
+                // 1時間の差分（number）
+                'increasedMember' => $additional['hourly_diff'] !== null ? (int)$additional['hourly_diff'] : 0,
+                'percentageIncrease' => $additional['hourly_percent'] !== null ? (float)$additional['hourly_percent'] : 0.0,
 
-        // 24時間と1週間のデータを一括取得
-        if (!empty($ids)) {
-            $pdo = \App\Models\SQLite\SQLiteStatistics::connect();
-            $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $statsSql = "
-                SELECT
-                    open_chat_id,
-                    date,
-                    member
-                FROM statistics
-                WHERE open_chat_id IN ($placeholders)
-                ORDER BY open_chat_id, date DESC
-            ";
-            $statsStmt = $pdo->prepare($statsSql);
-            $statsStmt->execute($ids);
-            $statsRows = $statsStmt->fetchAll(\PDO::FETCH_ASSOC);
+                // 24時間の差分（number）
+                'diff24h' => $additional['daily_diff'] !== null ? (int)$additional['daily_diff'] : 0,
+                'percent24h' => $additional['daily_percent'] !== null ? (float)$additional['daily_percent'] : 0.0,
 
-            // IDごとにメンバー数の配列を作成
-            $membersById = [];
-            foreach ($statsRows as $row) {
-                $membersById[$row['open_chat_id']][] = (int)$row['member'];
-            }
+                // 1週間の差分（number）
+                'diff1w' => $additional['weekly_diff'] !== null ? (int)$additional['weekly_diff'] : 0,
+                'percent1w' => $additional['weekly_percent'] !== null ? (float)$additional['weekly_percent'] : 0.0,
 
-            // 各検索結果に24時間と1週間の差分を追加
-            foreach ($data as &$item) {
-                $members = $membersById[$item['id']] ?? [];
-                $maxIndex = count($members) - 1;
-
-                $item['diff24h'] = 0;
-                $item['percent24h'] = 0.0;
-                $item['diff1w'] = 0;
-                $item['percent1w'] = 0.0;
-
-                if ($maxIndex >= 1 && $members[$maxIndex - 1] > 0) {
-                    $item['diff24h'] = $members[$maxIndex] - $members[$maxIndex - 1];
-                    $item['percent24h'] = floor(($item['diff24h'] / $members[$maxIndex - 1]) * 100 * 1000000) / 1000000;
-                }
-
-                if ($maxIndex >= 7 && $members[$maxIndex - 7] > 0) {
-                    $item['diff1w'] = $members[$maxIndex] - $members[$maxIndex - 7];
-                    $item['percent1w'] = floor(($item['diff1w'] / $members[$maxIndex - 7]) * 100 * 1000000) / 1000000;
-                }
-            }
-            unset($item);
+                // 作成日と登録日
+                'createdAt' => !empty($additional['created_at']) ? strtotime($additional['created_at']) : null,
+                'registeredAt' => $additional['api_created_at'] ?? '',
+            ];
         }
 
-        // 総件数取得（簡易版：LIMITなしで同じ条件でCOUNT）
-        $countSql = "
-            SELECT COUNT(*) AS total
-            FROM open_chat AS oc
-            WHERE 1=1
-        ";
-
-        $countParams = [];
-        if ($keyword !== '') {
-            $keywords = preg_split('/\s+/', trim($keyword), -1, PREG_SPLIT_NO_EMPTY);
-            foreach ($keywords as $index => $kw) {
-                $paramKey = "keyword{$index}";
-                $countSql .= " AND (oc.name LIKE :{$paramKey} OR oc.description LIKE :{$paramKey})";
-                $countParams[$paramKey] = '%' . $kw . '%';
-            }
-        }
-        if ($category > 0) {
-            $countSql .= " AND oc.category = :category";
-            $countParams['category'] = $category;
-        }
-
-        $countStmt = DB::$pdo->prepare($countSql);
-        $countStmt->execute($countParams);
-        $totalCount = (int)$countStmt->fetchColumn();
-
-        return response([
-            'data' => $data,
-            'totalCount' => $totalCount,
-        ]);
+        return $result;
     }
 
     /**
@@ -409,17 +433,14 @@ class AlphaApiController
                 oc.description AS `desc`,
                 oc.member,
                 oc.img_url,
-                oc.local_img_url AS img,
+                oc.local_img_url,
                 oc.emblem,
                 oc.category,
                 oc.join_method_type,
                 oc.created_at,
-                oc.api_created_at,
-                COALESCE(sr.diff_member, 0) AS diff_member,
-                COALESCE(sr.percent_increase, 0) AS percent_increase
+                oc.api_created_at
             FROM
                 open_chat AS oc
-                LEFT JOIN statistics_ranking_hour24 AS sr ON oc.id = sr.open_chat_id
             WHERE
                 oc.id IN ({$placeholders})
             ORDER BY
@@ -432,77 +453,52 @@ class AlphaApiController
         $stmt->execute($params);
         $data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        // 画像URLを変換し、フィールド名を変更
-        foreach ($data as &$item) {
+        // 不足しているデータを追加のSQLで取得
+        $additionalData = $this->fetchAdditionalStats($ids);
+
+        // レスポンスを整形
+        $result = [];
+        foreach ($data as $item) {
+            $id = $item['id'];
+            $additional = $additionalData[$id] ?? null;
+
+            // 画像URLを変換
+            $imgUrl = '';
             if (!empty($item['img_url'])) {
-                $item['img'] = 'https://obs.line-scdn.net/' . $item['img_url'];
-            }
-            unset($item['img_url']);
-
-            // Rename fields to match frontend interface
-            $item['increasedMember'] = (int)$item['diff_member'];
-            $item['percentageIncrease'] = (float)$item['percent_increase'];
-            unset($item['diff_member'], $item['percent_increase']);
-
-            // カテゴリ名を追加
-            $item['categoryName'] = $this->getCategoryName((int)$item['category']);
-
-            // 作成日と登録日を追加
-            $item['createdAt'] = !empty($item['created_at']) ? strtotime($item['created_at']) : null;
-            $item['registeredAt'] = $item['api_created_at'] ?? '';
-            unset($item['created_at']);
-            unset($item['api_created_at']);
-        }
-        unset($item);
-
-        // 24時間と1週間のデータを一括取得
-        if (!empty($ids)) {
-            $pdo = \App\Models\SQLite\SQLiteStatistics::connect();
-            $placeholders2 = implode(',', array_fill(0, count($ids), '?'));
-            $statsSql = "
-                SELECT
-                    open_chat_id,
-                    date,
-                    member
-                FROM statistics
-                WHERE open_chat_id IN ($placeholders2)
-                ORDER BY open_chat_id, date DESC
-            ";
-            $statsStmt = $pdo->prepare($statsSql);
-            $statsStmt->execute($ids);
-            $statsRows = $statsStmt->fetchAll(\PDO::FETCH_ASSOC);
-
-            // IDごとにメンバー数の配列を作成
-            $membersById = [];
-            foreach ($statsRows as $row) {
-                $membersById[$row['open_chat_id']][] = (int)$row['member'];
+                $imgUrl = 'https://obs.line-scdn.net/' . $item['img_url'];
             }
 
-            // 各結果に24時間と1週間の差分を追加
-            foreach ($data as &$item) {
-                $members = $membersById[$item['id']] ?? [];
-                $maxIndex = count($members) - 1;
+            $result[] = [
+                'id' => $item['id'],
+                'name' => $item['name'],
+                'desc' => $item['desc'],
+                'member' => (int)$item['member'],
+                'img' => $imgUrl,
+                'emblem' => (int)$item['emblem'],
+                'category' => (int)$item['category'],
+                'categoryName' => $this->getCategoryName((int)$item['category']),
+                'join_method_type' => (int)$item['join_method_type'],
 
-                $item['diff24h'] = 0;
-                $item['percent24h'] = 0.0;
-                $item['diff1w'] = 0;
-                $item['percent1w'] = 0.0;
+                // 1時間の差分（number）
+                'increasedMember' => $additional['hourly_diff'] !== null ? (int)$additional['hourly_diff'] : 0,
+                'percentageIncrease' => $additional['hourly_percent'] !== null ? (float)$additional['hourly_percent'] : 0.0,
 
-                if ($maxIndex >= 1 && $members[$maxIndex - 1] > 0) {
-                    $item['diff24h'] = $members[$maxIndex] - $members[$maxIndex - 1];
-                    $item['percent24h'] = floor(($item['diff24h'] / $members[$maxIndex - 1]) * 100 * 1000000) / 1000000;
-                }
+                // 24時間の差分（number）
+                'diff24h' => $additional['daily_diff'] !== null ? (int)$additional['daily_diff'] : 0,
+                'percent24h' => $additional['daily_percent'] !== null ? (float)$additional['daily_percent'] : 0.0,
 
-                if ($maxIndex >= 7 && $members[$maxIndex - 7] > 0) {
-                    $item['diff1w'] = $members[$maxIndex] - $members[$maxIndex - 7];
-                    $item['percent1w'] = floor(($item['diff1w'] / $members[$maxIndex - 7]) * 100 * 1000000) / 1000000;
-                }
-            }
-            unset($item);
+                // 1週間の差分（number）
+                'diff1w' => $additional['weekly_diff'] !== null ? (int)$additional['weekly_diff'] : 0,
+                'percent1w' => $additional['weekly_percent'] !== null ? (float)$additional['weekly_percent'] : 0.0,
+
+                // 作成日と登録日
+                'createdAt' => !empty($item['created_at']) ? strtotime($item['created_at']) : null,
+                'registeredAt' => $item['api_created_at'] ?? '',
+            ];
         }
 
         return response([
-            'data' => $data,
+            'data' => $result,
         ]);
     }
 }
