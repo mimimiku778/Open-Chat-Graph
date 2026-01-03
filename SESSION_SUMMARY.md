@@ -253,7 +253,7 @@ SELECT
     oc.id, oc.name, ...,
     (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
      FROM ocgraph_ranking.member AS m
-     WHERE m.open_chat_id = oc.id) AS is_in_ranking
+     WHERE m.open_chat_id = oc.id AND m.time = (SELECT MAX(time) FROM ocgraph_ranking.member)) AS is_in_ranking
 FROM open_chat AS oc
 LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
 LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
@@ -272,7 +272,7 @@ WHERE ...
 -- 各行ごとにサブクエリが実行され、0 or 1 を返す
 (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
  FROM ocgraph_ranking.member AS m
- WHERE m.open_chat_id = oc.id) AS is_in_ranking
+ WHERE m.open_chat_id = oc.id AND m.time = (SELECT MAX(time) FROM ocgraph_ranking.member)) AS is_in_ranking
 
 -- ↑ これにより、memberテーブルに何件あっても結果は1件のみ
 ```
