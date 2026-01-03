@@ -307,8 +307,9 @@ class AlphaQueryBuilder
             ORDER BY FIELD(oc.id, {$placeholders})
         ";
 
-        // パラメータを2回（IN句とORDER BY FIELD用）
-        $params = array_merge($ids, $ids);
+        // パラメータを2回（IN句とORDER BY FIELD用）、1始まりのインデックスに変換
+        $allIds = array_merge($ids, $ids);
+        $params = array_combine(range(1, count($allIds)), $allIds);
 
         return ['sql' => $sql, 'params' => $params];
     }
