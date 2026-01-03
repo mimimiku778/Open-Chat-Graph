@@ -189,6 +189,25 @@ class RankingBanTableUpdater
             return;
         }
 
+        // 前回の時間帯のランキング数を取得（障害検出用）
+        $previousHourTime = $this->rankingPositionHourRepository->getLastHour(1);
+        $currentHourTime = $this->rankingPositionHourRepository->getLastHour(0);
+
+        if ($previousHourTime && $currentHourTime) {
+            $previousHourTotalCount = $this->rankingPositionHourRepo->getTotalCount(new \DateTime($previousHourTime), false);
+            $currentHourTotalCount = $this->rankingPositionHourRepo->getTotalCount(new \DateTime($currentHourTime), false);
+
+            // 前回と今回のランキング総数を計算
+            $previousTotal = array_sum(array_column($previousHourTotalCount, 'total_count_ranking'));
+            $currentTotal = array_sum(array_column($currentHourTotalCount, 'total_count_ranking'));
+
+            // 今回のランキング数が前回の半分以下なら障害と判断してスキップ
+            if ($currentTotal > 0 && $previousTotal > 0 && $currentTotal < ($previousTotal / 2)) {
+                addCronLog("RankingBanTableUpdater: Current hour ranking count ({$currentTotal}) is less than half of previous hour ({$previousTotal}). Skipping processing to prevent mass false bans.");
+                return;
+            }
+        }
+
         $openChatArray = DB::fetchAll(
             "SELECT
                 oc.id,
@@ -203,24 +222,6 @@ class RankingBanTableUpdater
                 AND oc.category IS NOT NULL
                 AND oc.category != 0"
         );
-
-        // 全体のOpenChat数を取得
-        $totalOpenChatCount = DB::fetch(
-            "SELECT COUNT(*) as count
-            FROM open_chat
-            WHERE api_created_at IS NOT NULL
-                AND category IS NOT NULL
-                AND category != 0"
-        )['count'];
-
-        // 非掲載候補が全体の10%を超える場合は処理をスキップ（障害検出）
-        $banCandidateCount = count($openChatArray);
-        $banCandidatePercentage = $totalOpenChatCount > 0 ? ($banCandidateCount / $totalOpenChatCount) * 100 : 0;
-
-        if ($banCandidatePercentage > 10) {
-            addCronLog("RankingBanTableUpdater: Ban candidate percentage ({$banCandidatePercentage}%) exceeds 10%. Skipping processing to prevent mass false bans. Candidates: {$banCandidateCount} / Total: {$totalOpenChatCount}");
-            return;
-        }
 
         $existsListArray = DB::fetchAll(
             "SELECT
