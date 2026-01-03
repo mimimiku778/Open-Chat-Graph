@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace App\Controllers\Api;
 
 use App\Config\AppConfig;
-use App\Models\ApiRepositories\AlphaSearchApiRepository;
+use App\Models\ApiRepositories\Alpha\AlphaOpenChatRepository;
+use App\Models\ApiRepositories\Alpha\AlphaStatsRepository;
 use App\Models\ApiRepositories\OpenChatApiArgs;
-use App\Models\Repositories\DB;
-use App\Models\SQLite\SQLiteStatistics;
-use App\Models\SQLite\SQLiteRankingPosition;
 use Shadow\Kernel\Reception;
 use Shadow\Kernel\Validator;
 use Shared\Exceptions\BadRequestException;
@@ -42,7 +40,7 @@ class AlphaApiController
      * 検索API
      * GET /alpha-api/search?keyword=xxx&category=0&page=0&limit=20&sort=member&order=desc
      */
-    function search(AlphaSearchApiRepository $repo)
+    function search(AlphaOpenChatRepository $repo)
     {
         $error = BadRequestException::class;
         Reception::$isJson = true;
@@ -127,7 +125,7 @@ class AlphaApiController
             // img_urlをobs.line-scdn.net形式に変換
             $imgUrl = '';
             if (!empty($item['img_url'])) {
-                $imgUrl = 'https://obs.line-scdn.net/' . $item['img_url'];
+                $imgUrl = AppConfig::LINE_IMG_URL . $item['img_url'];
             }
 
             $result[] = [
@@ -170,140 +168,29 @@ class AlphaApiController
      * GET /alpha-api/stats/{open_chat_id}?bar=ranking&rankingCategory=all
      */
     function stats(
+        AlphaStatsRepository $statsRepo,
         int $open_chat_id,
         string $bar = '',
         string $rankingCategory = 'all'
     ) {
-        // MySQLからオープンチャット情報取得
-        DB::connect();
-        $ocSql = "
-            SELECT
-                oc.id,
-                oc.name,
-                oc.member,
-                oc.category,
-                oc.description,
-                oc.local_img_url,
-                oc.img_url,
-                oc.emblem,
-                oc.api_created_at,
-                oc.created_at,
-                oc.join_method_type,
-                oc.url,
-                CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
-                    WHEN h.diff_member IS NULL THEN 0
-                    ELSE h.diff_member
-                END AS hourly_diff_member,
-                CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
-                    WHEN h.percent_increase IS NULL THEN 0
-                    ELSE h.percent_increase
-                END AS hourly_percent_increase,
-                CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
-                    WHEN d.diff_member IS NULL AND TIMESTAMPDIFF(HOUR, oc.created_at, NOW()) >= 24 THEN 0
-                    ELSE d.diff_member
-                END AS daily_diff_member,
-                CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
-                    WHEN d.percent_increase IS NULL AND TIMESTAMPDIFF(HOUR, oc.created_at, NOW()) >= 24 THEN 0
-                    ELSE d.percent_increase
-                END AS daily_percent_increase,
-                CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
-                    WHEN w.diff_member IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
-                    ELSE w.diff_member
-                END AS weekly_diff_member,
-                CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
-                    WHEN w.percent_increase IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
-                    ELSE w.percent_increase
-                END AS weekly_percent_increase,
-                (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
-                 FROM ocgraph_ranking.member AS m
-                 WHERE m.open_chat_id = oc.id) AS is_in_ranking
-            FROM
-                open_chat AS oc
-            LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
-            LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
-            LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-            WHERE
-                oc.id = :id
-        ";
-        $ocStmt = DB::$pdo->prepare($ocSql);
-        $ocStmt->execute(['id' => $open_chat_id]);
-        $ocData = $ocStmt->fetch(\PDO::FETCH_ASSOC);
+        // MySQLから基本データ取得
+        $ocData = $statsRepo->findById($open_chat_id);
 
         if (!$ocData) {
             return response(['error' => 'OpenChat not found'], 404);
         }
 
         // SQLiteから統計データ取得
-        $pdo = SQLiteStatistics::connect();
-
-        $sql = "
-            SELECT
-                date,
-                member
-            FROM
-                statistics
-            WHERE
-                open_chat_id = :open_chat_id
-            ORDER BY
-                date ASC
-        ";
-
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute(['open_chat_id' => $open_chat_id]);
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        // dates と members の配列に分割
-        $dates = [];
-        $members = [];
-        foreach ($rows as $row) {
-            $dates[] = $row['date'];
-            $members[] = (int)$row['member'];
-        }
+        $statsData = $statsRepo->getStatisticsData($open_chat_id);
+        $dates = $statsData['dates'];
+        $members = $statsData['members'];
 
         // ランキングデータ取得（barパラメータがrankingまたはrisingの場合）
         $rankings = [];
         if ($bar === 'ranking' || $bar === 'rising') {
-            $rankingPdo = SQLiteRankingPosition::connect();
-            $table = $bar === 'ranking' ? 'ranking' : 'rising';
-
             // カテゴリー判定（all=0, category=オープンチャットのカテゴリー）
             $category = $rankingCategory === 'all' ? 0 : (int)$ocData['category'];
-
-            $rankingSql = "
-                SELECT
-                    date,
-                    position
-                FROM
-                    {$table}
-                WHERE
-                    open_chat_id = :open_chat_id
-                    AND category = :category
-                ORDER BY
-                    date ASC
-            ";
-
-            $rankingStmt = $rankingPdo->prepare($rankingSql);
-            $rankingStmt->execute([
-                'open_chat_id' => $open_chat_id,
-                'category' => $category
-            ]);
-            $rankingRows = $rankingStmt->fetchAll(\PDO::FETCH_ASSOC);
-
-            // datesに合わせてランキングデータをマッピング
-            $rankingMap = [];
-            foreach ($rankingRows as $row) {
-                $rankingMap[$row['date']] = (int)$row['position'];
-            }
-
-            foreach ($dates as $date) {
-                $rankings[] = $rankingMap[$date] ?? null;
-            }
+            $rankings = $statsRepo->getRankingData($open_chat_id, $category, $bar, $dates);
         }
 
         // URLをLINE形式に変換
@@ -316,7 +203,7 @@ class AlphaApiController
                 // ハッシュのみの場合は https://line.me/ti/g2/{hash} 形式に変換
                 $hash = trim($ocData['url'], '/');
                 if (!empty($hash)) {
-                    $lineUrl = 'https://line.me/ti/g2/' . $hash;
+                    $lineUrl = AppConfig::LINE_URL . $hash;
                 }
             }
         }
@@ -324,7 +211,7 @@ class AlphaApiController
         // 画像URLをobs.line-scdn.net形式に変換
         $imageUrl = '';
         if (!empty($ocData['img_url'])) {
-            $imageUrl = 'https://obs.line-scdn.net/' . $ocData['img_url'];
+            $imageUrl = AppConfig::LINE_IMG_URL . $ocData['img_url'];
         }
 
         return response([
@@ -359,7 +246,7 @@ class AlphaApiController
      * POST /alpha-api/batch-stats
      * Body: {"ids": [123, 456, 789]}
      */
-    function batchStats(Reception $reception)
+    function batchStats(AlphaStatsRepository $statsRepo, Reception $reception)
     {
         $json = $reception->input();
 
@@ -378,71 +265,8 @@ class AlphaApiController
             return response(['data' => []]);
         }
 
-        DB::connect();
-
-        // IN句用のプレースホルダー作成
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-
-        // 1回のクエリで全データ取得（hourly, daily, weekly含む）
-        $sql = "
-            SELECT
-                oc.id,
-                oc.name,
-                oc.description AS `desc`,
-                oc.member,
-                oc.img_url,
-                oc.emblem,
-                oc.category,
-                oc.join_method_type,
-                oc.created_at,
-                oc.api_created_at,
-                CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
-                    WHEN h.diff_member IS NULL THEN 0
-                    ELSE h.diff_member
-                END AS hourly_diff,
-                CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
-                    WHEN h.percent_increase IS NULL THEN 0
-                    ELSE h.percent_increase
-                END AS hourly_percent,
-                CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
-                    WHEN d.diff_member IS NULL AND TIMESTAMPDIFF(HOUR, oc.created_at, NOW()) >= 24 THEN 0
-                    ELSE d.diff_member
-                END AS daily_diff,
-                CASE
-                    WHEN (SELECT COUNT(*) FROM ocgraph_ranking.member WHERE open_chat_id = oc.id) = 0 THEN NULL
-                    WHEN d.percent_increase IS NULL AND TIMESTAMPDIFF(HOUR, oc.created_at, NOW()) >= 24 THEN 0
-                    ELSE d.percent_increase
-                END AS daily_percent,
-                CASE
-                    WHEN w.diff_member IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
-                    ELSE w.diff_member
-                END AS weekly_diff,
-                CASE
-                    WHEN w.percent_increase IS NULL AND TIMESTAMPDIFF(DAY, oc.created_at, NOW()) >= 7 THEN 0
-                    ELSE w.percent_increase
-                END AS weekly_percent,
-                (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
-                 FROM ocgraph_ranking.member AS m
-                 WHERE m.open_chat_id = oc.id) AS is_in_ranking
-            FROM
-                open_chat AS oc
-                LEFT JOIN statistics_ranking_hour AS h ON oc.id = h.open_chat_id
-                LEFT JOIN statistics_ranking_hour24 AS d ON oc.id = d.open_chat_id
-                LEFT JOIN statistics_ranking_week AS w ON oc.id = w.open_chat_id
-            WHERE
-                oc.id IN ({$placeholders})
-            ORDER BY
-                FIELD(oc.id, {$placeholders})
-        ";
-
-        $stmt = DB::$pdo->prepare($sql);
-        // パラメータを2回バインド（IN句とORDER BY FIELD用）
-        $params = array_merge($ids, $ids);
-        $stmt->execute($params);
-        $data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        // リポジトリから一括取得
+        $data = $statsRepo->findByIds($ids);
 
         // レスポンスを整形
         $result = [];
@@ -450,13 +274,13 @@ class AlphaApiController
             // img_urlをobs.line-scdn.net形式に変換
             $imgUrl = '';
             if (!empty($item['img_url'])) {
-                $imgUrl = 'https://obs.line-scdn.net/' . $item['img_url'];
+                $imgUrl = AppConfig::LINE_IMG_URL . $item['img_url'];
             }
 
             $result[] = [
                 'id' => (int)$item['id'],
                 'name' => $item['name'],
-                'desc' => $item['desc'],
+                'desc' => $item['description'] ?? '',
                 'member' => (int)$item['member'],
                 'img' => $imgUrl,
                 'emblem' => (int)$item['emblem'],
