@@ -141,17 +141,17 @@ class AlphaApiController
                 'categoryName' => $this->getCategoryName((int)$item['category']),
                 'join_method_type' => (int)$item['join_method_type'],
 
-                // 1時間の差分（number）
-                'increasedMember' => $item['hourly_diff'] !== null ? (int)$item['hourly_diff'] : 0,
-                'percentageIncrease' => $item['hourly_percent'] !== null ? (float)$item['hourly_percent'] : 0.0,
+                // 1時間の差分（nullの場合はN/A表示）
+                'increasedMember' => $item['hourly_diff'] !== null ? (int)$item['hourly_diff'] : null,
+                'percentageIncrease' => $item['hourly_percent'] !== null ? (float)$item['hourly_percent'] : null,
 
-                // 24時間の差分（number）
-                'diff24h' => $item['daily_diff'] !== null ? (int)$item['daily_diff'] : 0,
-                'percent24h' => $item['daily_percent'] !== null ? (float)$item['daily_percent'] : 0.0,
+                // 24時間の差分（nullの場合はN/A表示）
+                'diff24h' => $item['daily_diff'] !== null ? (int)$item['daily_diff'] : null,
+                'percent24h' => $item['daily_percent'] !== null ? (float)$item['daily_percent'] : null,
 
-                // 1週間の差分（number）
-                'diff1w' => $item['weekly_diff'] !== null ? (int)$item['weekly_diff'] : 0,
-                'percent1w' => $item['weekly_percent'] !== null ? (float)$item['weekly_percent'] : 0.0,
+                // 1週間の差分（nullの場合はN/A表示）
+                'diff1w' => $item['weekly_diff'] !== null ? (int)$item['weekly_diff'] : null,
+                'percent1w' => $item['weekly_percent'] !== null ? (float)$item['weekly_percent'] : null,
 
                 // 作成日と登録日
                 'createdAt' => !empty($item['created_at']) ? strtotime($item['created_at']) : null,
@@ -233,10 +233,10 @@ class AlphaApiController
 
         // 24時間と1週間の差分を計算
         $maxIndex = count($members) - 1;
-        $diff24h = 0;
-        $percent24h = 0.0;
-        $diff1w = 0;
-        $percent1w = 0.0;
+        $diff24h = null;
+        $percent24h = null;
+        $diff1w = null;
+        $percent1w = null;
 
         if ($maxIndex >= 1 && $members[$maxIndex - 1] > 0) {
             $diff24h = $members[$maxIndex] - $members[$maxIndex - 1];
@@ -324,8 +324,8 @@ class AlphaApiController
             'description' => $ocData['description'] ?? '',
             'thumbnail' => $imageUrl,
             'emblem' => (int)($ocData['emblem'] ?? 0),
-            'hourlyDiff' => (int)($ocData['hourly_diff_member'] ?? 0),
-            'hourlyPercentage' => (float)($ocData['hourly_percent_increase'] ?? 0),
+            'hourlyDiff' => $ocData['hourly_diff_member'] !== null ? (int)$ocData['hourly_diff_member'] : null,
+            'hourlyPercentage' => $ocData['hourly_percent_increase'] !== null ? (float)$ocData['hourly_percent_increase'] : null,
             'diff24h' => $diff24h,
             'percent24h' => $percent24h,
             'diff1w' => $diff1w,
@@ -422,17 +422,17 @@ class AlphaApiController
                 'categoryName' => $this->getCategoryName((int)$item['category']),
                 'join_method_type' => (int)$item['join_method_type'],
 
-                // 1時間の差分（number）
-                'increasedMember' => $item['hourly_diff'] !== null ? (int)$item['hourly_diff'] : 0,
-                'percentageIncrease' => $item['hourly_percent'] !== null ? (float)$item['hourly_percent'] : 0.0,
+                // 1時間の差分（nullの場合はN/A表示）
+                'increasedMember' => $item['hourly_diff'] !== null ? (int)$item['hourly_diff'] : null,
+                'percentageIncrease' => $item['hourly_percent'] !== null ? (float)$item['hourly_percent'] : null,
 
-                // 24時間の差分（number）
-                'diff24h' => $item['daily_diff'] !== null ? (int)$item['daily_diff'] : 0,
-                'percent24h' => $item['daily_percent'] !== null ? (float)$item['daily_percent'] : 0.0,
+                // 24時間の差分（nullの場合はN/A表示）
+                'diff24h' => $item['daily_diff'] !== null ? (int)$item['daily_diff'] : null,
+                'percent24h' => $item['daily_percent'] !== null ? (float)$item['daily_percent'] : null,
 
-                // 1週間の差分（number）
-                'diff1w' => $item['weekly_diff'] !== null ? (int)$item['weekly_diff'] : 0,
-                'percent1w' => $item['weekly_percent'] !== null ? (float)$item['weekly_percent'] : 0.0,
+                // 1週間の差分（nullの場合はN/A表示）
+                'diff1w' => $item['weekly_diff'] !== null ? (int)$item['weekly_diff'] : null,
+                'percent1w' => $item['weekly_percent'] !== null ? (float)$item['weekly_percent'] : null,
 
                 // 作成日と登録日
                 'createdAt' => !empty($item['created_at']) ? strtotime($item['created_at']) : null,
