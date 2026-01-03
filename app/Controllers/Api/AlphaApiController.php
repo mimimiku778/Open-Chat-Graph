@@ -146,7 +146,7 @@ class AlphaApiController
                 oc.id,
                 oc.created_at,
                 oc.api_created_at,
-                oc.local_img_url AS img_url,
+                oc.img_url,
                 h.diff_member AS hourly_diff,
                 h.percent_increase AS hourly_percent,
                 d.diff_member AS daily_diff,
@@ -191,10 +191,10 @@ class AlphaApiController
             $additional = $additionalData[$id] ?? null;
 
             // フロントエンドのOpenChatインターフェイスに合わせる
-            // imgは相対パス（元のimg_url）を返す
-            $imgPath = '';
-            if (isset($additional['img_url'])) {
-                $imgPath = $additional['img_url'];
+            // img_urlをobs.line-scdn.net形式に変換
+            $imgUrl = '';
+            if (!empty($additional['img_url'])) {
+                $imgUrl = 'https://obs.line-scdn.net/' . $additional['img_url'];
             }
 
             $result[] = [
@@ -202,7 +202,7 @@ class AlphaApiController
                 'name' => $item->name,
                 'desc' => $item->desc,
                 'member' => $item->member,
-                'img' => $imgPath,
+                'img' => $imgUrl,
                 'emblem' => $item->emblem,
                 'category' => $item->category,
                 'categoryName' => $this->getCategoryName($item->category),
@@ -469,15 +469,18 @@ class AlphaApiController
             $id = $item['id'];
             $additional = $additionalData[$id] ?? null;
 
-            // 画像URLは相対パス（local_img_url）を返す
-            $imgPath = $item['local_img_url'] ?? '';
+            // img_urlをobs.line-scdn.net形式に変換
+            $imgUrl = '';
+            if (!empty($item['img_url'])) {
+                $imgUrl = 'https://obs.line-scdn.net/' . $item['img_url'];
+            }
 
             $result[] = [
                 'id' => $item['id'],
                 'name' => $item['name'],
                 'desc' => $item['desc'],
                 'member' => (int)$item['member'],
-                'img' => $imgPath,
+                'img' => $imgUrl,
                 'emblem' => (int)$item['emblem'],
                 'category' => (int)$item['category'],
                 'categoryName' => $this->getCategoryName((int)$item['category']),
