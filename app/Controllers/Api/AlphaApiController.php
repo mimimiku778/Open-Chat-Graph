@@ -209,14 +209,14 @@ class AlphaApiController
         return response([
             'id' => $open_chat_id,
             'name' => $ocData['name'],
-            'currentMember' => (int)$ocData['member'],
+            'member' => (int)$ocData['member'],
             'category' => (int)$ocData['category'],
             'categoryName' => $this->getCategoryName((int)$ocData['category']),
-            'description' => $ocData['description'] ?? '',
-            'thumbnail' => $ocData['local_img_url'] ?? '',
+            'desc' => $ocData['description'] ?? '',
+            'img' => $ocData['local_img_url'] ?? '',
             'emblem' => (int)($ocData['emblem'] ?? 0),
-            'hourlyDiff' => $ocData['hourly_diff_member'] !== null ? (int)$ocData['hourly_diff_member'] : null,
-            'hourlyPercentage' => $ocData['hourly_percent_increase'] !== null ? (float)$ocData['hourly_percent_increase'] : null,
+            'increasedMember' => $ocData['hourly_diff_member'] !== null ? (int)$ocData['hourly_diff_member'] : null,
+            'percentageIncrease' => $ocData['hourly_percent_increase'] !== null ? (float)$ocData['hourly_percent_increase'] : null,
             'diff24h' => $ocData['daily_diff_member'] !== null ? (int)$ocData['daily_diff_member'] : null,
             'percent24h' => $ocData['daily_percent_increase'] !== null ? (float)$ocData['daily_percent_increase'] : null,
             'diff1w' => $ocData['weekly_diff_member'] !== null ? (int)$ocData['weekly_diff_member'] : null,
@@ -224,7 +224,7 @@ class AlphaApiController
             'isInRanking' => isset($ocData['is_in_ranking']) ? (bool)$ocData['is_in_ranking'] : false,
             'createdAt' => $ocData['created_at'] ? strtotime($ocData['created_at']) : null,
             'registeredAt' => $ocData['api_created_at'] ?? '',
-            'joinMethodType' => (int)($ocData['join_method_type'] ?? 0),
+            'join_method_type' => (int)($ocData['join_method_type'] ?? 0),
             'url' => $lineUrl,
         ]);
     }
