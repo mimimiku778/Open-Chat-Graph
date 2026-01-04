@@ -62,6 +62,7 @@ RUN pecl install xdebug-3.3.2 && \
 
 RUN mv /etc/apache2/mods-available/rewrite.load /etc/apache2/mods-enabled
 RUN /bin/sh -c a2enmod rewrite
+RUN a2enmod ssl
 
 RUN ln -sf  /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 
