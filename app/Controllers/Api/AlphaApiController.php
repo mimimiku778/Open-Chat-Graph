@@ -123,11 +123,19 @@ class AlphaApiController
                 continue;
             }
 
-            // フロントエンドのOpenChatインターフェイスに合わせる
-            // local_img_urlから完全なURLを生成
-            $imgUrl = '';
-            if (!empty($item['local_img_url'])) {
-                $imgUrl = getFullImgUrl((int)$item['id'], $item['local_img_url']);
+            // URLをLINE形式に変換
+            $lineUrl = '';
+            if (!empty($item['url'])) {
+                // すでに完全なURLの場合はそのまま使用
+                if (strpos($item['url'], 'http') === 0) {
+                    $lineUrl = $item['url'];
+                } else {
+                    // ハッシュのみの場合は https://line.me/ti/g2/{hash} 形式に変換
+                    $hash = trim($item['url'], '/');
+                    if (!empty($hash)) {
+                        $lineUrl = AppConfig::LINE_URL . $hash;
+                    }
+                }
             }
 
             $result[] = [
@@ -135,7 +143,7 @@ class AlphaApiController
                 'name' => $item['name'],
                 'desc' => $item['description'] ?? '',
                 'member' => (int)$item['member'],
-                'img' => $imgUrl,
+                'img' => $item['local_img_url'] ?? '',
                 'emblem' => (int)$item['emblem'],
                 'category' => (int)$item['category'],
                 'categoryName' => $this->getCategoryName((int)$item['category']),
@@ -159,6 +167,9 @@ class AlphaApiController
                 // 作成日と登録日
                 'createdAt' => !empty($item['created_at']) ? strtotime($item['created_at']) : null,
                 'registeredAt' => $item['api_created_at'] ?? '',
+
+                // LINE URL
+                'url' => $lineUrl,
             ];
         }
 
@@ -195,12 +206,6 @@ class AlphaApiController
             }
         }
 
-        // local_img_urlから完全なURLを生成
-        $imageUrl = '';
-        if (!empty($ocData['local_img_url'])) {
-            $imageUrl = getFullImgUrl($open_chat_id, $ocData['local_img_url']);
-        }
-
         return response([
             'id' => $open_chat_id,
             'name' => $ocData['name'],
@@ -208,7 +213,7 @@ class AlphaApiController
             'category' => (int)$ocData['category'],
             'categoryName' => $this->getCategoryName((int)$ocData['category']),
             'description' => $ocData['description'] ?? '',
-            'thumbnail' => $imageUrl,
+            'thumbnail' => $ocData['local_img_url'] ?? '',
             'emblem' => (int)($ocData['emblem'] ?? 0),
             'hourlyDiff' => $ocData['hourly_diff_member'] !== null ? (int)$ocData['hourly_diff_member'] : null,
             'hourlyPercentage' => $ocData['hourly_percent_increase'] !== null ? (float)$ocData['hourly_percent_increase'] : null,
@@ -288,10 +293,19 @@ class AlphaApiController
         // レスポンスを整形
         $result = [];
         foreach ($data as $item) {
-            // local_img_urlから完全なURLを生成
-            $imgUrl = '';
-            if (!empty($item['local_img_url'])) {
-                $imgUrl = getFullImgUrl((int)$item['id'], $item['local_img_url']);
+            // URLをLINE形式に変換
+            $lineUrl = '';
+            if (!empty($item['url'])) {
+                // すでに完全なURLの場合はそのまま使用
+                if (strpos($item['url'], 'http') === 0) {
+                    $lineUrl = $item['url'];
+                } else {
+                    // ハッシュのみの場合は https://line.me/ti/g2/{hash} 形式に変換
+                    $hash = trim($item['url'], '/');
+                    if (!empty($hash)) {
+                        $lineUrl = AppConfig::LINE_URL . $hash;
+                    }
+                }
             }
 
             $result[] = [
@@ -299,7 +313,7 @@ class AlphaApiController
                 'name' => $item['name'],
                 'desc' => $item['description'] ?? '',
                 'member' => (int)$item['member'],
-                'img' => $imgUrl,
+                'img' => $item['local_img_url'] ?? '',
                 'emblem' => (int)$item['emblem'],
                 'category' => (int)$item['category'],
                 'categoryName' => $this->getCategoryName((int)$item['category']),
@@ -323,6 +337,9 @@ class AlphaApiController
                 // 作成日と登録日
                 'createdAt' => !empty($item['created_at']) ? strtotime($item['created_at']) : null,
                 'registeredAt' => $item['api_created_at'] ?? '',
+
+                // LINE URL
+                'url' => $lineUrl,
             ];
         }
 
