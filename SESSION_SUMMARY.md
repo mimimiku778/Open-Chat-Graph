@@ -40,9 +40,9 @@
 #### 開発環境（Development）
 
 **PHPサーバー（Docker）**:
-- URL: `http://localhost:7000`
+- URL: `https://localhost:7433`
 - ドキュメントルート: `/home/user/oc-review-dev/public/`
-- Alphaページ: `http://localhost:7000/alpha`
+- Alphaページ: `https://localhost:7433/alpha`
   - PHPテンプレート（`app/Views/alpha_content.php`）がビルド済みReactを読み込む
   - `public/js/alpha/index.js`（バンドル済み）を実行
 - APIエンドポイント:
@@ -88,7 +88,7 @@ npm run build
 #   - index.css
 
 # 3. PHPサーバーで確認
-# http://localhost:7000/alpha にアクセス
+# https://localhost:7433/alpha にアクセス
 # → alpha_content.php が public/js/alpha/index.js を読み込む
 ```
 
@@ -105,7 +105,7 @@ npm run build
 2. **ビルドと確認**:
    ```bash
    npm run build  # ビルド済みファイルを oc-review-dev/public/js/alpha/ に出力
-   # http://localhost:7000/alpha で動作確認（本番環境に近い状態）
+   # https://localhost:7433/alpha で動作確認（本番環境に近い状態）
    ```
 
 3. **コミット**:
@@ -623,7 +623,7 @@ npm run dev
 cd /home/user/openchat-alpha
 npm run build
 # → ビルド出力: /home/user/oc-review-dev/public/js/alpha/
-# → 確認: http://localhost:7000/alpha
+# → 確認: https://localhost:7433/alpha
 
 # e2eテスト
 cd /home/user/openchat-alpha
