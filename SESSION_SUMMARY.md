@@ -2,7 +2,203 @@
 
 最終更新: 2026-01-04
 
+## 開発環境の構成
+
+このプロジェクトはPHPバックエンドとReactフロントエンドを組み合わせたハイブリッド構成です。
+
+### ディレクトリ構造
+
+```
+# PHPバックエンド（メインプロジェクト）
+/home/user/oc-review-dev/
+├── app/                    # アプリケーションコード
+│   ├── Controllers/       # API/ページコントローラー
+│   ├── Models/            # データアクセス層
+│   ├── Services/          # ビジネスロジック
+│   └── Views/             # PHPテンプレート（alpha_content.php など）
+├── public/                # Webサーバーのドキュメントルート
+│   ├── index.php         # エントリーポイント
+│   └── js/alpha/         # ビルド済みReactアプリ（ビルド時に生成）
+│       ├── index.html
+│       ├── index.js      # バンドル済みReact
+│       └── index.css
+└── docker-compose.yml    # 開発環境（PHP 8.3 + MySQL）
+
+# Reactフロントエンド（別ディレクトリ）
+/home/user/openchat-alpha/
+├── src/                   # Reactソースコード
+│   ├── pages/            # SearchPage, MyListPage, DetailPage など
+│   ├── components/       # Reactコンポーネント
+│   ├── api/              # APIクライアント（alpha.ts）
+│   └── types/            # TypeScript型定義
+├── vite.config.ts        # Vite設定（プロキシ、ビルド出力先）
+└── package.json          # npm依存関係
+```
+
+### URL構成と開発環境の違い
+
+#### 開発環境（Development）
+
+**PHPサーバー（Docker）**:
+- URL: `http://localhost:7000`
+- ドキュメントルート: `/home/user/oc-review-dev/public/`
+- Alphaページ: `http://localhost:7000/alpha`
+  - PHPテンプレート（`app/Views/alpha_content.php`）がビルド済みReactを読み込む
+  - `public/js/alpha/index.js`（バンドル済み）を実行
+- APIエンドポイント:
+  - `/alpha-api/search` → AlphaApiController
+  - `/oc/{id}/position` → RankingPositionApiController
+  - など
+
+**Reactデベロップメントサーバー（Vite）**:
+- URL: `http://localhost:5173`
+- ソースコード: `/home/user/openchat-alpha/src/`
+- ホットリロード: コード変更時に即座に反映
+- **Viteプロキシ設定**（vite.config.ts）:
+  ```typescript
+  proxy: {
+    '/alpha-api': { target: 'http://localhost:7000' },  // API リクエストをプロキシ
+    '/oc': { target: 'http://localhost:7000' },         // グラフAPIをプロキシ
+  }
+  ```
+- アクセス例:
+  - `http://localhost:5173/` → 検索ページ（React開発サーバー）
+  - `http://localhost:5173/alpha-api/search` → プロキシ経由で`localhost:7000/alpha-api/search`にアクセス
+  - CORS問題を回避（同一オリジンとして扱われる）
+
+#### 本番環境（Production）
+
+- URL: `https://openchat-review.me`
+- Alphaページ: `https://openchat-review.me/alpha`
+- すべて同一オリジン → CORS問題なし
+- ビルド済みファイル: `public/js/alpha/index.js`（Viteビルドで生成）
+
+### ビルドプロセス
+
+```bash
+# 1. Reactアプリをビルド
+cd /home/user/openchat-alpha
+npm run build
+
+# 2. ビルド出力先（vite.config.ts で設定）
+# 出力: /home/user/oc-review-dev/public/js/alpha/
+#   - index.html
+#   - index.js (バンドル済み)
+#   - index.css
+
+# 3. PHPサーバーで確認
+# http://localhost:7000/alpha にアクセス
+# → alpha_content.php が public/js/alpha/index.js を読み込む
+```
+
+### 開発ワークフロー
+
+1. **React開発時**:
+   ```bash
+   cd /home/user/openchat-alpha
+   npm run dev  # localhost:5173 でホットリロード開発
+   ```
+   - コンポーネント、スタイル、ロジックの変更
+   - Viteプロキシ経由でPHP APIにアクセス（CORS回避）
+
+2. **ビルドと確認**:
+   ```bash
+   npm run build  # ビルド済みファイルを oc-review-dev/public/js/alpha/ に出力
+   # http://localhost:7000/alpha で動作確認（本番環境に近い状態）
+   ```
+
+3. **コミット**:
+   ```bash
+   cd /home/user/oc-review-dev
+   git add public/js/alpha/
+   git commit -m "build: フロントエンド更新"
+   ```
+
+### 重要な設定ファイル
+
+**vite.config.ts**:
+```typescript
+export default defineConfig({
+  server: {
+    port: 5173,
+    proxy: {
+      '/alpha-api': { target: 'http://localhost:7000', changeOrigin: true },
+      '/oc': { target: 'http://localhost:7000', changeOrigin: true },
+    },
+  },
+  build: {
+    outDir: '../oc-review-dev/public/js/alpha',  // ビルド出力先
+  },
+  base: mode === 'production' ? '/js/alpha/' : '/',  // 本番ビルド時のベースパス
+})
+```
+
+**App.tsx**:
+```typescript
+function App() {
+  // 開発: '/', 本番: '/alpha'
+  const basename = import.meta.env.DEV ? '/' : '/alpha'
+  return <BrowserRouter basename={basename}>...</BrowserRouter>
+}
+```
+
+---
+
 ## 最新の実装内容
+
+### SVGアイコンのReactコンポーネント化とCORS対応（2026-01-04）
+
+#### SVGアイコンの埋め込み（f5d44f9, d8830b4）
+
+**課題**: 外部SVGファイル（`/assets/official.svg`, `/assets/special.svg`）への参照が不安定
+
+**解決策**: SVGをReactコンポーネントとして埋め込み
+- `src/components/icons/OfficialIcon.tsx` - 公式認証バッジ
+- `src/components/icons/SpecialIcon.tsx` - スペシャルバッジ
+- `src/components/icons/index.ts` - バレルエクスポート
+
+**使用箇所**:
+- `DetailInfo.tsx` - 詳細ページのタイトル
+- `OpenChatCard.tsx` - 検索結果・マイリストのカード
+
+**メリット**:
+- バンドルに埋め込まれるため確実にロード
+- 外部ファイル参照が不要
+- Tree-shakingで未使用アイコンを削除可能
+
+#### CORS問題の解決（b53aaf2, d8830b4）
+
+**課題**: 開発環境で`localhost:5173`から`localhost:7000`のAPI（`/oc/{id}/position_hour`など）にアクセスするとCORSエラー
+
+**解決策**: Viteプロキシ設定を追加
+
+**vite.config.ts**:
+```typescript
+server: {
+  proxy: {
+    '/alpha-api': { target: 'http://localhost:7000', changeOrigin: true },
+    '/oc': { target: 'http://localhost:7000', changeOrigin: true },  // 追加
+  },
+}
+```
+
+**alpha.ts**:
+```typescript
+// 開発環境: /oc/{id}/position_hour → Viteプロキシ → localhost:7000/oc/{id}/position_hour
+// 本番環境: /oc/{id}/position_hour → 同一オリジンなのでCORS問題なし
+async getRankingPositionHour(openChatId: number, category?: number, sort?: string): Promise<any> {
+  const res = await fetch(`/oc/${openChatId}/position_hour${queryString}`)
+  return res.json()
+}
+```
+
+**重要**: Vite開発サーバーの再起動が必要
+```bash
+cd /home/user/openchat-alpha
+npm run dev  # Ctrl+C で停止後、再起動
+```
+
+---
 
 ### React 19.2への移行とソート機能の大幅改善（2026-01-04）
 
@@ -154,8 +350,8 @@ b2ed8588 - fix: ランキング順位のラベルを明確化
 
 **フロントエンド**:
 - TypeScript
-- React
-- Vite
+- React 19.2
+- Vite 7.3
 - shadcn/ui（UIコンポーネント）
 - Tailwind CSS
 
@@ -163,7 +359,7 @@ b2ed8588 - fix: ランキング順位のラベルを明確化
 - Docker（PHP 8.3 + MySQL + phpMyAdmin）
 - Composer
 
-### ディレクトリ構成
+### アプリケーションディレクトリ構成
 
 ```
 /app/                 - メインアプリケーション
@@ -220,6 +416,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - `docs`: ドキュメント変更
 - `refactor`: リファクタリング
 - `test`: テスト追加・修正
+- `build`: ビルド関連
 - `chore`: ビルド、補助ツールの変更
 
 ### タスク実行のベストプラクティス
@@ -247,16 +444,25 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ```bash
 # Docker 起動
+cd /home/user/oc-review-dev
 docker-compose up
 
 # PHP 依存関係インストール
 composer install
 
-# フロントエンドビルド
+# React開発サーバー起動（ホットリロード）
+cd /home/user/openchat-alpha
+npm run dev
+# → http://localhost:5173
+
+# フロントエンドビルド（本番確認用）
 cd /home/user/openchat-alpha
 npm run build
+# → ビルド出力: /home/user/oc-review-dev/public/js/alpha/
+# → 確認: http://localhost:7000/alpha
 
 # Git コミット
+cd /home/user/oc-review-dev
 git add .
 git commit -m "message"
 ```
@@ -268,3 +474,4 @@ git commit -m "message"
 - [プロジェクトリポジトリ](https://github.com/pika-0203/Open-Chat-Graph)
 - [shadcn/ui](https://ui.shadcn.com/)
 - [Tailwind CSS](https://tailwindcss.com/)
+- [Vite](https://vite.dev/)
