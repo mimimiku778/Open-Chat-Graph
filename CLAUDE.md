@@ -12,6 +12,86 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Best Practices
 
+### Efficient Agent Usage
+
+**CRITICAL: Use sub-agents to separate concerns and avoid context confusion**
+
+#### When to Use Sub-Agents (Task Tool)
+
+Use the Task tool to spawn sub-agents for:
+
+1. **Parallel Independent Tasks**
+   - Research/investigation while implementing
+   - Documentation generation after implementation
+   - Code review after completing features
+   - Testing while fixing bugs
+
+2. **Complex Multi-Step Operations**
+   - Codebase exploration (use `subagent_type=Explore`)
+   - Implementation planning (use `subagent_type=Plan`)
+   - Thorough investigation requiring multiple file reads/searches
+
+3. **Context Separation**
+   - When switching between unrelated tasks
+   - When deep investigation might pollute current context
+   - When you need专門knowledge (e.g., claude-code-guide agent)
+
+#### Best Practices
+
+**DO:**
+- ✅ Keep main agent focused on current primary task
+- ✅ Delegate auxiliary tasks to sub-agents immediately
+- ✅ Run independent sub-agents in parallel (single message, multiple Task calls)
+- ✅ Define clear, specific roles for each agent
+- ✅ Use Explore agent for codebase understanding tasks
+- ✅ Use Plan agent for breaking down complex features
+
+**DON'T:**
+- ❌ Mix multiple complex tasks in single agent
+- ❌ Let main agent context bloat with exploratory searches
+- ❌ Run sequential sub-agents when they could run parallel
+- ❌ Use main agent for deep codebase exploration
+- ❌ Start implementing before delegating to Plan agent
+
+#### Example: Efficient Agent Workflow
+
+```
+User: "Add user profile page with avatar upload and bio editing"
+
+Main Agent:
+1. Immediately spawn Plan agent to break down the task
+2. Wait for plan approval
+3. Focus only on implementation of approved plan
+4. Spawn Explore agent if need to understand existing auth patterns
+5. After implementation, spawn code-reviewer agent
+
+Sub-Agents (parallel):
+- Plan agent: Creates implementation plan
+- Explore agent: Investigates file upload patterns in codebase
+- code-reviewer agent: Reviews completed implementation
+```
+
+#### Anti-Pattern: Context Confusion
+
+```
+❌ BAD:
+User: "Add profile page with upload"
+Main Agent:
+- Searches for upload examples
+- Reads 10 different files
+- Gets confused about which pattern to use
+- Implements half-following one pattern, half another
+- Context is polluted with irrelevant code
+
+✅ GOOD:
+User: "Add profile page with upload"
+Main Agent:
+- Spawns Explore agent: "Find file upload implementation patterns"
+- Explore agent returns: "Use uploadHandler.ts pattern from SettingsPage"
+- Main agent implements cleanly with clear reference
+- Context stays focused on implementation
+```
+
 ### Task Planning and Execution
 
 **IMPORTANT: Follow these steps for ALL non-trivial implementation tasks:**
