@@ -1,6 +1,6 @@
 # セッションサマリー
 
-最終更新: 2026-01-04
+最終更新: 2026-01-05
 
 ## 開発環境の構成
 
@@ -59,6 +59,7 @@
   proxy: {
     '/alpha-api': { target: 'http://localhost:7000' },  // API リクエストをプロキシ
     '/oc': { target: 'http://localhost:7000' },         // グラフAPIをプロキシ
+    '/js': { target: 'http://localhost:7000' },         // 静的ファイル（Preactグラフなど）をプロキシ
   }
   ```
 - アクセス例:
@@ -124,6 +125,7 @@ export default defineConfig({
     proxy: {
       '/alpha-api': { target: 'http://localhost:7000', changeOrigin: true },
       '/oc': { target: 'http://localhost:7000', changeOrigin: true },
+      '/js': { target: 'http://localhost:7000', changeOrigin: true },  // 追加
     },
   },
   build: {
@@ -332,6 +334,168 @@ b2ed8588 - fix: ランキング順位のラベルを明確化
 
 ---
 
+### APIレスポンス型修正とViteプロキシ設定拡張（2026-01-05）
+
+#### 課題と背景
+
+グラフのReact移植を取り消した際の残骸により、DetailPageでTypeErrorが発生：
+```
+DetailStats.tsx:80 Uncaught TypeError: Cannot read properties of undefined (reading 'toLocaleString')
+```
+
+また、開発環境（localhost:5173）でPreactグラフスクリプト（`/js/preact-chart/assets/index.js`）にアクセスできない問題が発生。
+
+#### 解決策
+
+**1. APIレスポンスのフィールド名統一（7de37463）**
+
+`AlphaApiController::stats()` のレスポンスフィールド名を TypeScript 型定義（`BasicInfoResponse`）に合わせて修正：
+
+- `member` → `currentMember`
+- `desc` → `description`
+- `img` → `thumbnail`
+- `increasedMember` → `hourlyDiff`
+- `percentageIncrease` → `hourlyPercentage`
+- `join_method_type` → `joinMethodType`
+
+これにより、DetailPageでの `currentMember.toLocaleString()` エラーを解消。
+
+**2. Viteプロキシ設定に `/js` パスを追加（7319d04）**
+
+```typescript
+// vite.config.ts
+proxy: {
+  '/alpha-api': { target: 'http://localhost:7000', changeOrigin: true },
+  '/oc': { target: 'http://localhost:7000', changeOrigin: true },
+  '/js': { target: 'http://localhost:7000', changeOrigin: true },  // 追加
+}
+```
+
+これにより、開発環境で Preactグラフスクリプトにアクセス可能に。
+
+#### 影響範囲
+
+- **PHP側**: `app/Controllers/Api/AlphaApiController.php`
+- **React側**: `vite.config.ts`
+- **ビルド**: `public/js/alpha/index.js` を更新
+
+#### 関連コミット
+
+```
+7de37463 - fix: APIレスポンスのフィールド名をTypeScript型定義に統一
+7319d04 - feat: e2eテスト高速版・網羅版分割とViteプロキシ設定追加
+4ff4ba4c - build: フロントエンド更新（APIレスポンス型修正反映）
+```
+
+---
+
+### e2eテスト最適化と高速版・網羅版分割（2026-01-05）
+
+#### 課題
+
+e2eテストの実行時間が長く、フロントエンド変更時に毎回すべてのテストを実行するのは非効率。また、重複したテストファイルが存在。
+
+#### 解決策
+
+**1. 重複・不要テストの削除**
+
+- `debug-mylist.spec.ts` - デバッグ専用テスト（削除）
+- `navigation-search-state.spec.ts` - `core-navigation.spec.ts` と重複（削除）
+
+**2. Playwright設定の更新（playwright.config.ts）**
+
+テストを「高速版（fast）」と「網羅版（full）」の2つのプロジェクトに分割：
+
+```typescript
+projects: [
+  // 高速版：フロントエンド変更時に常に実行する重要テスト（5分以内）
+  {
+    name: 'fast',
+    testMatch: [
+      '**/core-navigation.spec.ts',
+      '**/critical-ux.spec.ts',
+      '**/detail-page-buttons.spec.ts',
+      '**/layout-responsiveness.spec.ts',
+      '**/page-rerender-on-reclick.spec.ts',
+    ],
+    use: { ...devices['Desktop Chrome'], headless: true },
+  },
+  // 網羅版：包括的なテスト（すべてのテスト）
+  {
+    name: 'full',
+    testMatch: '**/*.spec.ts',
+    use: { ...devices['Desktop Chrome'], headless: true },
+  },
+],
+```
+
+**3. テストスクリプト追加（package.json）**
+
+```json
+"scripts": {
+  "test": "playwright test --project=fast",
+  "test:fast": "playwright test --project=fast",
+  "test:full": "playwright test --project=full",
+  "test:ui": "playwright test --ui"
+}
+```
+
+**4. ドキュメント作成**
+
+`TESTING.md` を追加：
+- 各テストの種類と目的
+- テスト実行コマンド
+- ベストプラクティス
+- CI/CD統合方法
+
+#### テスト分類
+
+**高速版（fast）** - フロントエンド変更時に常に実行（目安：5分以内）:
+- `core-navigation.spec.ts` - コアナビゲーションパターン
+- `critical-ux.spec.ts` - 重要なUX（検索とナビゲーション）
+- `detail-page-buttons.spec.ts` - 詳細ページのボタン動作
+- `layout-responsiveness.spec.ts` - レイアウトレスポンシブ対応
+- `page-rerender-on-reclick.spec.ts` - ページ再レンダリング
+
+**網羅版（full）** - すべてのe2eテスト（包括的）:
+- 上記の高速版テストに加えて
+- `browser-navigation.spec.ts`
+- `detail-page-navigation.spec.ts`
+- `graph-display-repeated-navigation.spec.ts`
+- `mylist-file-explorer.spec.ts`
+- `mylist-folder-url-navigation.spec.ts`
+- `mylist-toolbar-spacing.spec.ts`
+- `navigation-and-buttons.spec.ts`
+- `performance-check.spec.ts`
+- `scroll-persistence.spec.ts`
+- `scroll-restoration.spec.ts`
+
+#### ヘッドレスモード確認
+
+すべてのテストが `headless: true` でヘッドレスモード（ブラウザUIなし）で実行されることを確認。CI/CD環境やバックグラウンドでの高速実行が可能。
+
+#### 開発ワークフロー
+
+```bash
+# フロントエンド変更時（高速版）
+npm run test:fast
+
+# コミット前（網羅版）
+npm run test:full
+
+# デバッグ時
+npm run test:ui
+```
+
+#### 関連ファイル
+
+- `playwright.config.ts` - プロジェクト設定
+- `package.json` - テストスクリプト
+- `TESTING.md` - テスト実行ガイド
+- `e2e/` - テストファイル（15個、2個削除）
+
+---
+
 ## プロジェクト概要
 
 ### 基本情報
@@ -460,6 +624,12 @@ cd /home/user/openchat-alpha
 npm run build
 # → ビルド出力: /home/user/oc-review-dev/public/js/alpha/
 # → 確認: http://localhost:7000/alpha
+
+# e2eテスト
+cd /home/user/openchat-alpha
+npm run test:fast  # 高速版（デフォルト）
+npm run test:full  # 網羅版
+npm run test:ui    # UIモード（デバッグ用）
 
 # Git コミット
 cd /home/user/oc-review-dev
