@@ -284,6 +284,28 @@ function apiImgUrl(int $id, string $local_img_url): string
 }
 
 /**
+ * 完全な画像URLを生成（local_img_urlを使用）
+ * @return string https://openchat-review.me/oc-img/{path}/{hash}.webp or /default/{hash}.webp?id={id}
+ */
+function getFullImgUrl(int $id, string $local_img_url): string
+{
+    if (empty($local_img_url)) {
+        return '';
+    }
+
+    $basePath = 'https://openchat-review.me/';
+
+    // デフォルト画像の場合
+    if (in_array($local_img_url, AppConfig::DEFAULT_OPENCHAT_IMG_URL_HASH)) {
+        return $basePath . AppConfig::OPENCHAT_IMG_PATH[MimimalCmsConfig::$urlRoot]
+               . "/default/{$local_img_url}.webp?id={$id}";
+    }
+
+    // 通常の画像
+    return $basePath . getImgPath($id, $local_img_url);
+}
+
+/**
  * @return string oc-img/{$idPath}/{$imgUrl}.webp
  */
 function getImgPath(int $open_chat_id, string $imgUrl): string

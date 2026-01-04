@@ -124,10 +124,10 @@ class AlphaApiController
             }
 
             // フロントエンドのOpenChatインターフェイスに合わせる
-            // img_urlをobs.line-scdn.net形式に変換
+            // local_img_urlから完全なURLを生成
             $imgUrl = '';
-            if (!empty($item['img_url'])) {
-                $imgUrl = AppConfig::LINE_IMG_URL . $item['img_url'];
+            if (!empty($item['local_img_url'])) {
+                $imgUrl = getFullImgUrl((int)$item['id'], $item['local_img_url']);
             }
 
             $result[] = [
@@ -195,10 +195,10 @@ class AlphaApiController
             }
         }
 
-        // 画像URLをobs.line-scdn.net形式に変換
+        // local_img_urlから完全なURLを生成
         $imageUrl = '';
-        if (!empty($ocData['img_url'])) {
-            $imageUrl = AppConfig::LINE_IMG_URL . $ocData['img_url'];
+        if (!empty($ocData['local_img_url'])) {
+            $imageUrl = getFullImgUrl($open_chat_id, $ocData['local_img_url']);
         }
 
         return response([
@@ -288,10 +288,10 @@ class AlphaApiController
         // レスポンスを整形
         $result = [];
         foreach ($data as $item) {
-            // img_urlをobs.line-scdn.net形式に変換
+            // local_img_urlから完全なURLを生成
             $imgUrl = '';
-            if (!empty($item['img_url'])) {
-                $imgUrl = AppConfig::LINE_IMG_URL . $item['img_url'];
+            if (!empty($item['local_img_url'])) {
+                $imgUrl = getFullImgUrl((int)$item['id'], $item['local_img_url']);
             }
 
             $result[] = [
