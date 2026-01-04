@@ -4,6 +4,62 @@
 
 ## 最新の実装内容
 
+### React 19.2への移行とソート機能の大幅改善（2026-01-04）
+
+#### React 19.2のActivityコンポーネント導入
+- **ページ切り替えロジックのリファクタリング**（25d798f）:
+  - React 19.2の新しいActivityコンポーネントを使用
+  - ページ遷移のパフォーマンスと安定性を向上
+
+#### ツールバーとソート機能の改善
+- **タイトルバーにソート方法を表示**（9cad7a9）:
+  - 現在のソート状態をタイトルバーに表示
+  - 件数表示のマージンを調整してレイアウト改善
+- **検索ボタンをツールバーのソートボタンに置き換え**（ff352e3）:
+  - UIをよりシンプルに整理
+  - ソート機能へのアクセスを改善
+- **ドロップダウンメニューのモバイル対応とカーソル改善**（820794a）:
+  - タッチデバイスでの操作性を向上
+  - カーソルスタイルを改善
+
+#### マイリストの並び替え機能実装
+- **統計値での並び替え機能を追加**（fbae2f6）:
+  - メンバー数、増減率などの統計値でソート可能に
+  - ランキング非掲載時のソート処理に対応
+- **ソート対象の視覚的フィードバック改善**（fb79e33, 484cee4, d376129）:
+  - ソート時に対応する統計値を先頭に表示
+  - ソート対象のカラムとラベルを太字で強調表示
+- **統計値の表示改善**（866f4e0, bc7b8c4）:
+  - ±0の値を控えめな色（text-muted-foreground）で表示
+  - 1週間統計のN/A判定ロジックを修正
+
+#### 検索機能の改善
+- **同じキーワードでの再検索機能**（bec20a4, 3b1ca0e）:
+  - refreshKey方式で実装
+  - 同じ検索クエリでも再検索可能に
+- **検索ハイライトの改善**（7c86ea6）:
+  - キーワード位置に関係なく検索ハイライトを表示
+- **カードデザインの改善**（6ccc7c2）:
+  - 検索結果とマイリストのカードUIを改善
+
+#### レイアウトとスペーシングの調整
+- **MyListPageのレイアウト改善**（8488cef, 4eacd6a）:
+  - ツールバーとコンテンツ間の空白を修正
+  - コンテンツエリアにトップパディングを追加
+- **詳細画面のバッジ表示改善**（7466235）:
+  - ランキング非掲載バッジを先頭に表示
+
+#### 開発環境とテスト
+- **basename統一**（01aad1a）:
+  - 開発環境と本番環境でbasenameとマウントポイントを統一
+  - 環境間の一貫性を向上
+- **e2eテスト追加**（1697960）:
+  - MyListPageのツールバーとコンテンツ間隔のe2eテストを追加
+- **ドキュメント改善**（2eecbf6）:
+  - CLAUDE.mdにサブエージェント活用のベストプラクティスを追加
+
+---
+
 ### ランキング掲載履歴機能（2026-01-04）
 
 詳細ページにランキング非掲載履歴を表示する機能を実装しました。
@@ -57,12 +113,12 @@
 - `app/Models/RankingBanRepositories/RankingBanPageRepository.php` - findHistoryByOpenChatId() メソッド
 
 **フロントエンド**:
-- `src/components/Detail/RankingHistory.tsx` - メインコンポーネント
-- `src/components/ui/separator.tsx` - 新規作成
-- `src/components/ui/alert.tsx` - 新規作成
-- `src/pages/DetailPage.tsx` - 統合
-- `src/types/api.ts` - 型定義追加
-- `src/api/alpha.ts` - API クライアント
+- `~/openchat-alpha/src/components/Detail/RankingHistory.tsx` - メインコンポーネント
+- `~/openchat-alpha/src/components/ui/separator.tsx` - 新規作成
+- `~/openchat-alpha/src/components/ui/alert.tsx` - 新規作成
+- `~/openchat-alpha/src/pages/DetailPage.tsx` - 統合
+- `~/openchat-alpha/src/types/api.ts` - 型定義追加
+- `~/openchat-alpha/src/api/alpha.ts` - API クライアント
 
 #### コミット履歴
 

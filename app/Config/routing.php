@@ -467,6 +467,20 @@ Route::path(
 Route::path('alpha', [AlphaPageController::class, 'index'])
     ->match(fn() => MimimalCmsConfig::$urlRoot === '');
 
+Route::path('alpha/mylist', [AlphaPageController::class, 'index'])
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+
+Route::path('alpha/mylist/{hash}', [AlphaPageController::class, 'index'])
+    ->matchStr('hash', maxLen: 100)
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+
+Route::path('alpha/settings', [AlphaPageController::class, 'index'])
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+
+Route::path('alpha/openchat/{id}', [AlphaPageController::class, 'index'])
+    ->matchNum('id', min: 1)
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+
 // Alpha API - 検索
 Route::path('alpha-api/search', [AlphaApiController::class, 'search'])
     ->matchStr('keyword', emptyAble: true, maxLen: 100)

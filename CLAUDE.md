@@ -365,7 +365,7 @@ useEffect(() => {
 
 ### Navigation Patterns
 
-The Alpha SPA uses a **DOM persistence pattern** where main pages (Search, MyList, Settings) remain mounted with `display: none/block` switching, while detail pages are true overlays.
+Main pages (Search, MyList, Settings) are **kept mounted and toggled with `display: none/block`** to preserve scroll position and component state (instead of unmounting/remounting). Detail pages are rendered as overlays.
 
 #### Detail Page → Navigation Button Pattern
 

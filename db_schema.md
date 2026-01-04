@@ -201,9 +201,26 @@ CREATE TABLE `ranking_ban` (
   `updated_at` int(11) NOT NULL,
   `update_items` text DEFAULT NULL,
   `end_datetime` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_ranking_ban_open_chat_datetime` (`open_chat_id`,`datetime`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 ```
+
+**主要カラム解説:**
+- `id`: プライマリキー（自動採番）
+- `open_chat_id`: 対象のOpenChat ID
+- `datetime`: BAN開始日時
+- `percentage`: ランキング位置のパーセンテージ（1-100）
+- `member`: BAN時のメンバー数
+- `flag`: 状態フラグ（0=アクティブ、1=終了）
+- `updated_at`: OpenChatの更新状態（0=未更新、1=更新済み）
+- `update_items`: 更新項目のJSON
+- `end_datetime`: BAN終了日時
+
+**重要な制約:**
+- `uk_ranking_ban_open_chat_datetime`: 同じOpenChatの同じ日時の重複を防ぐユニーク制約
+- この制約により、Cronの同時実行時でも重複データの挿入が防止される
+- `INSERT IGNORE`文と組み合わせて、重複データは自動的にスキップされる
 
 #### reject_room（拒否ルーム）
 
