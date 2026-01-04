@@ -166,33 +166,18 @@ class AlphaApiController
     }
 
     /**
-     * 統計データ取得API（グラフ用）
-     * GET /alpha-api/stats/{open_chat_id}?bar=ranking&rankingCategory=all
+     * 基本情報取得API（軽量）
+     * GET /alpha-api/stats/{open_chat_id}
      */
     function stats(
         AlphaStatsRepository $statsRepo,
-        int $open_chat_id,
-        string $bar = '',
-        string $rankingCategory = 'all'
+        int $open_chat_id
     ) {
-        // MySQLから基本データ取得
+        // MySQLから基本データ取得のみ
         $ocData = $statsRepo->findById($open_chat_id);
 
         if (!$ocData) {
             return response(['error' => 'OpenChat not found'], 404);
-        }
-
-        // SQLiteから統計データ取得
-        $statsData = $statsRepo->getStatisticsData($open_chat_id);
-        $dates = $statsData['dates'];
-        $members = $statsData['members'];
-
-        // ランキングデータ取得（barパラメータがrankingまたはrisingの場合）
-        $rankings = [];
-        if ($bar === 'ranking' || $bar === 'rising') {
-            // カテゴリー判定（all=0, category=オープンチャットのカテゴリー）
-            $category = $rankingCategory === 'all' ? 0 : (int)$ocData['category'];
-            $rankings = $statsRepo->getRankingData($open_chat_id, $category, $bar, $dates);
         }
 
         // URLをLINE形式に変換
@@ -222,10 +207,6 @@ class AlphaApiController
             'currentMember' => (int)$ocData['member'],
             'category' => (int)$ocData['category'],
             'categoryName' => $this->getCategoryName((int)$ocData['category']),
-            'dates' => $dates,
-            'members' => $members,
-            'rankings' => $rankings,
-            // 追加フィールド
             'description' => $ocData['description'] ?? '',
             'thumbnail' => $imageUrl,
             'emblem' => (int)($ocData['emblem'] ?? 0),
@@ -240,6 +221,40 @@ class AlphaApiController
             'registeredAt' => $ocData['api_created_at'] ?? '',
             'joinMethodType' => (int)($ocData['join_method_type'] ?? 0),
             'url' => $lineUrl,
+        ]);
+    }
+
+    /**
+     * グラフデータ取得API（重い処理）
+     * GET /alpha-api/stats/{open_chat_id}/graph?bar=ranking&rankingCategory=all
+     */
+    function graphData(
+        AlphaStatsRepository $statsRepo,
+        int $open_chat_id,
+        string $bar = '',
+        string $rankingCategory = 'all'
+    ) {
+        // SQLiteから統計データ取得
+        $statsData = $statsRepo->getStatisticsData($open_chat_id);
+        $dates = $statsData['dates'];
+        $members = $statsData['members'];
+
+        // ランキングデータ取得（barパラメータがrankingまたはrisingの場合）
+        $rankings = [];
+        if ($bar === 'ranking' || $bar === 'rising') {
+            // カテゴリー情報を取得（ランキングデータに必要）
+            $ocData = $statsRepo->findById($open_chat_id);
+            if ($ocData) {
+                // カテゴリー判定（all=0, category=オープンチャットのカテゴリー）
+                $category = $rankingCategory === 'all' ? 0 : (int)$ocData['category'];
+                $rankings = $statsRepo->getRankingData($open_chat_id, $category, $bar, $dates);
+            }
+        }
+
+        return response([
+            'dates' => $dates,
+            'members' => $members,
+            'rankings' => $rankings,
         ]);
     }
 

@@ -489,8 +489,13 @@ Route::path('alpha-api/search', [AlphaApiController::class, 'search'])
     ->matchNum('limit', min: 1, max: 50, emptyAble: true, default: 20)
     ->match(fn() => MimimalCmsConfig::$urlRoot === '');
 
-// Alpha API - 統計データ取得（グラフ用）
+// Alpha API - 基本情報取得（軽量）
 Route::path('alpha-api/stats/{open_chat_id}', [AlphaApiController::class, 'stats'])
+    ->matchNum('open_chat_id', min: 1)
+    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+
+// Alpha API - グラフデータ取得（重い処理）
+Route::path('alpha-api/stats/{open_chat_id}/graph', [AlphaApiController::class, 'graphData'])
     ->matchNum('open_chat_id', min: 1)
     ->matchStr('bar', emptyAble: true, maxLen: 10, default: '')
     ->matchStr('rankingCategory', emptyAble: true, maxLen: 20, default: 'all')
