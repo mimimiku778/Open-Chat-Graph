@@ -1,6 +1,6 @@
 # セッションサマリー
 
-最終更新: 2026-01-05
+最終更新: 2026-01-05（Preactグラフ最適化・キャッシュ活用）
 
 ## 開発環境の構成
 
@@ -493,6 +493,189 @@ npm run test:ui
 - `package.json` - テストスクリプト
 - `TESTING.md` - テスト実行ガイド
 - `e2e/` - テストファイル（15個、2個削除）
+
+---
+
+### Preactグラフの最適化とキャッシュ活用（2026-01-05）
+
+#### 課題
+
+1. **データラベルの重なり問題**: 棒グラフ下部のデータラベル（順位数字）が重なって表示される
+2. **繰り返しナビゲーションでグラフが表示されない**: 詳細ページを何度も遷移するとグラフが表示されなくなる
+3. **毎回JSをダウンロード**: cache bustingによりブラウザキャッシュが効かず、ページ遷移のたびにJSをダウンロードして遅い
+
+#### 解決策
+
+**1. データラベル重なり問題の修正（6c3535d）**
+
+`buildPlugin.ts`のdatalabels設定から`padding: 0`を削除：
+
+- `padding: 0`が設定されていると、chartjs-plugin-datalabelsの衝突検出アルゴリズムが正しく動作しない
+- プラグインのデフォルトパディングを使用することで、ラベルの衝突検出が正常に動作
+- `getDataLabelBarCallback.ts`の`'auto'`表示設定が機能し、データラベルが重ならないように自動的に間引き表示される
+
+**2. グローバルマウント/アンマウント関数の実装（c49d221, c0a7d4b）**
+
+従来のアプローチ（毎回スクリプトをロード）から、グローバル関数を使用したアプローチに変更：
+
+**oc-review-graph側の変更**:
+```typescript
+// main.tsx - グローバル関数を公開
+function mountPreactChart() {
+  updateThemeFromDOM()
+  appContainer = document.getElementById('app')
+  appContainer.innerHTML = ''
+  render(<App />, appContainer)
+}
+
+function unmountPreactChart() {
+  if (appContainer) {
+    render(null, appContainer)
+    appContainer.innerHTML = ''
+  }
+  if (chart.chart) {
+    chart.chart.destroy()
+  }
+  resetChartState()
+}
+
+window.mountPreactChart = mountPreactChart
+window.unmountPreactChart = unmountPreactChart
+```
+
+**openchat-alpha側の変更**:
+```typescript
+// DetailPage.tsx - 初回のみスクリプトをロード
+useEffect(() => {
+  const existingScript = document.getElementById('preact-chart-script')
+  if (existingScript) return
+
+  const script = document.createElement('script')
+  script.id = 'preact-chart-script'
+  script.src = '/js/preact-chart/assets/index.js'  // cache busting なし
+  document.head.appendChild(script)
+}, [])
+
+// グローバルマウント関数を呼び出し
+useEffect(() => {
+  if (!basicInfo) return
+
+  // chart-arg, theme-config をDOMに注入
+  // ...
+
+  // マウント関数を呼び出し
+  const waitForMount = setInterval(() => {
+    if (window.mountPreactChart) {
+      clearInterval(waitForMount)
+      window.mountPreactChart()
+    }
+  }, 50)
+
+  return () => {
+    clearInterval(waitForMount)
+    if (window.unmountPreactChart) {
+      window.unmountPreactChart()
+    }
+  }
+}, [id, basicInfo, resolvedTheme])
+```
+
+**メリット**:
+- ✅ スクリプトは初回のみロードされ、ブラウザキャッシュを活用
+- ✅ 繰り返しナビゲーション時も正しく再マウント
+- ✅ JSダウンロードは初回のみで、2回目以降は高速表示
+- ✅ 状態管理がクリーンアップされ、メモリリークを防止
+
+**3. フェードインアニメーションの削除**
+
+グラフ表示時のopacityトランジション（0→1のフェードイン）を削除：
+
+```typescript
+// 削除前
+<div id="graph-box" style={{
+  opacity: 0,
+  transition: 'opacity 0.6s ease 0s'
+}} />
+
+// 削除後
+<div id="graph-box" style={{
+  // opacity設定なし（デフォルト=1）
+}} />
+```
+
+即座に表示されるようになり、UXが向上。
+
+**4. e2eテストの修正（7cca9f8）**
+
+フェードイン削除に伴い、opacityチェックを修正：
+
+```typescript
+// 修正前
+expect(graphOpacity).toBe('1')
+
+// 修正後（opacityが空文字列でもOK）
+expect(graphOpacity !== 'not found', 'graph-boxが存在するべき').toBeTruthy()
+```
+
+全テストが成功（3/3 passed）。
+
+**5. 初回自動マウントロジックの削除（d20fd77）**
+
+`main.tsx`の初回自動マウントロジックは、スクリプトロード時に`#app`要素が存在しない場合に動作しない問題があった：
+
+```typescript
+// 削除: 初回自動マウント
+if (document.getElementById('app')) {
+  mountPreactChart()
+}
+```
+
+DetailPageから明示的に`mountPreactChart()`を呼び出す設計に統一し、確実にマウントされるように修正。
+
+#### テスト結果
+
+```bash
+npm run test -- e2e/graph-display-repeated-navigation.spec.ts --project=full
+
+# 結果
+✓ 5回の詳細ページ遷移でグラフが毎回正しく表示される
+✓ 詳細ページから別の詳細ページに直接遷移してもグラフが表示される
+✓ 同じ詳細ページに再訪問してもグラフが表示される
+
+3 passed (18.6s)
+```
+
+すべてのイテレーションで：
+- Preactスクリプトは1個のみ（重複なし）
+- Preactアプリが正しくマウントされている（appContent > 0）
+- グラフが毎回表示される
+
+#### 影響範囲
+
+**oc-review-graph**:
+- `src/main.tsx` - グローバル関数の公開
+- `src/app.tsx` - フェードイン削除
+- `src/signal/chartState.ts` - リセット関数追加
+- `src/classes/ChartJS/Factories/buildPlugin.ts` - padding削除
+
+**openchat-alpha**:
+- `src/pages/DetailPage.tsx` - グローバル関数の使用、フェードイン削除
+- `e2e/graph-display-repeated-navigation.spec.ts` - テスト修正
+
+#### コミット履歴
+
+**oc-review-graph** (feature/dark-mode):
+```
+6c3535d - fix: データラベルの重なり問題を修正（padding設定を削除）
+c49d221 - feat: グローバルマウント/アンマウント関数を実装
+d20fd77 - fix: 初回自動マウントロジックを削除
+```
+
+**openchat-alpha** (dev):
+```
+c0a7d4b - feat: Preactチャートのグローバルマウント関数に対応
+7cca9f8 - fix: グラフ表示テストをフェードイン削除に対応
+```
 
 ---
 
