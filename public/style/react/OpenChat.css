@@ -97,6 +97,23 @@
   width: 3px;
 }
 
+/* ダークモード対応 */
+.dark .MuiTabs-root.category-tab {
+  border-color: #475569; /* slate-600 */
+}
+
+.dark .category-tab .MuiTab-root.MuiTab-textColorPrimary {
+  color: #cbd5e1; /* slate-300 - 明るいグレー */
+}
+
+.dark .category-tab .MuiButtonBase-root.Mui-selected {
+  color: #ffffff; /* 純白 */
+}
+
+.dark .category-tab .MuiTabs-indicator {
+  background-color: #7dd3fc; /* sky-300 - 明るい青 */
+}
+
 .hide-scrollbar-x {
   overflow-x: scroll;
   -ms-overflow-style: none;
