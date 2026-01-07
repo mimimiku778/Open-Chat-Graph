@@ -307,8 +307,36 @@ Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) 
 
 ### Separate Repositories
 - Ranking pages: https://github.com/mimimiku778/Open-Chat-Graph-Frontend
-- Graph display: https://github.com/mimimiku778/Open-Chat-Graph-Frontend-Stats-Graph  
+- Graph display: https://github.com/mimimiku778/Open-Chat-Graph-Frontend-Stats-Graph
 - Comments: https://github.com/mimimiku778/Open-Chat-Graph-Comments
+
+### Local Preact Graph Component
+
+**IMPORTANT: The Preact graph component is maintained locally, not from external repositories.**
+
+- **Source**: `/home/user/oc-review-graph`
+- **Build targets**:
+  - Development: `/home/user/openchat-alpha/public/js/preact-chart/assets/index.js`
+  - Production: `/home/user/oc-review-dev/public/js/preact-chart/assets/index.js`
+
+**Build and Deploy Process:**
+```bash
+# 1. Navigate to the graph component directory
+cd /home/user/oc-review-graph
+
+# 2. Build the component
+npm run build  # or the appropriate build command
+
+# 3. Copy built files to both environments
+cp dist/assets/index.js /home/user/openchat-alpha/public/js/preact-chart/assets/index.js
+cp dist/assets/index.js /home/user/oc-review-dev/public/js/preact-chart/assets/index.js
+```
+
+**When to rebuild:**
+- After modifying chart styling (colors, themes, etc.)
+- After updating chart functionality
+- After fixing bugs in the graph component
+- Always test in development (`openchat-alpha`) before deploying to production (`oc-review-dev`)
 
 ### Integration
 - React components embedded in PHP templates
