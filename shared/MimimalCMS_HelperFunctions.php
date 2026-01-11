@@ -841,3 +841,4 @@ function getFilesWithExtension(string $dir, string $ext): \CallbackFilterIterato
     // Return a filtered iterator containing files matching the extension
     return new \CallbackFilterIterator($iterator, $filter);
 }
+

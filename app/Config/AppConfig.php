@@ -147,6 +147,10 @@ class AppConfig
     static bool $disableAds = false;
     static bool $verboseCronLog = false;
     static bool $enableCloudflare = false;
+
+    /** GitHubリポジトリ（ログのソースコードリンク用） */
+    static string $githubRepo = 'pika-0203/Open-Chat-Graph';
+    static string $githubBranch = 'main';
     static bool $disableAdTags = true;
 
     /** @var array<string,int> */
@@ -156,8 +160,6 @@ class AppConfig
         'DailyUpdateCronService' => 10,
         'RankingBanTableUpdater' => 10,
     ];
-
-
 
     const CRON_START_MINUTE = [
         '' =>    30,
@@ -170,6 +172,9 @@ class AppConfig
         '/tw' => 0,
         '/th' => 1,
     ];
+
+    // 毎時処理の途中経過チェックをスキップ
+    static bool $skipHandleHalfHourCheck = true;
 
     const DATE_TIME_ZONE = [
         '' =>   'Asia/Tokyo',
@@ -189,6 +194,9 @@ class AppConfig
 
     const FURIGANA_CACHE_DIR = __DIR__ . '/../../storage/furigana';
 
+    /** SQLite ocgraph_sqlapi database path (Japanese only, not multi-language) */
+    const SQLITE_OCGRAPH_SQLAPI_DB_PATH = __DIR__ . '/../../storage/ja/SQLite/ocgraph_sqlapi/sqlapi.db';
+
     private const STORAGE_DIR = [
         '' =>    __DIR__ . '/../../storage/ja',
         '/tw' => __DIR__ . '/../../storage/tw',
@@ -204,6 +212,9 @@ class AppConfig
         'openChatRankingPositionDir' =>   '/ranking_position/ranking',
         'openChatRisingPositionDir' =>    '/ranking_position/rising',
         'openChatHourFilterId' =>         '/ranking_position/filter.dat',
+        'filterMemberChange' =>           '/ranking_position/filter_member_change.dat',
+        'filterNewRooms' =>               '/ranking_position/filter_new_rooms.dat',
+        'filterWeeklyUpdate' =>           '/ranking_position/filter_weekly_update.dat',
         'dailyCronUpdatedAtDate' =>       '/static_data_top/daily_updated_at.dat',
         'hourlyCronUpdatedAtDatetime' =>  '/static_data_top/hourly_updated_at.dat',
         'hourlyRealUpdatedAtDatetime' =>  '/static_data_top/real_updated_at.dat',

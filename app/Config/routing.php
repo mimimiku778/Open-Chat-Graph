@@ -3,7 +3,6 @@
 namespace App\Config;
 
 use App\Controllers\Api\AdminEndPointController;
-use App\Controllers\Api\AdsRegistrationApiController;
 use App\Controllers\Api\AlphaApiController;
 use App\Controllers\Api\CommentLikePostApiController;
 use App\Controllers\Api\CommentListApiController;
@@ -17,7 +16,6 @@ use App\Controllers\Api\OpenChatRegistrationApiController;
 use App\Controllers\Api\RankingPositionApiController;
 use App\Controllers\Api\MyListApiController;
 use App\Controllers\Api\RecentCommentApiController;
-use App\Controllers\Pages\AdsRegistrationPageController;
 use App\Controllers\Pages\AlphaPageController;
 use App\Controllers\Pages\FuriganaPageController;
 use App\Controllers\Pages\JumpOpenChatPageController;
@@ -29,8 +27,10 @@ use App\Controllers\Pages\RecentCommentPageController;
 use App\Controllers\Pages\RecentOpenChatPageController;
 use App\Controllers\Pages\RecommendOpenChatPageController;
 use App\Controllers\Pages\RegisterOpenChatPageController;
-use App\Controllers\Pages\TagLabsPageController;
+use App\Controllers\Pages\LogController;
+use App\Controllers\Pages\AdminPageController;
 use App\Middleware\VerifyCsrfToken;
+use App\ServiceProvider\ApiCommentListControllerServiceProvider;
 use App\ServiceProvider\ApiDbOpenChatControllerServiceProvider;
 use App\ServiceProvider\ApiRankingPositionPageRepositoryServiceProvider;
 use Shadow\Kernel\Reception;
@@ -132,6 +132,21 @@ Route::path(
 
         app(ApiRankingPositionPageRepositoryServiceProvider::class)->register();
         return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
+    });
+
+// TODO: test-api
+Route::path('ranking-position/{user}/oc/{open_chat_id}/position_hour')
+    ->match(function (string $user) {
+        if (!MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey)
+            return false;
+
+        return response([
+            'date' => ['01/01 00:00'],
+            'member' => [0],
+            'position' => [0],
+            'time' => ['00:00'],
+            'totalCount' => [0],
+        ]);
     });
 
 Route::path(
@@ -287,6 +302,19 @@ Route::path(
     )
     ->middleware([VerifyCsrfToken::class], 'get');
 
+// アーカイブコメントAPI（認証付き、読み取り専用）
+Route::path(
+    'comment/{user}/oc/comment/{open_chat_id}@get',
+    [CommentListApiController::class, 'index', 'get']
+)
+    ->matchNum('open_chat_id', min: 0)
+    ->matchNum('page', 'get', min: 0)
+    ->matchNum('limit', 'get', min: 1)
+    ->match(function (string $user) {
+        app(ApiCommentListControllerServiceProvider::class)->register();
+        return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
+    });
+
 // コメントリアクションAPI
 Route::path(
     'comment_reaction/{comment_id}@post@delete',
@@ -314,6 +342,40 @@ Route::path('admin/cookie')
             return false;
         }
         return redirect();
+    });
+
+// Admin Log Viewer
+Route::path('admin/log', [LogController::class, 'index'])
+    ->match(function () {
+        noStore();
+        return MimimalCmsConfig::$urlRoot === '';
+    });
+
+Route::path('admin/log/exception', [LogController::class, 'exceptionLog'])
+    ->matchNum('page', min: 1, default: 1, emptyAble: true)
+    ->match(function (AdminAuthService $adminAuthService) {
+        noStore();
+        return MimimalCmsConfig::$urlRoot === '' && $adminAuthService->auth();
+    });
+
+Route::path('admin/log/exception/detail', [LogController::class, 'exceptionDetail'])
+    ->matchNum('index', min: 0)
+    ->match(function (AdminAuthService $adminAuthService) {
+        noStore();
+        return MimimalCmsConfig::$urlRoot === '' && $adminAuthService->auth();
+    });
+Route::path('admin/log/{type}', [LogController::class, 'cronLog'])
+    ->matchStr('type', regex: ['ja-cron', 'th-cron', 'tw-cron'])
+    ->matchNum('page', min: 1, default: 1, emptyAble: true)
+    ->match(function () {
+        noStore();
+        return MimimalCmsConfig::$urlRoot === '';
+    });
+
+// Adminer Database Tool
+Route::path('admin/adminer@get@post', [AdminPageController::class, 'adminer'])
+    ->match(function () {
+        return MimimalCmsConfig::$urlRoot === '';
     });
 
 Route::path(

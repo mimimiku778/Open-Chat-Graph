@@ -1,6 +1,8 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
+use App\Services\Cron\OcreviewApiDataImporter;
+use Shadow\DB;
 
 class OcreviewApiDataImporterTest extends TestCase
 {
@@ -10,7 +12,7 @@ class OcreviewApiDataImporterTest extends TestCase
         set_time_limit(3600 * 1);
 
         // Create an instance of OcreviewApiDataImporter
-        $importer = app(\App\Services\Cron\OcreviewApiDataImporter::class);
+        $importer = app(OcreviewApiDataImporter::class);
 
         // Execute the import process
         $importer->execute();

@@ -337,6 +337,45 @@ function isDailyUpdateTime(
     return false;
 }
 
+/**
+ * Daily Cron開始時刻からの経過時間を計算
+ *
+ * @param string|null $urlRoot 言語（null = 現在の言語）
+ * @param DateTime|null $currentTime 現在時刻（null = 現在時刻）
+ * @return float 経過時間（時間単位）
+ */
+function getDailyCronElapsedHours(?string $urlRoot = null, ?DateTime $currentTime = null): float
+{
+    $urlRoot = $urlRoot ?? MimimalCmsConfig::$urlRoot;
+    $currentTime = $currentTime ?? new DateTime();
+
+    $cronStartTime = (new DateTime())->setTime(
+        AppConfig::CRON_MERGER_HOUR_RANGE_START[$urlRoot],
+        AppConfig::CRON_START_MINUTE[$urlRoot],
+        0
+    );
+
+    // cronが前日開始の場合
+    if ($cronStartTime > $currentTime) {
+        $cronStartTime->modify('-1 day');
+    }
+
+    return ($currentTime->getTimestamp() - $cronStartTime->getTimestamp()) / 3600;
+}
+
+/**
+ * Daily Cronが指定時間以内に開始されたかチェック
+ *
+ * @param float $withinHours 開始から何時間以内か
+ * @param string|null $urlRoot 言語（null = 現在の言語）
+ * @param DateTime|null $currentTime 現在時刻（null = 現在時刻）
+ * @return bool 指定時間以内ならtrue
+ */
+function isDailyCronWithinHours(float $withinHours, ?string $urlRoot = null, ?DateTime $currentTime = null): bool
+{
+    return getDailyCronElapsedHours($urlRoot, $currentTime) < $withinHours;
+}
+
 function checkLineSiteRobots(int $retryLimit = 3, int $retryInterval = 1): string
 {
     $retryCount = 0;
@@ -606,22 +645,122 @@ function getStorageFileTime(string $filename, bool $fullPath = false): int|false
     return filemtime($path);
 }
 
-function addCronLog(string|array $log)
+/**
+ * Cronログを出力する
+ *
+ * 出力形式: 2025-01-07 05:33:01 [JA@05:30~12345] メッセージ GitHub::path/to/file.php:123
+ * - JA/TH/TW: 言語コード（urlRootから判定）
+ * - 05:30: Cron実行開始時刻
+ * - 12345: プロセスID（PID）
+ *
+ * @param string|array $log ログメッセージ
+ * @param string $setProcessTag プロセスタグを設定（初回のみ有効）
+ * @param int $backtraceDepth backtraceの深さ（呼び出し元特定用）
+ * @return string プロセスタグ
+ */
+function addCronLog(string|array $log = '', string $setProcessTag = '', int $backtraceDepth = 1): string
 {
+    // セッション識別子を1回だけ生成: [言語コード@開始時刻~PID] 形式
+    static $processTag = null;
+    if ($setProcessTag !== '' && is_null($processTag)) {
+        $processTag = $setProcessTag;
+        return $processTag;
+    } elseif ($log === '' && is_string($processTag)) {
+        return $processTag;
+    } elseif (is_null($processTag)) {
+        $langCode = match (\Shared\MimimalCmsConfig::$urlRoot) {
+            '/th' => 'TH',
+            '/tw' => 'TW',
+            default => 'JA',
+        };
+        $startTime = date('H:i');
+        $processTag = $langCode . '@' . $startTime . '~' . getmypid();
+    }
+
     if (is_string($log)) {
         $log = [$log];
     }
 
+    // 呼び出し元のファイル・行番号を取得してGitHub参照を生成
+    $githubRef = getCronLogGitHubRef($backtraceDepth);
+
     foreach ($log as $string) {
-        error_log(date('Y-m-d H:i:s') . ' ' . $string . "\n", 3, AppConfig::getStorageFilePath('addCronLogDest'));
+        error_log(
+            date('Y-m-d H:i:s') . ' [' . $processTag . '] ' . $string . ' ' . $githubRef . "\n",
+            3,
+            AppConfig::getStorageFilePath('addCronLogDest')
+        );
+    }
+
+    return $processTag;
+}
+
+/**
+ * Verbose Cronログを出力する（AppConfig::$verboseCronLogがtrueの場合のみ）
+ *
+ * @param string|array $log ログメッセージ
+ */
+function addVerboseCronLog(string|array $log): void
+{
+    if (AppConfig::$verboseCronLog) {
+        addCronLog($log, '', 2);
     }
 }
 
-function addVerboseCronLog(string|array $log)
+/**
+ * Cronログ用のGitHub参照文字列を生成する
+ *
+ * backtraceの構造:
+ * - trace[0]: getCronLogGitHubRefを呼び出した場所（addCronLog内）
+ * - trace[1]: addCronLogを呼び出した場所（目的の行）
+ * - trace[2]: その上位の呼び出し元
+ *
+ * @param int $backtraceDepth 1=直接の呼び出し元, 2=さらに上位の呼び出し元
+ * @return string GitHub::path/to/file.php:123 形式の文字列
+ */
+function getCronLogGitHubRef(int $backtraceDepth = 1): string
 {
-    if (AppConfig::$verboseCronLog) {
-        addCronLog($log);
+    // backtraceDepth + 1 フレームを取得（0から始まるため+1が必要）
+    $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, $backtraceDepth + 2);
+    $caller = $trace[$backtraceDepth] ?? $trace[0] ?? null;
+
+    if (!$caller || !isset($caller['file'], $caller['line'])) {
+        return '';
     }
+
+    // プロジェクトルートからの相対パスを取得
+    $projectRoot = dirname(__DIR__, 2) . '/';
+    $relativePath = str_replace($projectRoot, '', $caller['file']);
+
+    return 'GitHub::' . $relativePath . ':' . $caller['line'];
+}
+
+/**
+ * GitHub参照情報からGitHubのURLを生成する
+ *
+ * @param array{filePath: string, lineNumber: string|int, fileName?: string, label?: string} $githubRef
+ * @return string GitHubのURL
+ */
+function buildGitHubUrl(array $githubRef): string
+{
+    $repo = AppConfig::$githubRepo;
+    $branch = AppConfig::$githubBranch;
+    return "https://github.com/{$repo}/blob/{$branch}/{$githubRef['filePath']}#L{$githubRef['lineNumber']}";
+}
+
+/**
+ * GitHubリンクHTMLを生成する
+ *
+ * @param string $path ファイルパス
+ * @param int $line 行番号
+ * @param string|null $label リンクのラベル（省略時はファイル名:行番号）
+ * @return string Aタグ付きのHTML
+ */
+function githubLink(string $path, int $line, ?string $label = null): string
+{
+    $url = buildGitHubUrl(['filePath' => $path, 'lineNumber' => $line]);
+    $displayLabel = $label ?? basename($path) . ':' . $line;
+    return '<a href="' . htmlspecialchars($url) . '" target="_blank" rel="noopener">' . htmlspecialchars($displayLabel) . '</a>';
 }
 
 function t(string $text, ?string $lang = null): string
@@ -689,4 +828,28 @@ function lineAppUrl(array $oc): string
         return AppConfig::LINE_APP_URL_SP . $oc['emid'] . AppConfig::LINE_APP_SUFFIX_SP; */
 
     return AppConfig::LINE_APP_URL . $oc['url'] . AppConfig::LINE_APP_SUFFIX;
+}
+
+/**
+ * 経過時間を分秒形式でフォーマット
+ *
+ * microtime(true)で取得した開始時刻からの経過時間を、
+ * 「X分Y秒」または「Y秒」の形式で返す。
+ *
+ * @param float $startTime microtime(true)で取得した開始時刻
+ * @return string フォーマットされた経過時間（例: "2分30秒", "45秒"）
+ *
+ * @example
+ * ```php
+ * $start = microtime(true);
+ * // ... 処理 ...
+ * echo formatElapsedTime($start); // "2分30秒"
+ * ```
+ */
+function formatElapsedTime(float $startTime): string
+{
+    $elapsedSeconds = microtime(true) - $startTime;
+    $minutes = (int) floor($elapsedSeconds / 60);
+    $seconds = (int) round($elapsedSeconds - ($minutes * 60));
+    return $minutes > 0 ? "{$minutes}分{$seconds}秒" : "{$seconds}秒";
 }

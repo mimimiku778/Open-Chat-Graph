@@ -23,8 +23,8 @@ class MimimalCmsConfig
         \App\Models\Repositories\OpenChatRepositoryInterface::class => \App\Models\Repositories\OpenChatRepository::class,
         \App\Models\Repositories\UpdateOpenChatRepositoryInterface::class => \App\Models\Repositories\UpdateOpenChatRepository::class,
         \App\Models\Repositories\DeleteOpenChatRepositoryInterface::class => \App\Models\Repositories\DeleteOpenChatRepository::class,
-        \App\Models\Repositories\ParallelDownloadOpenChatStateRepositoryInterface::class => \App\Models\Repositories\ParallelDownloadOpenChatStateRepository::class,
         \App\Models\Repositories\SyncOpenChatStateRepositoryInterface::class => \App\Models\Repositories\SyncOpenChatStateRepository::class,
+        \App\Models\Repositories\MemberChangeFilterCacheRepositoryInterface::class => \App\Models\Repositories\MemberChangeFilterCacheRepository::class,
 
         \App\Models\Repositories\Statistics\StatisticsRepositoryInterface::class => \App\Models\SQLite\Repositories\Statistics\SqliteStatisticsRepository::class,
         \App\Models\Repositories\Statistics\StatisticsRankingUpdaterRepositoryInterface::class => \App\Models\SQLite\Repositories\Statistics\SqliteStatisticsRankingUpdaterRepository::class,
@@ -54,6 +54,7 @@ class MimimalCmsConfig
         \App\Services\OpenChat\Updater\OpenChatDeleterInterface::class => \App\Services\OpenChat\Updater\OpenChatDeleter::class,
         
         \App\Views\Classes\Dto\RankingPositionChartArgDtoFactoryInterface::class => \App\Views\Classes\Dto\RankingPositionChartArgDtoFactory::class,
+        \App\Views\Classes\Dto\CommentArgDtoFactoryInterface::class => \App\Views\Classes\Dto\CommentArgDtoFactory::class,
         \App\Views\Classes\CollapseKeywordEnumerationsInterface::class => \App\Views\Classes\CollapseKeywordEnumerations::class,
     ];
 
@@ -99,9 +100,9 @@ class MimimalCmsConfig
     public static array $httpErrors = [
         \Shared\Exceptions\NotFoundException::class =>         ['httpCode' => 404, 'log' => false, 'httpStatusMessage' => 'Not Found'],
         \Shared\Exceptions\MethodNotAllowedException::class => ['httpCode' => 405, 'log' => false, 'httpStatusMessage' => 'Method Not Allowed'],
-        \Shared\Exceptions\BadRequestException::class =>       ['httpCode' => 400, 'log' => true,  'httpStatusMessage' => 'Bad Request'],
-        \Shared\Exceptions\ValidationException::class =>       ['httpCode' => 400, 'log' => true,  'httpStatusMessage' => 'Bad Request'],
-        \Shared\Exceptions\InvalidInputException::class =>     ['httpCode' => 400, 'log' => true,  'httpStatusMessage' => 'Bad Request'],
+        \Shared\Exceptions\BadRequestException::class =>       ['httpCode' => 400, 'log' => false,  'httpStatusMessage' => 'Bad Request'],
+        \Shared\Exceptions\ValidationException::class =>       ['httpCode' => 400, 'log' => false,  'httpStatusMessage' => 'Bad Request'],
+        \Shared\Exceptions\InvalidInputException::class =>     ['httpCode' => 400, 'log' => false,  'httpStatusMessage' => 'Bad Request'],
         \Shared\Exceptions\UploadException::class =>           ['httpCode' => 400, 'log' => true,  'httpStatusMessage' => 'Bad Request'],
         \Shared\Exceptions\SessionTimeoutException::class =>   ['httpCode' => 401, 'log' => true,  'httpStatusMessage' => 'Unauthorized'],
         \Shared\Exceptions\UnauthorizedException::class =>     ['httpCode' => 401, 'log' => true,  'httpStatusMessage' => 'Unauthorized'],

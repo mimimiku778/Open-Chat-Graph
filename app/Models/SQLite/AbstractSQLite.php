@@ -18,6 +18,7 @@ abstract class AbstractSQLite extends DB implements DBInterface
         'database disk image is malformed',
         'database is locked',
         '8 attempt to write a readonly database',
+        'locking protocol',
     ];
 
     /**
@@ -37,6 +38,19 @@ abstract class AbstractSQLite extends DB implements DBInterface
         $mode = $config['mode'] ?? '?mode=rwc';
 
         static::$pdo = new \PDO('sqlite:file:' . $sqliteFilePath . $mode);
+
+        // Set busy timeout for all modes (including read-only) to handle concurrent access
+        static::$pdo->exec('PRAGMA busy_timeout=10000');
+
+        // Apply write-related PRAGMA settings only for read-write mode
+        // Read-only mode (mode=ro) cannot execute journal_mode and synchronous
+        if (!str_contains($mode, 'mode=ro')) {
+            // Enable WAL mode for concurrent read/write performance
+            static::$pdo->exec('PRAGMA journal_mode=WAL');
+
+            // Set synchronous mode to NORMAL for balanced performance
+            static::$pdo->exec('PRAGMA synchronous=NORMAL');
+        }
 
         return static::$pdo;
     }

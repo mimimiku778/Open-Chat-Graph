@@ -4,22 +4,22 @@ declare(strict_types=1);
 
 namespace App\Services\Cron;
 
+use App\Config\AppConfig;
 use App\Models\Repositories\SyncOpenChatStateRepositoryInterface;
 use App\Services\Admin\AdminTool;
 use App\Services\Cron\Enum\SyncOpenChatStateType as StateType;
-use App\Services\DailyUpdateCronService;
 use App\Services\OpenChat\OpenChatApiDbMerger;
+use App\Services\DailyUpdateCronService;
 use App\Services\OpenChat\OpenChatDailyCrawling;
 use App\Services\OpenChat\OpenChatHourlyInvitationTicketUpdater;
 use App\Services\OpenChat\OpenChatImageUpdater;
-use App\Services\OpenChat\Utility\OpenChatServicesUtility;
 use App\Services\RankingBan\RankingBanTableUpdater;
 use App\Services\RankingPosition\Persistence\RankingPositionHourPersistence;
 use App\Services\RankingPosition\Persistence\RankingPositionHourPersistenceLastHourChecker;
-use App\Services\Recommend\RecommendUpdater;
 use App\Services\SitemapGenerator;
 use App\Services\UpdateHourlyMemberColumnService;
 use App\Services\UpdateHourlyMemberRankingService;
+use Shared\MimimalCmsConfig;
 
 class SyncOpenChat
 {
@@ -32,16 +32,10 @@ class SyncOpenChat
         private UpdateHourlyMemberColumnService $hourlyMemberColumn,
         private OpenChatImageUpdater $OpenChatImageUpdater,
         private OpenChatHourlyInvitationTicketUpdater $invitationTicketUpdater,
-        private RecommendUpdater $recommendUpdater,
         private RankingBanTableUpdater $rankingBanUpdater,
         private SyncOpenChatStateRepositoryInterface $state,
     ) {
         ini_set('memory_limit', '2G');
-
-        set_exception_handler(function (\Throwable $e) {
-            AdminTool::sendDiscordNotify($e->__toString());
-            addCronLog($e->__toString());
-        });
     }
 
     // 毎時30分に実行
@@ -65,14 +59,14 @@ class SyncOpenChat
     private function init()
     {
         checkLineSiteRobots();
-
         if ($this->state->getBool(StateType::isHourlyTaskActive)) {
-            AdminTool::sendDiscordNotify('SyncOpenChat: hourlyTask is active');
-            addCronLog('SyncOpenChat: hourlyTask is active');
+            addCronLog('[警告] 毎時処理が実行中です');
+            AdminTool::sendDiscordNotify('SyncOpenChat: [Warning] hourlyTask is active');
+            sleep(30);
         }
 
         if ($this->state->getBool(StateType::isDailyTaskActive)) {
-            addCronLog('SyncOpenChat: dailyTask is active');
+            addCronLog('日次処理が実行中です');
         }
     }
 
@@ -84,48 +78,53 @@ class SyncOpenChat
     // 毎時0分に実行
     function handleHalfHourCheck()
     {
+        if (AppConfig::$skipHandleHalfHourCheck) {
+            // 毎時処理の途中経過チェックをスキップ
+            return;
+        }
+
         if ($this->state->getBool(StateType::isHourlyTaskActive)) {
             $this->retryHourlyTask();
         } elseif (!$this->rankingPositionHourChecker->isLastHourPersistenceCompleted()) {
-            $this->hourlyTaskAfterDbMerge(true);
+            // この後の処理が重くなっており、既存のcron処理が終わっていない場合は二重に動いてしまう
+            $this->hourlyTaskAfterDbMerge();
         }
     }
 
     private function hourlyTask()
     {
+        addCronLog('【毎時処理】開始');
+
         set_time_limit(1620);
 
+        // バックグラウンドでDB反映を開始
+        $this->rankingPositionHourPersistence->startBackgroundPersistence();
+
+        // ダウンロード処理（バックグラウンドと並列実行）
         $this->state->setTrue(StateType::isHourlyTaskActive);
         $this->merger->fetchOpenChatApiRankingAll();
         $this->state->setFalse(StateType::isHourlyTaskActive);
 
-        $this->hourlyTaskAfterDbMerge(
-            !$this->rankingPositionHourChecker->isLastHourPersistenceCompleted()
-        );
+        // バックグラウンドDB反映の完了を待機
+        $this->rankingPositionHourPersistence->waitForBackgroundCompletion();
+
+        $this->hourlyTaskAfterDbMerge();
+
+        addCronLog('【毎時処理】完了');
     }
 
-    private function hourlyTaskAfterDbMerge(bool $persistStorageFileToDb)
+    private function hourlyTaskAfterDbMerge()
     {
         $this->executeAndCronLog(
-            $persistStorageFileToDb ? [
-                fn() => $this->rankingPositionHourPersistence->persistStorageFileToDb(),
-                'rankingPositionHourPersistence'
-            ] : null,
-            [fn() => $this->OpenChatImageUpdater->hourlyImageUpdate(), 'hourlyImageUpdate'],
-            [fn() => $this->hourlyMemberColumn->update(), 'hourlyMemberColumnUpdate'],
-            [function () {
-                $saveNextFiltersCache  = !$this->state->getBool(StateType::isDailyTaskActive);
-                if (!$saveNextFiltersCache) {
-                    addCronLog('Skip saveNextFiltersCache because dailyTask is active');
-                }
-
-                $this->hourlyMemberRanking->update($saveNextFiltersCache);
-            }, 'hourlyMemberRankingUpdate'],
-            [fn() => purgeCacheCloudFlare(), 'purgeCacheCloudFlare'],
+            // 毎時ランキングDB反映はバックグラウンドバッチに移行（persist_ranking_position_background.php）
+            [fn() => $this->OpenChatImageUpdater->hourlyImageUpdate(), '毎時画像更新'],
+            [fn() => $this->hourlyMemberColumn->update(), '毎時メンバーカラム更新'],
+            [fn() => $this->hourlyMemberRanking->update(), '毎時メンバーランキング関連の処理'],
+            // CDNキャッシュ削除はバックグラウンドバッチに移行（update_recommend_static_data.php）
             [function () {
                 if ($this->state->getBool(StateType::isUpdateInvitationTicketActive)) {
                     // 既に実行中の場合は1回だけスキップする
-                    addCronLog('Skip updateInvitationTicketAll because it is active');
+                    addCronLog('参加URL取得をスキップ（実行中のため）');
                     // スキップした場合は、次回実行時に実行するようにする
                     $this->state->setFalse(StateType::isUpdateInvitationTicketActive);
                     return;
@@ -134,79 +133,60 @@ class SyncOpenChat
                 $this->state->setTrue(StateType::isUpdateInvitationTicketActive);
                 $this->invitationTicketUpdater->updateInvitationTicketAll();
                 $this->state->setFalse(StateType::isUpdateInvitationTicketActive);
-            }, 'updateInvitationTicketAll'],
-            [fn() => $this->rankingBanUpdater->updateRankingBanTable(), 'updateRankingBanTable'],
-            [function () {
-                if ($this->state->getBool(StateType::isDailyTaskActive)) {
-                    addCronLog('Skip updateRecommendTables because dailyTask is active');
-                    return;
-                }
-
-                $this->recommendUpdater->updateRecommendTables();
-            }, 'updateRecommendTables'],
+            }, '参加URL一括取得'],
+            [fn() => $this->rankingBanUpdater->updateRankingBanTable(), 'ランキングBAN情報更新'],
         );
+
+        // アーカイブ用DBインポート処理をバックグラウンドで実行（日本のみ）
+        if (!MimimalCmsConfig::$urlRoot) {
+            $path = AppConfig::ROOT_PATH . 'batch/exec/ocreview_api_data_import_background.php';
+            exec(PHP_BINARY . " {$path} >/dev/null 2>&1 &");
+            addVerboseCronLog('アーカイブ用DBインポート処理をバックグラウンドで開始');
+        }
     }
 
     private function retryHourlyTask()
     {
-        addCronLog('Retry hourlyTask');
-        AdminTool::sendDiscordNotify('Retry hourlyTask');
+        addCronLog('【毎時処理】リトライ開始');
+        OpenChatApiDbMerger::setKillFlagTrue();
         sleep(30);
 
         $this->handle();
-        addCronLog('Done retrying hourlyTask');
-        AdminTool::sendDiscordNotify('Done retrying hourlyTask');
+        addCronLog('【毎時処理】リトライ完了');
     }
 
     private function dailyTask()
     {
-        $this->hourlyTask();
+        addCronLog('【日次処理】開始');
 
         $this->state->setTrue(StateType::isDailyTaskActive);
+        $this->hourlyTask();
+
         set_time_limit(5400);
 
-        /** 
+        /**
          * @var DailyUpdateCronService $updater
          */
         $updater = app(DailyUpdateCronService::class);
         $updater->update(fn() => $this->state->setFalse(StateType::isDailyTaskActive));
 
         $this->executeAndCronLog(
-            [fn() => $this->OpenChatImageUpdater->imageUpdateAll(), 'dailyImageUpdate'],
-            [fn() => purgeCacheCloudFlare(), 'purgeCacheCloudFlare'],
+            [fn() => $this->OpenChatImageUpdater->imageUpdateAll(), '日次画像更新'],
+            [fn() => purgeCacheCloudFlare(), 'CDNキャッシュ削除'],
         );
+
+        addCronLog('【日次処理】完了');
     }
 
     private function retryDailyTask()
     {
-        // 6:30以降にリトライした場合は通知
-        if ($this->isAfterRetryNotificationTime()) {
-            AdminTool::sendDiscordNotify('Retrying dailyTask');
-        }
-
-        addCronLog('Retry dailyTask');
+        addCronLog('【日次処理】リトライ開始');
+        OpenChatApiDbMerger::setKillFlagTrue();
         OpenChatDailyCrawling::setKillFlagTrue();
         sleep(30);
 
         $this->dailyTask();
-        addCronLog('Done Retry dailyTask');
-
-        if ($this->isAfterRetryNotificationTime()) {
-            AdminTool::sendDiscordNotify('Done retrying dailyTask');
-        }
-    }
-
-    function isAfterRetryNotificationTime(): bool
-    {
-        $currentTime = OpenChatServicesUtility::getModifiedCronTime('now');
-
-        return !isDailyUpdateTime()
-            && !isDailyUpdateTime($currentTime->modify('-1 hour'), $currentTime->modify('-1 hour'))
-            && !isDailyUpdateTime($currentTime->modify('-2 hour'), $currentTime->modify('-2 hour'))
-            && !isDailyUpdateTime($currentTime->modify('-3 hour'), $currentTime->modify('-3 hour'))
-            && !isDailyUpdateTime($currentTime->modify('-4 hour'), $currentTime->modify('-4 hour'))
-            && !isDailyUpdateTime($currentTime->modify('-5 hour'), $currentTime->modify('-5 hour'))
-            && !isDailyUpdateTime($currentTime->modify('-6 hour'), $currentTime->modify('-6 hour'));
+        addCronLog('【日次処理】リトライ完了');
     }
 
     /**
@@ -218,9 +198,9 @@ class SyncOpenChat
             if (!$task)
                 continue;
 
-            addCronLog('Start ' . $task[1]);
+            addCronLog($task[1] . 'を開始');
             $task[0]();
-            addCronLog('Done ' . $task[1]);
+            addCronLog($task[1] . 'が完了');
         }
     }
 }

@@ -57,6 +57,9 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-enable \
         opcache
 
+# vscodesudoers追加
+RUN echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
 RUN pecl install xdebug-3.3.2 && \
     docker-php-ext-enable xdebug
 

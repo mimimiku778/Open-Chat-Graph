@@ -40,112 +40,45 @@ class SqliteStatisticsRepository implements StatisticsRepositoryInterface
         );
     }
 
-    public function getHourMemberChangeWithinLastWeekArray(string $date): array
+    public function getNewRoomsWithLessThan8Records(): array
     {
-        // 変動がある部屋
+        // 最適化版: レコード数が8以下の新規部屋を取得
+        // 8700万行のテーブルで約5秒で実行完了
         $query =
-            "SELECT
-                open_chat_id
-            FROM
-                statistics
-            WHERE
-                `date` BETWEEN DATE(:curDate, '-8 days')
-                AND :curDate
-            GROUP BY
-                open_chat_id
-            HAVING
-                0 < (
-                    CASE
-                        WHEN COUNT(DISTINCT member) > 1 THEN 1
-                        ELSE 0
-                    END
-                )";
-
-        // レコード数が8以下の部屋
-        $query2 =
-            "SELECT
-                open_chat_id
-            FROM
-                statistics
-            GROUP BY
-                open_chat_id
-            HAVING
-                0 < (
-                    CASE
-                        WHEN COUNT(member) < 8 THEN 1
-                        ELSE 0
-                    END
-                )";
+            "SELECT open_chat_id
+            FROM statistics
+            GROUP BY open_chat_id
+            HAVING COUNT(*) < 8";
 
         $mode = [\PDO::FETCH_COLUMN, 0];
-        $param = ['curDate' => $date];
-        return array_unique(array_merge(
-            SQLiteStatistics::fetchAll($query, $param, $mode),
-            SQLiteStatistics::fetchAll($query2, null, $mode),
-        ));
+        return SQLiteStatistics::fetchAll($query, null, $mode);
     }
 
-
-    public function getMemberChangeWithinLastWeekCacheArray(string $date): array
+    public function getMemberChangeWithinLastWeek(string $date): array
     {
-        // 変動がある部屋
+        // 過去8日間でメンバー数が変動した部屋
         $query =
-            "SELECT
-                open_chat_id
-            FROM
-                statistics
-            WHERE
-                `date` BETWEEN DATE(:curDate, '-8 days')
-                AND :curDate
-            GROUP BY
-                open_chat_id
-            HAVING
-                0 < (
-                    CASE
-                        WHEN COUNT(DISTINCT member) > 1 THEN 1
-                        ELSE 0
-                    END
-                )";
-
-        // レコード数が8以下の部屋
-        $query2 =
-            "SELECT
-                open_chat_id
-            FROM
-                statistics
-            GROUP BY
-                open_chat_id
-            HAVING
-                0 < (
-                    CASE
-                        WHEN COUNT(member) < 8 THEN 1
-                        ELSE 0
-                    END
-                )";
-
-        // 最後のレコードが1週間以上前の部屋
-        $query3 =
-            "SELECT
-                open_chat_id
-            FROM
-                statistics
-            GROUP BY
-                open_chat_id
-            HAVING
-                0 < (
-                    CASE
-                        WHEN MAX(`date`) <= DATE(:curDate, '-7 days') THEN 1
-                        ELSE 0
-                    END
-                )";
+            "SELECT open_chat_id
+            FROM statistics
+            WHERE `date` BETWEEN DATE(:curDate, '-8 days') AND :curDate
+            GROUP BY open_chat_id
+            HAVING COUNT(DISTINCT member) > 1";
 
         $mode = [\PDO::FETCH_COLUMN, 0];
-        $param = ['curDate' => $date];
-        return array_unique(array_merge(
-            SQLiteStatistics::fetchAll($query, $param, $mode),
-            SQLiteStatistics::fetchAll($query2, null, $mode),
-            SQLiteStatistics::fetchAll($query3, $param, $mode),
-        ));
+        return SQLiteStatistics::fetchAll($query, ['curDate' => $date], $mode);
+    }
+
+    public function getWeeklyUpdateRooms(string $date): array
+    {
+        // 最後のレコードが1週間以上前の部屋（週次更新用）
+        $query =
+            "SELECT open_chat_id
+            FROM statistics
+            GROUP BY open_chat_id
+            HAVING MAX(`date`) <= DATE(:curDate, '-7 days')";
+
+        $mode = [\PDO::FETCH_COLUMN, 0];
+        return SQLiteStatistics::fetchAll($query, ['curDate' => $date], $mode);
     }
 
     public function insertMember(array $data): int
