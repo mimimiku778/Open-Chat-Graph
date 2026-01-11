@@ -31,6 +31,7 @@ services:
       - MYSQL_ROOT_PASSWORD=test_root_pass
       - TZ=Asia/Tokyo
     volumes:
+      - mysql_data:/var/lib/mysql
       - "./docker/mysql/server.cnf:/etc/mysql/mariadb.conf.d/server.cnf"
     ports:
       - "${MYSQL_PORT:-3306}:3306"
@@ -45,4 +46,5 @@ services:
     depends_on:
       - mysql
 volumes:
+  mysql_data:
   storage:
