@@ -11,9 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      # Mock環境用のcomposeファイルを全ステップで使用
-      COMPOSE_FILE: docker-compose.yml:docker-compose.mock.yml
-      # CI環境フラグ（make ci-testでコンテナ起動をスキップ）
+      # CI環境フラグ
       CI: true
       # CI環境ではxdebugをインストールしない
       INSTALL_XDEBUG: false
@@ -25,19 +23,10 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Setup environment
-      run: |
-        # .env.mock は不要（docker-compose.ci.yml で環境変数を直接設定）
-        echo "CI environment setup complete"
-
     - name: Start mock environment
       run: |
         echo "Starting CI mock environment..."
         docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
-        echo "Checking container status..."
-        docker compose -f docker-compose.yml -f docker-compose.ci.yml ps -a
-        echo "Checking app container logs..."
-        docker compose -f docker-compose.yml -f docker-compose.ci.yml logs app || true
 
     - name: Wait for services
       run: |
@@ -57,23 +46,9 @@ jobs:
             echo "App container is ready"
             break
           fi
-          if [ $i -eq 5 ] || [ $i -eq 15 ] || [ $i -eq 25 ]; then
-            echo "Container status at attempt $i:"
-            docker compose -f docker-compose.yml -f docker-compose.ci.yml ps app || true
-          fi
           echo "Waiting for App... ($i/30)"
           sleep 2
         done
-
-        # 失敗した場合はログを出力
-        if ! docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T app php -v > /dev/null 2>&1; then
-          echo "ERROR: App container failed to start"
-          echo "Container status:"
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml ps -a
-          echo "App container logs:"
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs app
-          exit 1
-        fi
 
         echo "Waiting for LINE Mock API..."
         for i in {1..30}; do
