@@ -27,6 +27,11 @@ jobs:
 
     - name: Setup environment
       run: |
+        # Create dummy SSL certificates for volume mount (not actually used in CI)
+        mkdir -p docker/app/ssl-new
+        touch docker/app/ssl-new/ocgraph.test+4.pem
+        touch docker/app/ssl-new/ocgraph.test+4-key.pem
+
         # Create .env.mock configuration for CI
         cp docker/line-mock-api/.env.mock.example docker/line-mock-api/.env.mock
         # CI environment requires fixed mock API type and no delay
