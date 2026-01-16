@@ -18,6 +18,8 @@ jobs:
       COMPOSE_DOCKER_CLI_BUILD: 1
       # CI環境フラグ（make ci-testでコンテナ起動をスキップ）
       CI: true
+      # CI環境ではxdebugをインストールしない
+      INSTALL_XDEBUG: false
 
     steps:
     - name: Checkout repository
@@ -27,29 +29,8 @@ jobs:
       uses: satackey/action-docker-layer-caching@v0.0.11
       continue-on-error: true
 
-    - name: Cache mkcert
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.local/share/mkcert
-          /usr/local/bin/mkcert
-        key: mkcert-${{ runner.os }}-v1
-
     - name: Setup environment
       run: |
-        # Docker Buildx (already available in ubuntu-latest)
-        docker buildx version
-
-        # Install mkcert (skip if cached)
-        if [ ! -f /usr/local/bin/mkcert ]; then
-          sudo apt-get update
-          sudo apt-get install -y libnss3-tools
-          curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64"
-          chmod +x mkcert-v*-linux-amd64
-          sudo mv mkcert-v*-linux-amd64 /usr/local/bin/mkcert
-        fi
-        mkcert -install
-
         # Create .env.mock configuration for CI
         cp docker/line-mock-api/.env.mock.example docker/line-mock-api/.env.mock
         # CI environment requires fixed mock API type and no delay
@@ -85,7 +66,7 @@ jobs:
 
         echo "Waiting for LINE Mock API..."
         for i in {1..30}; do
-          if curl -k -s http://localhost:9000 > /dev/null 2>&1; then
+          if curl -s http://localhost:9000 > /dev/null 2>&1; then
             echo "LINE Mock API is ready"
             break
           fi

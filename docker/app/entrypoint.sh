@@ -12,6 +12,16 @@ run_as_root() {
     fi
 }
 
+# CI環境の場合、HTTP専用のApache設定に切り替え
+if [ "${CI}" = "true" ]; then
+    echo "CI environment detected: Switching to HTTP-only Apache configuration..."
+    run_as_root cp /var/www/html/docker/app/apache2/sites-available/000-default-ci.conf /etc/apache2/sites-available/000-default.conf
+    run_as_root cp /var/www/html/docker/app/apache2/sites-available/000-default-ci.conf /etc/apache2/sites-enabled/000-default.conf
+    # SSL設定を無効化
+    run_as_root rm -f /etc/apache2/sites-enabled/000-default-ssl.conf 2>/dev/null || true
+    echo "HTTP-only configuration applied"
+fi
+
 # 環境変数を保持してrootまたはsudoでコマンドを実行する関数
 run_as_root_with_env() {
     if [ "$(id -u)" != "0" ]; then

@@ -11,8 +11,12 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# テスト用URL
-BASE_URL="https://localhost:8443"
+# テスト用URL（CI環境ではHTTPを使用）
+if [ "${CI}" = "true" ]; then
+    BASE_URL="http://localhost:8000"
+else
+    BASE_URL="https://localhost:8443"
+fi
 
 # ログディレクトリ
 LOG_DIR="./test-logs"

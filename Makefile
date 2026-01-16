@@ -56,7 +56,6 @@ init-y-n: ## 初回セットアップ（確認なし、local-secrets.phpは保�
 _init:
 	@echo "$(GREEN)初回セットアップを開始します...$(NC)"
 	@./docker/app/generate-ssl-certs.sh
-	@./docker/line-mock-api/generate-ssl-certs.sh
 	@# コンテナが停止していれば起動、セットアップ後に停止（冪等性）
 	@CONTAINERS_WERE_STOPPED=0; \
 	if ! docker compose ps mysql 2>/dev/null | grep -q "Up" || ! docker compose ps app 2>/dev/null | grep -q "Up"; then \
@@ -151,7 +150,6 @@ up-mock: ## Mock付き環境を起動（docker/line-mock-api/.env.mockの設定�
 		cp docker/line-mock-api/.env.mock.example docker/line-mock-api/.env.mock; \
 	fi
 	@./docker/app/generate-ssl-certs.sh
-	@./docker/line-mock-api/generate-ssl-certs.sh
 	@echo "$(GREEN)Mock付き環境を起動しています...$(NC)"
 	@echo "$(YELLOW)docker/line-mock-api/.env.mockの設定:$(NC)"
 	@cat docker/line-mock-api/.env.mock | grep -v "^#" | grep -v "^$$" | sed 's/^/  /'
@@ -161,7 +159,6 @@ up-mock: ## Mock付き環境を起動（docker/line-mock-api/.env.mockの設定�
 	@echo "$(GREEN)Mock付き環境が起動しました$(NC)"
 	@echo "$(YELLOW)アクセスURL:$(NC)"
 	@echo "  https://localhost:8443 (基本環境)"
-	@echo "  https://localhost:8543 (Mock環境)"
 	@echo "  phpMyAdmin: http://localhost:8080"
 	@echo "  LINE Mock API: http://localhost:9000"
 	@echo ""
@@ -245,12 +242,12 @@ ci-test: ## CIテストを実行（Mock環境でクローリング+URLテスト�
 			sleep 2; \
 		done; \
 		echo "$(GREEN)✓ 準備完了$(NC)"; \
+		echo "$(YELLOW)[3/4] 環境を初期化...$(NC)"; \
+		$(MAKE) init-y-n > /dev/null 2>&1; \
+		echo "$(GREEN)✓ 初期化完了$(NC)"; \
 	else \
-		echo "$(YELLOW)CI環境を検出: コンテナ起動をスキップ$(NC)"; \
+		echo "$(YELLOW)CI環境を検出: コンテナ起動とSSL証明書生成をスキップ$(NC)"; \
 	fi
-	@echo "$(YELLOW)[3/4] 環境を初期化...$(NC)"
-	@$(MAKE) init-y-n > /dev/null 2>&1
-	@echo "$(GREEN)✓ 初期化完了$(NC)"
 	@echo "$(YELLOW)[4/4] テストを実行...$(NC)"
 	@chmod +x ./.github/scripts/test-ci.sh ./.github/scripts/test-urls.sh ./.github/scripts/check-error-log.sh
 	@./.github/scripts/test-ci.sh -y && ./.github/scripts/test-urls.sh && ./.github/scripts/check-error-log.sh

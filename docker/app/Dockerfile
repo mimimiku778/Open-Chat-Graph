@@ -1,5 +1,8 @@
 FROM php:8.3-apache
 
+# ビルド引数（CI環境ではxdebugをインストールしない）
+ARG INSTALL_XDEBUG=true
+
 # apt-getのキャッシュマウントを使用して高速化（変更頻度低）
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -60,8 +63,10 @@ RUN docker-php-ext-enable opcache
 # Composerインストール（変更頻度低）
 RUN cd /usr/bin && curl -s http://getcomposer.org/installer | php && ln -s /usr/bin/composer.phar /usr/bin/composer
 
-# Xdebugインストール（変更頻度低）
-RUN pecl install xdebug-3.3.2
+# Xdebugインストール（CI環境ではスキップ）
+RUN if [ "$INSTALL_XDEBUG" = "true" ]; then \
+        pecl install xdebug-3.3.2; \
+    fi
 # Xdebugはデフォルトで無効（環境変数ENABLE_XDEBUG=1で有効化）
 
 # Apache設定（変更頻度低）
