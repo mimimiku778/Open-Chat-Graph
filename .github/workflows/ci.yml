@@ -88,7 +88,7 @@ jobs:
     - name: Install dependencies
       run: |
         echo "Installing Composer dependencies..."
-        docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T app composer install --no-dev --optimize-autoloader
+        docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T -u root app composer install --no-dev --optimize-autoloader
 
     - name: Run CI tests
       run: |
