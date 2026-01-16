@@ -85,6 +85,11 @@ jobs:
           sleep 2
         done
 
+    - name: Install dependencies
+      run: |
+        echo "Installing Composer dependencies..."
+        docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T app composer install --no-dev --optimize-autoloader
+
     - name: Run CI tests
       run: |
         chmod +x ./.github/scripts/test-ci.sh ./.github/scripts/test-urls.sh ./.github/scripts/check-error-log.sh
