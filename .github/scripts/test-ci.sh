@@ -37,6 +37,7 @@ set -e
 # 設定
 APP_CONTAINER="oc-review-mock-app-1"
 MOCK_CONTAINER="oc-review-mock-line-mock-api-1"
+MYSQL_CONTAINER="oc-review-mock-mysql-1"
 LOG_DIR="./test-logs"
 
 # オプションの処理
@@ -89,6 +90,15 @@ log_info() {
 
 log_success() {
     echo -e "${CYAN}[$(date '+%Y-%m-%d %H:%M:%S')] SUCCESS:${NC} $1" | tee -a "$LOG_FILE"
+}
+
+# MySQLのレコード数を取得
+get_mysql_count() {
+    local database=$1
+    local table=$2
+
+    docker exec "$MYSQL_CONTAINER" mysql -uroot -ptest_root_pass -sN \
+        -e "SELECT COUNT(*) FROM ${database}.${table}" 2>/dev/null || echo "0"
 }
 
 # コンテナが起動しているか確認
@@ -376,6 +386,13 @@ main() {
         # 進捗表示
         local progress=$((hour * 100 / max_hours))
         log "進捗: ${hour}/${max_hours}時間 (${progress}%)"
+
+        # 現在のデータベースレコード数を表示
+        local ja_count=$(get_mysql_count "ocgraph_ocreview" "open_chat")
+        local tw_count=$(get_mysql_count "ocgraph_ocreviewtw" "open_chat")
+        local th_count=$(get_mysql_count "ocgraph_ocreviewth" "open_chat")
+        log_info "DB状況 - 日本語: ${ja_count}件, 繁体字: ${tw_count}件, タイ語: ${th_count}件"
+
         echo "" | tee -a "$LOG_FILE"
     done
 
