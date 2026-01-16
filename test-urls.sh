@@ -128,11 +128,37 @@ main() {
     test_url "${BASE_URL}/th" "トップページ（タイ語）"
     echo ""
 
-    # オープンチャット詳細ページ
+    # オープンチャット詳細ページ（DBから実際のIDを取得）
     log "オープンチャット詳細ページのテスト"
-    test_url "${BASE_URL}/oc/1" "OC詳細ページ"
-    test_url "${BASE_URL}/th/oc/1" "OC詳細ページ（タイ語）"
-    test_url "${BASE_URL}/tw/oc/1" "OC詳細ページ（繁体字）"
+    # MySQLから最初のopen_chat IDを取得
+    local MYSQL_CONTAINER="oc-review-mock-mysql-1"
+    local JA_OC_ID=$(docker exec "$MYSQL_CONTAINER" mysql -uroot -ptest_root_pass -sN -e "SELECT id FROM ocgraph_ocreview.open_chat ORDER BY id LIMIT 1" 2>/dev/null || echo "")
+    local TH_OC_ID=$(docker exec "$MYSQL_CONTAINER" mysql -uroot -ptest_root_pass -sN -e "SELECT id FROM ocgraph_ocreviewth.open_chat ORDER BY id LIMIT 1" 2>/dev/null || echo "")
+    local TW_OC_ID=$(docker exec "$MYSQL_CONTAINER" mysql -uroot -ptest_root_pass -sN -e "SELECT id FROM ocgraph_ocreviewtw.open_chat ORDER BY id LIMIT 1" 2>/dev/null || echo "")
+
+    if [ -n "$JA_OC_ID" ]; then
+        test_url "${BASE_URL}/oc/${JA_OC_ID}" "OC詳細ページ (ID=${JA_OC_ID})"
+    else
+        log_error "日本語のopen_chatテーブルにデータがありません"
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    fi
+
+    if [ -n "$TH_OC_ID" ]; then
+        test_url "${BASE_URL}/th/oc/${TH_OC_ID}" "OC詳細ページ（タイ語, ID=${TH_OC_ID}）"
+    else
+        log_error "タイ語のopen_chatテーブルにデータがありません"
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    fi
+
+    if [ -n "$TW_OC_ID" ]; then
+        test_url "${BASE_URL}/tw/oc/${TW_OC_ID}" "OC詳細ページ（繁体字, ID=${TW_OC_ID}）"
+    else
+        log_error "繁体字のopen_chatテーブルにデータがありません"
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    fi
     echo ""
 
     # 各種ページ
