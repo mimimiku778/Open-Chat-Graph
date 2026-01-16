@@ -13,9 +13,6 @@ jobs:
     env:
       # Mock環境用のcomposeファイルを全ステップで使用
       COMPOSE_FILE: docker-compose.yml:docker-compose.mock.yml
-      # Docker BuildKitを有効化してキャッシュマウントを使用
-      DOCKER_BUILDKIT: 1
-      COMPOSE_DOCKER_CLI_BUILD: 1
       # CI環境フラグ（make ci-testでコンテナ起動をスキップ）
       CI: true
       # CI環境ではxdebugをインストールしない
@@ -25,9 +22,8 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Setup Docker Layer Caching
-      uses: satackey/action-docker-layer-caching@v0.0.11
-      continue-on-error: true
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
     - name: Setup environment
       run: |
