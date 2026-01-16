@@ -13,21 +13,43 @@ jobs:
     env:
       # Mock環境用のcomposeファイルを全ステップで使用
       COMPOSE_FILE: docker-compose.yml:docker-compose.mock.yml
+      # Docker BuildKitを有効化してキャッシュマウントを使用
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
+    - name: Setup Docker Buildx
       uses: docker/setup-buildx-action@v3
+
+    - name: Cache Docker layers
+      uses: actions/cache@v4
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ hashFiles('docker/app/Dockerfile', 'docker/mysql/Dockerfile', 'docker/line-mock-api/Dockerfile') }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
+
+    - name: Cache mkcert
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.local/share/mkcert
+          /usr/local/bin/mkcert
+        key: mkcert-${{ runner.os }}-v1
 
     - name: Install mkcert
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libnss3-tools
-        curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64"
-        chmod +x mkcert-v*-linux-amd64
-        sudo mv mkcert-v*-linux-amd64 /usr/local/bin/mkcert
+        # Install mkcert (skip if cached)
+        if [ ! -f /usr/local/bin/mkcert ]; then
+          sudo apt-get update
+          sudo apt-get install -y libnss3-tools
+          curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64"
+          chmod +x mkcert-v*-linux-amd64
+          sudo mv mkcert-v*-linux-amd64 /usr/local/bin/mkcert
+        fi
         mkcert -install
 
     - name: Create .env.mock configuration
