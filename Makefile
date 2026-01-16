@@ -56,7 +56,7 @@ init-y-n: ## 初回セットアップ（確認なし、local-secrets.phpは保�
 _init:
 	@echo "$(GREEN)初回セットアップを開始します...$(NC)"
 	@./docker/app/generate-ssl-certs.sh
-	@# コンテナが停止していれば起動、セットアップ後に停止（冪等性）
+	@# コンテナが停止していれば起動、セットアップ後に停止
 	@CONTAINERS_WERE_STOPPED=0; \
 	if ! docker compose ps mysql 2>/dev/null | grep -q "Up" || ! docker compose ps app 2>/dev/null | grep -q "Up"; then \
 		echo "$(YELLOW)コンテナを起動します...$(NC)"; \
@@ -224,33 +224,29 @@ show: ## 現在の起動モードを表示
 	fi
 	@echo "$(GREEN)========================================$(NC)"
 
-ci-test: ## CIテストを実行（Mock環境でクローリング+URLテスト）
+ci-test: ## ローカルでCIテストを実行（Mock環境でクローリング+URLテスト）
 	@echo "$(GREEN)========================================"
-	@echo "  CIテスト開始"
+	@echo "  ローカルCIテスト開始"
 	@echo "========================================$(NC)"
-	@if [ -z "$$CI" ]; then \
-		echo "$(YELLOW)[1/4] Mock環境を起動...$(NC)"; \
-		$(MAKE) up-mock > /dev/null 2>&1 || $(MAKE) up-mock; \
-		echo "$(YELLOW)[2/4] サービス準備を待機...$(NC)"; \
-		$(MAKE) _wait-mysql; \
-		for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
-			docker compose exec -T app php -v > /dev/null 2>&1 && break; \
-			sleep 2; \
-		done; \
-		for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
-			curl -k -s http://localhost:9000 > /dev/null 2>&1 && break; \
-			sleep 2; \
-		done; \
-		echo "$(GREEN)✓ 準備完了$(NC)"; \
-		echo "$(YELLOW)[3/4] 環境を初期化...$(NC)"; \
-		$(MAKE) init-y-n > /dev/null 2>&1; \
-		echo "$(GREEN)✓ 初期化完了$(NC)"; \
-	else \
-		echo "$(YELLOW)CI環境を検出: コンテナ起動とSSL証明書生成をスキップ$(NC)"; \
-	fi
+	@echo "$(YELLOW)[1/4] Mock環境を起動...$(NC)"
+	@$(MAKE) up-mock > /dev/null 2>&1 || $(MAKE) up-mock
+	@echo "$(YELLOW)[2/4] サービス準備を待機...$(NC)"
+	@$(MAKE) _wait-mysql
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+		docker compose -f docker-compose.yml -f docker-compose.mock.yml exec -T app php -v > /dev/null 2>&1 && break; \
+		sleep 2; \
+	done
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+		curl -k -s http://localhost:9000 > /dev/null 2>&1 && break; \
+		sleep 2; \
+	done
+	@echo "$(GREEN)✓ 準備完了$(NC)"
+	@echo "$(YELLOW)[3/4] 環境を初期化...$(NC)"
+	@$(MAKE) init-y-n > /dev/null 2>&1
+	@echo "$(GREEN)✓ 初期化完了$(NC)"
 	@echo "$(YELLOW)[4/4] テストを実行...$(NC)"
 	@chmod +x ./.github/scripts/test-ci.sh ./.github/scripts/test-urls.sh ./.github/scripts/check-error-log.sh
 	@./.github/scripts/test-ci.sh -y && ./.github/scripts/test-urls.sh && ./.github/scripts/check-error-log.sh
 	@echo "$(GREEN)========================================"
-	@echo "  CIテスト完了"
+	@echo "  ローカルCIテスト完了"
 	@echo "========================================$(NC)"
