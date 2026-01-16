@@ -94,7 +94,7 @@ up: ## 基本環境を起動
 	fi
 	@./docker/app/generate-ssl-certs.sh
 	@echo "$(GREEN)基本環境を起動しています...$(NC)"
-	@IS_MOCK_ENVIRONMENT=0 CRON=0 docker compose up -d --no-deps --force-recreate app && IS_MOCK_ENVIRONMENT=0 CRON=0 docker compose up -d
+	@IS_MOCK_ENVIRONMENT=0 CRON=0 docker compose --profile dev up -d --no-deps --force-recreate app && IS_MOCK_ENVIRONMENT=0 CRON=0 docker compose --profile dev up -d
 	@echo "$(GREEN)基本環境が起動しました$(NC)"
 	@echo "$(YELLOW)アクセスURL:$(NC)"
 	@echo "  https://localhost:8443"
@@ -156,8 +156,8 @@ up-mock: ## Mock付き環境を起動（docker/line-mock-api/.env.mockの設定�
 	@echo "$(YELLOW)docker/line-mock-api/.env.mockの設定:$(NC)"
 	@cat docker/line-mock-api/.env.mock | grep -v "^#" | grep -v "^$$" | sed 's/^/  /'
 	@export $$(cat docker/line-mock-api/.env.mock | grep -v "^#" | xargs) && \
-		IS_MOCK_ENVIRONMENT=1 CRON=0 docker compose -f docker-compose.yml -f docker-compose.mock.yml up -d --no-deps --force-recreate app line-mock-api && \
-		IS_MOCK_ENVIRONMENT=1 CRON=0 docker compose -f docker-compose.yml -f docker-compose.mock.yml up -d
+		IS_MOCK_ENVIRONMENT=1 CRON=0 docker compose --profile dev -f docker-compose.yml -f docker-compose.mock.yml up -d --no-deps --force-recreate app line-mock-api && \
+		IS_MOCK_ENVIRONMENT=1 CRON=0 docker compose --profile dev -f docker-compose.yml -f docker-compose.mock.yml up -d
 	@echo "$(GREEN)Mock付き環境が起動しました$(NC)"
 	@echo "$(YELLOW)アクセスURL:$(NC)"
 	@echo "  https://localhost:8443 (基本環境)"

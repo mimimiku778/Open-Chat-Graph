@@ -45,6 +45,13 @@ jobs:
         echo ""
         echo "=== Container logs (line-mock-api) ==="
         docker compose logs line-mock-api --tail=100
+        echo ""
+        echo "=== Exception log ==="
+        if [ -f storage/exception.log ]; then
+          cat storage/exception.log
+        else
+          echo "No exception.log found"
+        fi
 
     - name: Upload logs on failure
       if: failure()
@@ -57,13 +64,10 @@ jobs:
         retention-days: 7
         if-no-files-found: ignore
 
-    - name: Cleanup and show status
+    - name: Show final status
       if: always()
       run: |
         echo "=== Final container status ==="
         docker compose ps
         echo ""
         make show
-        echo ""
-        echo "Cleaning up..."
-        docker compose down -v || true
