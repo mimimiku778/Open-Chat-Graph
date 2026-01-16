@@ -31,8 +31,11 @@ jobs:
         sudo mv mkcert-v*-linux-amd64 /usr/local/bin/mkcert
         mkcert -install
 
-        # Create .env.mock from example (TEST_JA_HOURS=25 by default)
+        # Create .env.mock configuration for CI
         cp docker/line-mock-api/.env.mock.example docker/line-mock-api/.env.mock
+        # CI environment requires fixed mock API type and no delay
+        sed -i 's/^MOCK_DELAY_ENABLED=.*/MOCK_DELAY_ENABLED=0/' docker/line-mock-api/.env.mock
+        sed -i 's/^MOCK_API_TYPE=.*/MOCK_API_TYPE=fixed/' docker/line-mock-api/.env.mock
 
     - name: Run CI tests
       run: make ci-test
