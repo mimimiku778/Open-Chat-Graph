@@ -12,7 +12,9 @@ services:
       # HTTP専用のApache設定（SSL設定を上書き）
       - "./docker/app/apache2/sites-available/000-default-ci.conf:/etc/apache2/sites-available/000-default.conf"
       - "./docker/app/apache2/sites-available/000-default-ci.conf:/etc/apache2/sites-enabled/000-default.conf"
-      # SSL設定ファイルは読み込まれないため、上書き不要（mod_sslが無効）
+      # SSL設定ファイルを無効化（ダミー設定で上書き）
+      - "./docker/app/apache2/sites-available/000-default-ssl-disabled.conf:/etc/apache2/sites-available/000-default-ssl.conf"
+      - "./docker/app/apache2/sites-available/000-default-ssl-disabled.conf:/etc/apache2/sites-enabled/000-default-ssl.conf"
     depends_on:
       - line-mock-api
     networks:
