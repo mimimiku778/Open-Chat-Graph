@@ -8,6 +8,9 @@ on:
       - 'docker/**'
       - 'composer.json'
       - 'composer.lock'
+  schedule:
+    # 毎週月曜日 0:00 (UTC) に実行してベースイメージの更新を取得
+    - cron: '0 0 * * 1'
   workflow_dispatch:
 
 jobs:

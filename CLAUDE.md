@@ -74,7 +74,9 @@ make show / help
 
 **GitHub Actions:**
 - `.github/workflows/ci.yml`: 自動テスト実行
-- `.github/workflows/build-images.yml`: プリビルドイメージのビルド＆プッシュ（main pushまたは手動実行）
+- `.github/workflows/build-images.yml`: プリビルドイメージのビルド＆プッシュ
+  - トリガー: mainへのpush（Docker/依存関係変更時）、毎週月曜0時（定期更新）、手動実行
+  - 定期実行でベースイメージ（php:8.3-apacheなど）のマイナーバージョン更新を取得
 - プリビルドイメージ: GitHub Container Registry (ghcr.io) にCI用イメージを保存
   - `ghcr.io/{owner}/oc-review-mock-app:latest`: アプリケーションイメージ
   - `ghcr.io/{owner}/oc-review-mock-line-mock-api:latest`: LINE Mock APIイメージ
