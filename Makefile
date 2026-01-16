@@ -91,17 +91,9 @@ up: ## 基本環境を起動
 		echo "$(YELLOW)Mock環境から基本環境に切り替えています...$(NC)"; \
 		$(MAKE) down-mock; \
 	fi
-	@if [ -z "$$CI" ]; then \
-		./docker/app/generate-ssl-certs.sh; \
-	else \
-		echo "$(YELLOW)CI環境を検出: SSL証明書生成をスキップ$(NC)"; \
-	fi
+	@./docker/app/generate-ssl-certs.sh
 	@echo "$(GREEN)基本環境を起動しています...$(NC)"
-	@if [ -n "$$CI" ]; then \
-		IS_MOCK_ENVIRONMENT=0 CRON=0 docker compose up -d --no-deps --force-recreate app && IS_MOCK_ENVIRONMENT=0 CRON=0 docker compose up -d; \
-	else \
-		IS_MOCK_ENVIRONMENT=0 CRON=0 docker compose --profile dev up -d --no-deps --force-recreate app && IS_MOCK_ENVIRONMENT=0 CRON=0 docker compose --profile dev up -d; \
-	fi
+	@IS_MOCK_ENVIRONMENT=0 CRON=0 docker compose --profile dev up -d --no-deps --force-recreate app && IS_MOCK_ENVIRONMENT=0 CRON=0 docker compose --profile dev up -d
 	@echo "$(GREEN)基本環境が起動しました$(NC)"
 	@echo "$(YELLOW)アクセスURL:$(NC)"
 	@echo "  https://localhost:8443"
@@ -157,23 +149,13 @@ up-mock: ## Mock付き環境を起動（docker/line-mock-api/.env.mockの設定�
 		echo "$(YELLOW)docker/line-mock-api/.env.mock.exampleからdocker/line-mock-api/.env.mockを作成します...$(NC)"; \
 		cp docker/line-mock-api/.env.mock.example docker/line-mock-api/.env.mock; \
 	fi
-	@if [ -z "$$CI" ]; then \
-		./docker/app/generate-ssl-certs.sh; \
-	else \
-		echo "$(YELLOW)CI環境を検出: SSL証明書生成をスキップ$(NC)"; \
-	fi
+	@./docker/app/generate-ssl-certs.sh
 	@echo "$(GREEN)Mock付き環境を起動しています...$(NC)"
 	@echo "$(YELLOW)docker/line-mock-api/.env.mockの設定:$(NC)"
 	@cat docker/line-mock-api/.env.mock | grep -v "^#" | grep -v "^$$" | sed 's/^/  /'
-	@if [ -n "$$CI" ]; then \
-		export $$(cat docker/line-mock-api/.env.mock | grep -v "^#" | xargs) && \
-		IS_MOCK_ENVIRONMENT=1 CRON=0 docker compose -f docker-compose.yml -f docker-compose.mock.yml up -d --no-deps --force-recreate app line-mock-api && \
-		IS_MOCK_ENVIRONMENT=1 CRON=0 docker compose -f docker-compose.yml -f docker-compose.mock.yml up -d; \
-	else \
-		export $$(cat docker/line-mock-api/.env.mock | grep -v "^#" | xargs) && \
+	@export $$(cat docker/line-mock-api/.env.mock | grep -v "^#" | xargs) && \
 		IS_MOCK_ENVIRONMENT=1 CRON=0 docker compose --profile dev -f docker-compose.yml -f docker-compose.mock.yml up -d --no-deps --force-recreate app line-mock-api && \
-		IS_MOCK_ENVIRONMENT=1 CRON=0 docker compose --profile dev -f docker-compose.yml -f docker-compose.mock.yml up -d; \
-	fi
+		IS_MOCK_ENVIRONMENT=1 CRON=0 docker compose --profile dev -f docker-compose.yml -f docker-compose.mock.yml up -d
 	@echo "$(GREEN)Mock付き環境が起動しました$(NC)"
 	@echo "$(YELLOW)アクセスURL:$(NC)"
 	@echo "  https://localhost:8443 (基本環境)"

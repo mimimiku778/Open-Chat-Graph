@@ -27,31 +27,23 @@ jobs:
 
     - name: Setup environment
       run: |
-        # Create dummy SSL certificates for volume mount (not actually used in CI)
-        mkdir -p docker/app/ssl-new
-        touch docker/app/ssl-new/ocgraph.test+4.pem
-        touch docker/app/ssl-new/ocgraph.test+4-key.pem
-
-        # Create .env.mock configuration for CI
-        cp docker/line-mock-api/.env.mock.example docker/line-mock-api/.env.mock
-        # CI environment requires fixed mock API type and no delay
-        sed -i 's/^MOCK_DELAY_ENABLED=.*/MOCK_DELAY_ENABLED=0/' docker/line-mock-api/.env.mock
-        sed -i 's/^MOCK_API_TYPE=.*/MOCK_API_TYPE=fixed/' docker/line-mock-api/.env.mock
+        # .env.mock は不要（docker-compose.ci.yml で環境変数を直接設定）
+        echo "CI environment setup complete"
 
     - name: Start mock environment
       run: |
-        echo "Starting mock environment..."
-        make up-mock
+        echo "Starting CI mock environment..."
+        docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
         echo "Checking container status..."
-        docker compose -f docker-compose.yml -f docker-compose.mock.yml ps -a
+        docker compose -f docker-compose.yml -f docker-compose.ci.yml ps -a
         echo "Checking app container logs..."
-        docker compose -f docker-compose.yml -f docker-compose.mock.yml logs app || true
+        docker compose -f docker-compose.yml -f docker-compose.ci.yml logs app || true
 
     - name: Wait for services
       run: |
         echo "Waiting for MySQL..."
         for i in {1..30}; do
-          if docker compose exec -T mysql mysqladmin ping -uroot -ptest_root_pass --silent 2>/dev/null; then
+          if docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T mysql mysqladmin ping -uroot -ptest_root_pass --silent 2>/dev/null; then
             echo "MySQL is ready"
             break
           fi
@@ -61,25 +53,25 @@ jobs:
 
         echo "Waiting for App container..."
         for i in {1..30}; do
-          if docker compose exec -T app php -v > /dev/null 2>&1; then
+          if docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T app php -v > /dev/null 2>&1; then
             echo "App container is ready"
             break
           fi
           if [ $i -eq 5 ] || [ $i -eq 15 ] || [ $i -eq 25 ]; then
             echo "Container status at attempt $i:"
-            docker compose ps app || true
+            docker compose -f docker-compose.yml -f docker-compose.ci.yml ps app || true
           fi
           echo "Waiting for App... ($i/30)"
           sleep 2
         done
 
         # 失敗した場合はログを出力
-        if ! docker compose exec -T app php -v > /dev/null 2>&1; then
+        if ! docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T app php -v > /dev/null 2>&1; then
           echo "ERROR: App container failed to start"
           echo "Container status:"
-          docker compose ps -a
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml ps -a
           echo "App container logs:"
-          docker compose logs app
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs app
           exit 1
         fi
 
@@ -94,16 +86,18 @@ jobs:
         done
 
     - name: Run CI tests
-      run: make ci-test
+      run: |
+        chmod +x ./.github/scripts/test-ci.sh ./.github/scripts/test-urls.sh ./.github/scripts/check-error-log.sh
+        ./.github/scripts/test-ci.sh -y && ./.github/scripts/test-urls.sh && ./.github/scripts/check-error-log.sh
 
     - name: Handle test failure
       if: failure()
       run: |
         echo "=== Container logs (app) ==="
-        docker compose logs app --tail=100
+        docker compose -f docker-compose.yml -f docker-compose.ci.yml logs app --tail=100
         echo ""
         echo "=== Container logs (line-mock-api) ==="
-        docker compose logs line-mock-api --tail=100
+        docker compose -f docker-compose.yml -f docker-compose.ci.yml logs line-mock-api --tail=100
         echo ""
         echo "=== Exception log ==="
         if [ -f storage/exception.log ]; then
@@ -127,6 +121,4 @@ jobs:
       if: always()
       run: |
         echo "=== Final container status ==="
-        docker compose ps
-        echo ""
-        make show
+        docker compose -f docker-compose.yml -f docker-compose.ci.yml ps
