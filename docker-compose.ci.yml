@@ -3,6 +3,7 @@
 
 services:
   app:
+    image: oc-review-mock-app:latest
     build:
       context: "docker/app/"
       args:
@@ -32,6 +33,7 @@ services:
 
   # LINE公式サイトエミュレーションサーバー
   line-mock-api:
+    image: oc-review-mock-line-mock-api:latest
     build:
       context: "docker/line-mock-api/"
     ports:
