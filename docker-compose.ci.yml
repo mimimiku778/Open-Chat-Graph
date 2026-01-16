@@ -7,10 +7,12 @@ services:
       context: "docker/app/"
       args:
         INSTALL_XDEBUG: false
+        ENABLE_SSL: false
     volumes:
-      # HTTP専用のApache設定（SSL設定をマウントしない）
+      # HTTP専用のApache設定（SSL設定を上書き）
       - "./docker/app/apache2/sites-available/000-default-ci.conf:/etc/apache2/sites-available/000-default.conf"
       - "./docker/app/apache2/sites-available/000-default-ci.conf:/etc/apache2/sites-enabled/000-default.conf"
+      # SSL設定ファイルは読み込まれないため、上書き不要（mod_sslが無効）
     depends_on:
       - line-mock-api
     networks:
@@ -21,7 +23,6 @@ services:
       - IS_MOCK_ENVIRONMENT=1
       - CRON=0
       - ENABLE_XDEBUG=0
-      - INSTALL_XDEBUG=false
 
   mysql:
     networks:

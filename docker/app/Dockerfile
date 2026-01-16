@@ -1,7 +1,8 @@
 FROM php:8.3-apache
 
-# ビルド引数（CI環境ではxdebugをインストールしない）
+# ビルド引数
 ARG INSTALL_XDEBUG=true
+ARG ENABLE_SSL=true
 
 # apt-getのキャッシュマウントを使用して高速化（変更頻度低）
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -70,7 +71,8 @@ RUN if [ "$INSTALL_XDEBUG" = "true" ]; then \
 # Xdebugはデフォルトで無効（環境変数ENABLE_XDEBUG=1で有効化）
 
 # Apache設定（変更頻度低）
-RUN a2enmod rewrite && a2enmod ssl
+RUN a2enmod rewrite
+RUN if [ "$ENABLE_SSL" = "true" ]; then a2enmod ssl; fi
 
 # タイムゾーン設定（変更頻度低）
 RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
