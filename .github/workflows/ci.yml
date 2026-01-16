@@ -42,6 +42,10 @@ jobs:
       run: |
         echo "Starting mock environment..."
         make up-mock
+        echo "Checking container status..."
+        docker compose -f docker-compose.yml -f docker-compose.mock.yml ps -a
+        echo "Checking app container logs..."
+        docker compose -f docker-compose.yml -f docker-compose.mock.yml logs app || true
 
     - name: Wait for services
       run: |
@@ -61,9 +65,23 @@ jobs:
             echo "App container is ready"
             break
           fi
+          if [ $i -eq 5 ] || [ $i -eq 15 ] || [ $i -eq 25 ]; then
+            echo "Container status at attempt $i:"
+            docker compose ps app || true
+          fi
           echo "Waiting for App... ($i/30)"
           sleep 2
         done
+
+        # 失敗した場合はログを出力
+        if ! docker compose exec -T app php -v > /dev/null 2>&1; then
+          echo "ERROR: App container failed to start"
+          echo "Container status:"
+          docker compose ps -a
+          echo "App container logs:"
+          docker compose logs app
+          exit 1
+        fi
 
         echo "Waiting for LINE Mock API..."
         for i in {1..30}; do
