@@ -40,7 +40,9 @@ jobs:
     - name: Start mock environment
       run: |
         echo "Starting mock environment..."
-        make up-mock
+        # CI環境では直接docker composeを起動（make up-mockはmkcertが必要）
+        export $(cat docker/line-mock-api/.env.mock | grep -v "^#" | xargs)
+        IS_MOCK_ENVIRONMENT=1 CRON=0 docker compose --profile dev -f docker-compose.yml -f docker-compose.mock.yml up -d
 
     - name: Wait for services
       run: |
