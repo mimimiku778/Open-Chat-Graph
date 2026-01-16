@@ -4,7 +4,7 @@
 # - 少量データ（80件/カテゴリ）、遅延なし、高速実行
 # - 日常的なテスト・CI環境での使用を想定
 #
-# このスクリプトは .env.mock の設定を使用します:
+# このスクリプトは docker/line-mock-api/.env.mock の設定を使用します:
 # - TEST_JA_HOURS, TEST_TW_HOURS, TEST_TH_HOURS: 各言語の実行回数
 # - 自動設定: MOCK_API_TYPE=fixed, MOCK_DELAY_ENABLED=0
 #
@@ -48,9 +48,9 @@ elif [[ "$1" == "-n" ]]; then
     AUTO_NEXT_2330=true
 fi
 
-# .env.mockから設定を読み込む
-if [ -f .env.mock ]; then
-    source .env.mock
+# docker/line-mock-api/.env.mockから設定を読み込む
+if [ -f docker/line-mock-api/.env.mock ]; then
+    source docker/line-mock-api/.env.mock
 fi
 
 # 言語ごとの実行回数設定（環境変数が設定されていればそれを使用、なければデフォルト値）
@@ -165,27 +165,27 @@ main() {
     log_info "実行回数設定: 日本語=${JA_HOURS}回, 繁体字=${TW_HOURS}回, タイ語=${TH_HOURS}回"
     echo ""
 
-    # .env.mockを自動設定（固定データモード用）
-    log_info ".env.mockを固定データモード用に設定中..."
+    # docker/line-mock-api/.env.mockを自動設定（固定データモード用）
+    log_info "docker/line-mock-api/.env.mockを固定データモード用に設定中..."
 
-    # .env.mockが存在しない場合のみ.env.mock.exampleからコピー
-    if [ ! -f .env.mock ]; then
-        if [ ! -f .env.mock.example ]; then
-            log_error ".env.mock.exampleが見つかりません"
+    # docker/line-mock-api/.env.mockが存在しない場合のみdocker/line-mock-api/.env.mock.exampleからコピー
+    if [ ! -f docker/line-mock-api/.env.mock ]; then
+        if [ ! -f docker/line-mock-api/.env.mock.example ]; then
+            log_error "docker/line-mock-api/.env.mock.exampleが見つかりません"
             exit 1
         fi
-        cp .env.mock.example .env.mock
-        log_info ".env.mock.exampleから.env.mockを作成しました"
+        cp docker/line-mock-api/.env.mock.example docker/line-mock-api/.env.mock
+        log_info "docker/line-mock-api/.env.mock.exampleからdocker/line-mock-api/.env.mockを作成しました"
     else
-        log_info "既存の.env.mockを使用します（CI環境用の設定を維持）"
+        log_info "既存のdocker/line-mock-api/.env.mockを使用します（CI環境用の設定を維持）"
     fi
 
     # 必要な設定を上書き（sedを使用してコメントを保持）
     # ※TEST_JA_HOURS等は既存の設定を維持（CI環境で事前設定されている場合があるため）
-    sed -i 's/^MOCK_DELAY_ENABLED=.*/MOCK_DELAY_ENABLED=0/' .env.mock
-    sed -i 's/^MOCK_API_TYPE=.*/MOCK_API_TYPE=fixed/' .env.mock
+    sed -i 's/^MOCK_DELAY_ENABLED=.*/MOCK_DELAY_ENABLED=0/' docker/line-mock-api/.env.mock
+    sed -i 's/^MOCK_API_TYPE=.*/MOCK_API_TYPE=fixed/' docker/line-mock-api/.env.mock
 
-    log_success ".env.mockを設定しました（固定データモード、遅延なし）"
+    log_success "docker/line-mock-api/.env.mockを設定しました（固定データモード、遅延なし）"
 
     # hourIndexの処理（既存の値があれば継続するか確認）
     docker exec "$MOCK_CONTAINER" mkdir -p /app/data
@@ -388,7 +388,7 @@ main() {
     # データ検証
     log ""
     log "データ検証を開始..."
-    if bash ./verify-test-data.sh; then
+    if bash "$(dirname "$0")/verify-test-data.sh"; then
         log_success "データ検証に成功しました"
     else
         log_error "データ検証に失敗しました"
