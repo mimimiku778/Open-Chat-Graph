@@ -231,26 +231,27 @@ ci-test: ## CIテストを実行（Mock環境でクローリング+URLテスト�
 	@echo "$(GREEN)========================================"
 	@echo "  CIテスト開始"
 	@echo "========================================$(NC)"
-	@echo "$(YELLOW)[1/5] Mock環境を起動...$(NC)"
-	@$(MAKE) up-mock > /dev/null 2>&1 || $(MAKE) up-mock
-	@echo "$(YELLOW)[2/5] サービス準備を待機...$(NC)"
-	@$(MAKE) _wait-mysql
-	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
-		docker compose exec -T app php -v > /dev/null 2>&1 && break; \
-		sleep 2; \
-	done
-	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
-		curl -k -s http://localhost:9000 > /dev/null 2>&1 && break; \
-		sleep 2; \
-	done
-	@echo "$(GREEN)✓ 準備完了$(NC)"
-	@echo "$(YELLOW)[3/5] 環境を初期化...$(NC)"
+	@if [ -z "$$CI" ]; then \
+		echo "$(YELLOW)[1/4] Mock環境を起動...$(NC)"; \
+		$(MAKE) up-mock > /dev/null 2>&1 || $(MAKE) up-mock; \
+		echo "$(YELLOW)[2/4] サービス準備を待機...$(NC)"; \
+		$(MAKE) _wait-mysql; \
+		for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+			docker compose exec -T app php -v > /dev/null 2>&1 && break; \
+			sleep 2; \
+		done; \
+		for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+			curl -k -s http://localhost:9000 > /dev/null 2>&1 && break; \
+			sleep 2; \
+		done; \
+		echo "$(GREEN)✓ 準備完了$(NC)"; \
+	else \
+		echo "$(YELLOW)CI環境を検出: コンテナ起動をスキップ$(NC)"; \
+	fi
+	@echo "$(YELLOW)[3/4] 環境を初期化...$(NC)"
 	@$(MAKE) init-y-n > /dev/null 2>&1
-	@echo "$(YELLOW)[4/5] コンテナを再起動...$(NC)"
-	@$(MAKE) up-mock > /dev/null 2>&1
-	@sleep 5 && $(MAKE) _wait-mysql
-	@echo "$(GREEN)✓ 再起動完了$(NC)"
-	@echo "$(YELLOW)[5/5] テストを実行...$(NC)"
+	@echo "$(GREEN)✓ 初期化完了$(NC)"
+	@echo "$(YELLOW)[4/4] テストを実行...$(NC)"
 	@chmod +x ./.github/scripts/test-ci.sh ./.github/scripts/test-urls.sh ./.github/scripts/check-error-log.sh
 	@./.github/scripts/test-ci.sh -y && ./.github/scripts/test-urls.sh && ./.github/scripts/check-error-log.sh
 	@echo "$(GREEN)========================================"

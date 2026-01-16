@@ -16,6 +16,8 @@ jobs:
       # Docker BuildKitを有効化してキャッシュマウントを使用
       DOCKER_BUILDKIT: 1
       COMPOSE_DOCKER_CLI_BUILD: 1
+      # CI環境フラグ（make ci-testでコンテナ起動をスキップ）
+      CI: true
 
     steps:
     - name: Checkout repository
@@ -50,6 +52,43 @@ jobs:
         # CI environment requires fixed mock API type and no delay
         sed -i 's/^MOCK_DELAY_ENABLED=.*/MOCK_DELAY_ENABLED=0/' docker/line-mock-api/.env.mock
         sed -i 's/^MOCK_API_TYPE=.*/MOCK_API_TYPE=fixed/' docker/line-mock-api/.env.mock
+
+    - name: Start mock environment
+      run: |
+        echo "Starting mock environment..."
+        make up-mock
+
+    - name: Wait for services
+      run: |
+        echo "Waiting for MySQL..."
+        for i in {1..30}; do
+          if docker compose exec -T mysql mysqladmin ping -uroot -ptest_root_pass --silent 2>/dev/null; then
+            echo "MySQL is ready"
+            break
+          fi
+          echo "Waiting for MySQL... ($i/30)"
+          sleep 2
+        done
+
+        echo "Waiting for App container..."
+        for i in {1..30}; do
+          if docker compose exec -T app php -v > /dev/null 2>&1; then
+            echo "App container is ready"
+            break
+          fi
+          echo "Waiting for App... ($i/30)"
+          sleep 2
+        done
+
+        echo "Waiting for LINE Mock API..."
+        for i in {1..30}; do
+          if curl -k -s http://localhost:9000 > /dev/null 2>&1; then
+            echo "LINE Mock API is ready"
+            break
+          fi
+          echo "Waiting for Mock API... ($i/30)"
+          sleep 2
+        done
 
     - name: Run CI tests
       run: make ci-test
