@@ -49,15 +49,31 @@ elif [[ "$1" == "-n" ]]; then
     AUTO_NEXT_2330=true
 fi
 
+# コマンドラインから渡された環境変数を保存（.env.mockより優先）
+CMDLINE_TEST_JA_HOURS=${TEST_JA_HOURS:-}
+CMDLINE_TEST_TW_HOURS=${TEST_TW_HOURS:-}
+CMDLINE_TEST_TH_HOURS=${TEST_TH_HOURS:-}
+
 # docker/line-mock-api/.env.mockから設定を読み込む
 if [ -f docker/line-mock-api/.env.mock ]; then
     source docker/line-mock-api/.env.mock
 fi
 
+# コマンドラインから渡された環境変数を優先（空でなければ上書き）
+if [ -n "$CMDLINE_TEST_JA_HOURS" ]; then
+    TEST_JA_HOURS=$CMDLINE_TEST_JA_HOURS
+fi
+if [ -n "$CMDLINE_TEST_TW_HOURS" ]; then
+    TEST_TW_HOURS=$CMDLINE_TEST_TW_HOURS
+fi
+if [ -n "$CMDLINE_TEST_TH_HOURS" ]; then
+    TEST_TH_HOURS=$CMDLINE_TEST_TH_HOURS
+fi
+
 # 言語ごとの実行回数設定（環境変数が設定されていればそれを使用、なければデフォルト値）
 JA_HOURS=${TEST_JA_HOURS:-25}  # 日本語（hourIndex: 0〜24の25時間分）
-TW_HOURS=${TEST_TW_HOURS:-1}   # 繁体字中国語
-TH_HOURS=${TEST_TH_HOURS:-1}   # タイ語
+TW_HOURS=${TEST_TW_HOURS:-25}   # 繁体字中国語
+TH_HOURS=${TEST_TH_HOURS:-25}   # タイ語
 
 # 色付き出力
 RED='\033[0;31m'
