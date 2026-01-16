@@ -383,6 +383,27 @@ main() {
             log_warn "この時間はすべての言語がスキップされました"
         fi
 
+        # バックグラウンドで起動したPHPプロセス（persist_ranking_position_background.phpなど）の終了を待機
+        log_info "バックグラウンドプロセスの終了を待機中..."
+        local wait_count=0
+        local max_wait=120  # 最大2分待機
+        while true; do
+            # コンテナ内のPHPバックグラウンドプロセスを確認（cron_crawling.php以外）
+            local php_processes=$(docker exec "$APP_CONTAINER" pgrep -f "php batch/" 2>/dev/null | wc -l)
+            if [ "$php_processes" -eq 0 ]; then
+                log_info "✓ すべてのバックグラウンドプロセスが完了しました"
+                break
+            fi
+
+            wait_count=$((wait_count + 1))
+            if [ $wait_count -ge $max_wait ]; then
+                log_warn "バックグラウンドプロセスの待機がタイムアウトしました（${php_processes}個のプロセスがまだ実行中）"
+                break
+            fi
+
+            sleep 1
+        done
+
         # 進捗表示
         local progress=$((hour * 100 / max_hours))
         log "進捗: ${hour}/${max_hours}時間 (${progress}%)"
