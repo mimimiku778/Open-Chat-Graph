@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Cron;
 
+use App\Config\AppConfig;
 use App\Services\Admin\AdminTool;
 use PDO;
 use PDOStatement;
@@ -80,7 +81,7 @@ class OcreviewApiCommentDataImporter
      */
     private function ensureCommentTablesExist(): void
     {
-        $schemaPath = \App\Config\AppConfig::ROOT_PATH . 'storage/ja/SQLite/template/sqlapi_schema.sql';
+        $schemaPath = AppConfig::SQLITE_SCHEMA_SQLAPI;
 
         if (!file_exists($schemaPath)) {
             throw new \RuntimeException("Schema file not found: {$schemaPath}");
