@@ -14,6 +14,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # PRマージ時はCIテストが成功しているか確認
+    - name: Check CI status
+      if: github.event_name == 'pull_request'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "Checking CI Test status for PR #${{ github.event.pull_request.number }}..."
+
+        # PRのhead SHA を取得
+        HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+        # CI Test ワークフローの結果を確認
+        CI_STATUS=$(gh api repos/${{ github.repository }}/commits/${HEAD_SHA}/check-runs \
+          --jq '.check_runs[] | select(.name == "test") | .conclusion' | head -1)
+
+        echo "CI Test status: $CI_STATUS"
+
+        if [ "$CI_STATUS" != "success" ]; then
+          echo "::error::CI Test has not passed (status: $CI_STATUS). Aborting deployment."
+          exit 1
+        fi
+
+        echo "CI Test passed. Proceeding with deployment."
+
     - name: Setup SSH
       run: |
         mkdir -p ~/.ssh
@@ -25,23 +49,34 @@ jobs:
       run: |
         ssh -p 10022 ocgraph@ocgraph.wpx.jp "cd /home/ocgraph/openchat-review.me/public_html && git pull"
 
-    # PRマージ時のみX投稿（手動デプロイ時は投稿しない）
     - name: Checkout repository
-      if: github.event_name == 'pull_request'
+      if: |
+        github.event_name == 'pull_request' &&
+        !contains(github.event.pull_request.labels.*.name, 'skip-post') &&
+        !startsWith(github.event.pull_request.title, 'skip-post')
       uses: actions/checkout@v4
 
     - name: Setup Node.js
-      if: github.event_name == 'pull_request'
+      if: |
+        github.event_name == 'pull_request' &&
+        !contains(github.event.pull_request.labels.*.name, 'skip-post') &&
+        !startsWith(github.event.pull_request.title, 'skip-post')
       uses: actions/setup-node@v4
       with:
         node-version: '20'
 
     - name: Install twitter-api-v2
-      if: github.event_name == 'pull_request'
+      if: |
+        github.event_name == 'pull_request' &&
+        !contains(github.event.pull_request.labels.*.name, 'skip-post') &&
+        !startsWith(github.event.pull_request.title, 'skip-post')
       run: npm install twitter-api-v2
 
     - name: Create post script
-      if: github.event_name == 'pull_request'
+      if: |
+        github.event_name == 'pull_request' &&
+        !contains(github.event.pull_request.labels.*.name, 'skip-post') &&
+        !startsWith(github.event.pull_request.title, 'skip-post')
       run: |
         cat > post-pr-merge.js << 'EOF'
         import { TwitterApi } from 'twitter-api-v2';
@@ -79,7 +114,10 @@ jobs:
         EOF
 
     - name: Post to X (Twitter)
-      if: github.event_name == 'pull_request'
+      if: |
+        github.event_name == 'pull_request' &&
+        !contains(github.event.pull_request.labels.*.name, 'skip-post') &&
+        !startsWith(github.event.pull_request.title, 'skip-post')
       env:
         TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
         TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}

@@ -2,13 +2,17 @@
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
+use App\Exceptions\ApplicationException;
 use App\Models\Repositories\SyncOpenChatStateRepositoryInterface;
 use App\Services\Admin\AdminTool;
 use App\Services\Cron\Enum\SyncOpenChatStateType as StateType;
+use App\Services\Cron\Utility\CronUtility;
+use App\Services\OpenChat\Utility\OpenChatServicesUtility;
 use App\Services\RankingPosition\Persistence\RankingPositionHourPersistence;
+use ExceptionHandler\ExceptionHandler;
 use Shared\MimimalCmsConfig;
 
-set_time_limit(3600 * 2);
+set_time_limit(3600);
 
 try {
     if (isset($argv[1]) && $argv[1]) {
@@ -16,6 +20,8 @@ try {
     }
 
     $parentPid = isset($argv[2]) && $argv[2] ? (int)$argv[2] : null;
+
+    $startTime = OpenChatServicesUtility::getModifiedCronTime('now')->format('Y-m-d H:i');
 
     /**
      * @var SyncOpenChatStateRepositoryInterface $state
@@ -29,13 +35,12 @@ try {
     if ($existingPid) {
         // 既存のプロセスが生きているか確認
         if (posix_getpgid((int)$existingPid) !== false) {
-            addCronLog("既存のバックグラウンドDB反映プロセス (PID: {$existingPid}) を強制終了します");
-            exec("kill {$existingPid}");
-            sleep(1); // プロセスが終了するまで少し待機
-            addVerboseCronLog("新しいバックグラウンドプロセスを開始します");
+            CronUtility::addCronLog("既存のバックグラウンドDB反映プロセス (PID: {$existingPid}) を強制終了します");
+            CronUtility::killProcess($existingPid);
+            CronUtility::addVerboseCronLog("新しいバックグラウンドプロセスを開始します");
         } else {
             // プロセスが死んでいる場合は古い状態をクリア
-            addVerboseCronLog("古いバックグラウンドプロセス (PID: {$existingPid}) の状態をクリア");
+            CronUtility::addVerboseCronLog("古いバックグラウンドプロセス (PID: {$existingPid}) の状態をクリア");
         }
     }
 
@@ -57,10 +62,18 @@ try {
     // 正常終了：状態をクリア
     $state->setArray(StateType::rankingPersistenceBackground, []);
 
-    addVerboseCronLog('バックグラウンドDB反映プロセスが正常終了しました');
+    CronUtility::addVerboseCronLog('バックグラウンドDB反映プロセスが正常終了しました');
 } catch (\Throwable $e) {
-    addCronLog($e->__toString());
-    AdminTool::sendDiscordNotify($e->__toString());
+    // killフラグによる強制終了の場合、開始から20時間以内ならDiscord通知しない
+    $shouldNotify = true;
+    if ($e instanceof ApplicationException && $e->getCode() === ApplicationException::RANKING_PERSISTENCE_TIMEOUT) {
+        $shouldNotify = false;
+        CronUtility::addCronLog("【毎時処理】親プロセスがタイムアウト指示を受け取り終了しました。時間帯: {$startTime}");
+    }
 
-    // エラー時は状態を残す（メインプロセスがプロセス死亡を検知できるように）
+    if ($shouldNotify) {
+        ExceptionHandler::errorLog($e);
+        $message = CronUtility::addCronLog($e->getMessage());
+        AdminTool::sendDiscordNotify($message);
+    }
 }

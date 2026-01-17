@@ -41,7 +41,7 @@ Route::path('ranking/{category}', [ReactRankingPageController::class, 'ranking']
     ->matchNum('category', min: 1)
     ->match(function (int $category) {
         handleRequestWithETagAndCache("ranking/{$category}");
-        return isset(array_flip(AppConfig::OPEN_CHAT_CATEGORY[MimimalCmsConfig::$urlRoot])[$category]);
+        return !!getCategoryName($category);
     });
 
 Route::path('ranking', [ReactRankingPageController::class, 'ranking'])
@@ -191,9 +191,10 @@ Route::path(
     [RegisterOpenChatPageController::class, 'index', 'get'],
 )
     ->middleware([VerifyCsrfToken::class])
-    ->matchStr('url', 'post', regex: OpenChatCrawlerConfig::LINE_URL_MATCH_PATTERN[MimimalCmsConfig::$urlRoot])
-
-    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+    ->matchStr('url', 'post', regex: \App\Services\Crawler\Config\OpenChatCrawlerConfig::LINE_URL_MATCH_PATTERN[MimimalCmsConfig::$urlRoot])
+    ->match(function() {
+        return MimimalCmsConfig::$urlRoot === '';
+    });
 
 Route::path(
     'recently-registered/{page}@get',
@@ -285,7 +286,7 @@ Route::path(
 )
     ->matchNum('open_chat_id', min: 0)
     ->matchNum('page', 'get', min: 0)
-    ->matchNum('limit', 'get', min: 1)
+    ->matchNum('limit', 'get', min: 1, max: 10)
     ->matchStr('token', 'post')
     ->matchStr('name', 'post', maxLen: 20, emptyAble: true)
     ->matchStr('text', 'post', maxLen: 1000)
@@ -309,7 +310,7 @@ Route::path(
 )
     ->matchNum('open_chat_id', min: 0)
     ->matchNum('page', 'get', min: 0)
-    ->matchNum('limit', 'get', min: 1)
+    ->matchNum('limit', 'get', min: 1, max: 10)
     ->match(function (string $user) {
         app(ApiCommentListControllerServiceProvider::class)->register();
         return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;

@@ -330,8 +330,20 @@ function isDailyUpdateTime(
         AppConfig::CRON_START_MINUTE[MimimalCmsConfig::$urlRoot]
     ];
 
-    $startTime = $nowStart->setTime(...$start);
+    // currentTimeの日付を基準にstartTimeを設定（faketimeに対応）
+    $baseDate = $currentTime->format('Y-m-d');
+    $startTime = (new DateTime($baseDate))->setTime(...$start);
     $endTime = (new DateTime($startTime->format('Y-m-d H:i:s')))->modify('+1 hour');
+
+    // 日次処理時刻が23時台の場合、日付跨ぎを考慮
+    // 例: 23:30開始の場合、23:30〜翌0:30が範囲
+    if ($start[0] >= 23) {
+        // 現在時刻が0時台かつ終了時刻より前なら、前日の開始時刻と比較
+        if ($currentTime->format('H') < $start[0] && $currentTime < $endTime) {
+            $startTime = (new DateTime($baseDate))->modify('-1 day')->setTime(...$start);
+            $endTime = (new DateTime($startTime->format('Y-m-d H:i:s')))->modify('+1 hour');
+        }
+    }
 
     if ($currentTime >= $startTime && $currentTime < $endTime) return true;
     return false;
@@ -376,8 +388,12 @@ function isDailyCronWithinHours(float $withinHours, ?string $urlRoot = null, ?Da
     return getDailyCronElapsedHours($urlRoot, $currentTime) < $withinHours;
 }
 
-function checkLineSiteRobots(int $retryLimit = 3, int $retryInterval = 1): string
+function checkLineSiteRobots(int $retryLimit = 3, int $retryInterval = 1): void
 {
+    if (AppConfig::$isMockEnvironment) {
+        return;
+    }
+
     $retryCount = 0;
 
     while ($retryCount < $retryLimit) {
@@ -387,7 +403,7 @@ function checkLineSiteRobots(int $retryLimit = 3, int $retryInterval = 1): strin
                 throw new \RuntimeException('Robots.txt: 拒否 ' . $robots);
             }
 
-            return $robots;
+            return;
         } catch (\Throwable $e) {
             $retryCount++;
             if ($retryCount >= $retryLimit) {
@@ -643,96 +659,6 @@ function getStorageFileTime(string $filename, bool $fullPath = false): int|false
     }
 
     return filemtime($path);
-}
-
-/**
- * Cronログを出力する
- *
- * 出力形式: 2025-01-07 05:33:01 [JA@05:30~12345] メッセージ GitHub::path/to/file.php:123
- * - JA/TH/TW: 言語コード（urlRootから判定）
- * - 05:30: Cron実行開始時刻
- * - 12345: プロセスID（PID）
- *
- * @param string|array $log ログメッセージ
- * @param string $setProcessTag プロセスタグを設定（初回のみ有効）
- * @param int $backtraceDepth backtraceの深さ（呼び出し元特定用）
- * @return string プロセスタグ
- */
-function addCronLog(string|array $log = '', string $setProcessTag = '', int $backtraceDepth = 1): string
-{
-    // セッション識別子を1回だけ生成: [言語コード@開始時刻~PID] 形式
-    static $processTag = null;
-    if ($setProcessTag !== '' && is_null($processTag)) {
-        $processTag = $setProcessTag;
-        return $processTag;
-    } elseif ($log === '' && is_string($processTag)) {
-        return $processTag;
-    } elseif (is_null($processTag)) {
-        $langCode = match (\Shared\MimimalCmsConfig::$urlRoot) {
-            '/th' => 'TH',
-            '/tw' => 'TW',
-            default => 'JA',
-        };
-        $startTime = date('H:i');
-        $processTag = $langCode . '@' . $startTime . '~' . getmypid();
-    }
-
-    if (is_string($log)) {
-        $log = [$log];
-    }
-
-    // 呼び出し元のファイル・行番号を取得してGitHub参照を生成
-    $githubRef = getCronLogGitHubRef($backtraceDepth);
-
-    foreach ($log as $string) {
-        error_log(
-            date('Y-m-d H:i:s') . ' [' . $processTag . '] ' . $string . ' ' . $githubRef . "\n",
-            3,
-            AppConfig::getStorageFilePath('addCronLogDest')
-        );
-    }
-
-    return $processTag;
-}
-
-/**
- * Verbose Cronログを出力する（AppConfig::$verboseCronLogがtrueの場合のみ）
- *
- * @param string|array $log ログメッセージ
- */
-function addVerboseCronLog(string|array $log): void
-{
-    if (AppConfig::$verboseCronLog) {
-        addCronLog($log, '', 2);
-    }
-}
-
-/**
- * Cronログ用のGitHub参照文字列を生成する
- *
- * backtraceの構造:
- * - trace[0]: getCronLogGitHubRefを呼び出した場所（addCronLog内）
- * - trace[1]: addCronLogを呼び出した場所（目的の行）
- * - trace[2]: その上位の呼び出し元
- *
- * @param int $backtraceDepth 1=直接の呼び出し元, 2=さらに上位の呼び出し元
- * @return string GitHub::path/to/file.php:123 形式の文字列
- */
-function getCronLogGitHubRef(int $backtraceDepth = 1): string
-{
-    // backtraceDepth + 1 フレームを取得（0から始まるため+1が必要）
-    $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, $backtraceDepth + 2);
-    $caller = $trace[$backtraceDepth] ?? $trace[0] ?? null;
-
-    if (!$caller || !isset($caller['file'], $caller['line'])) {
-        return '';
-    }
-
-    // プロジェクトルートからの相対パスを取得
-    $projectRoot = dirname(__DIR__, 2) . '/';
-    $relativePath = str_replace($projectRoot, '', $caller['file']);
-
-    return 'GitHub::' . $relativePath . ':' . $caller['line'];
 }
 
 /**

@@ -8,6 +8,7 @@ use App\Config\AppConfig;
 use App\Models\Repositories\OpenChatDataForUpdaterWithCacheRepositoryInterface;
 use App\Models\Repositories\RankingPosition\Dto\RankingPositionHourInsertDto;
 use App\Models\Repositories\RankingPosition\RankingPositionHourRepositoryInterface;
+use App\Services\Cron\Utility\CronUtility;
 use App\Services\OpenChat\Enum\RankingType;
 use App\Services\RankingPosition\Store\RankingPositionStore;
 use App\Services\RankingPosition\Store\RisingPositionStore;
@@ -39,23 +40,6 @@ class RankingPositionHourPersistenceProcess
             array_values(AppConfig::OPEN_CHAT_CATEGORY[$urlRoot ?? MimimalCmsConfig::$urlRoot]),
             ['rising' => false, 'ranking' => false]
         );
-    }
-
-    /**
-     * OpenChatデータのキャッシュを初期化（emid→id変換用）
-     */
-    function initializeCache(): void
-    {
-        $this->openChatDataWithCache->clearCache();
-        $this->openChatDataWithCache->cacheOpenChatData(true);
-    }
-
-    /**
-     * キャッシュをクリア
-     */
-    function afterClearCache(): void
-    {
-        $this->openChatDataWithCache->clearCache();
     }
 
     /**
@@ -138,7 +122,7 @@ class RankingPositionHourPersistenceProcess
         // DB反映処理を実行
         $label = "{$categoryName}の" . ($target['type'] === RankingType::Rising ? '急上昇' : 'ランキング');
         $perfStartTime = microtime(true);
-        addVerboseCronLog("{$label}をデータベースに反映中" . $logSuffix);
+        CronUtility::addVerboseCronLog("{$label}をデータベースに反映中" . $logSuffix);
 
         // ストレージからデータを取得してDTO配列に変換
         [, $ocDtoArray] = $target['store']->getStorageData($categoryStr);
@@ -153,7 +137,7 @@ class RankingPositionHourPersistenceProcess
             $this->rankingPositionHourRepository->insertHourMemberFromDtoArray($expectedFileTime, $insertDtoArray);
         }
 
-        addVerboseCronLog("{$label}" . count($insertDtoArray) . "件をデータベースに反映完了（" . formatElapsedTime($perfStartTime) . "）" . $logSuffix);
+        CronUtility::addVerboseCronLog("{$label}" . count($insertDtoArray) . "件をデータベースに反映完了（" . formatElapsedTime($perfStartTime) . "）" . $logSuffix);
         unset($insertDtoArray); // メモリ解放
 
         // 処理完了フラグを立てる
@@ -171,6 +155,9 @@ class RankingPositionHourPersistenceProcess
      */
     private function createInsertDtoArray(array $data): array
     {
+        // キャッシュを再初期化（並行実行中のAPI取得プロセスが追加したデータを反映するため）
+        $this->openChatDataWithCache->cacheOpenChatData(true);
+
         return array_values(array_filter(array_map(
             fn($dto, $key) => ($id = $this->openChatDataWithCache->getOpenChatIdByEmid($dto->emid))
                 ? new RankingPositionHourInsertDto($id, $key + 1, $dto->category ?? 0, $dto->memberCount)
