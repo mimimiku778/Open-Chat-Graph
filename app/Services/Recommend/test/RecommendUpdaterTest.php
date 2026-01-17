@@ -6,6 +6,7 @@ use App\Models\Repositories\DB;
 use App\Services\Recommend\RecommendUpdater;
 use App\Services\Recommend\TagDefinition\Ja\RecommendUpdaterTags;
 use App\Services\Storage\FileStorageInterface;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shared\MimimalCmsConfig;
 
@@ -13,7 +14,7 @@ use Shared\MimimalCmsConfig;
 class RecommendUpdaterTest extends TestCase
 {
     private RecommendUpdater $recommendUpdater;
-    private FileStorageInterface $mockFileStorage;
+    private FileStorageInterface|MockObject $mockFileStorage;
 
     protected function setUp(): void
     {
