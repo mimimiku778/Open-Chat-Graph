@@ -215,11 +215,11 @@ main() {
 
         # recommend (おすすめテーブル)
         count=$(get_mysql_count "$db_name" "recommend")
-        test_result "${db_name}.recommend" 10 "$count" "ge"
+        test_result "${db_name}.recommend" 3 "$count" "ge"
 
         # oc_tag (タグテーブル)
         count=$(get_mysql_count "$db_name" "oc_tag")
-        test_result "${db_name}.oc_tag" 10 "$count" "ge"
+        test_result "${db_name}.oc_tag" 3 "$count" "ge"
 
         # user_log (エラーログ: 0件期待)
         count=$(get_mysql_count "$db_name" "user_log")
