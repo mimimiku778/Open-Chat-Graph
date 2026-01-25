@@ -4,8 +4,6 @@
 # 本番環境のpublic/oc-img* ディレクトリをrsyncで差分同期
 # 進捗は1行で表示され、転送済みバイト数/速度/進捗率が更新される
 
-set -e  # エラーが発生したら即座に終了
-
 # スクリプトのディレクトリを取得（batch/sh）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # プロジェクトルートを取得（batch/sh の2階層上）
@@ -15,7 +13,10 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 source "${SCRIPT_DIR}/lib/remote-config.sh"
 
 # 必須変数のチェック
-validate_required_vars "REMOTE_SERVER" "REMOTE_USER" "REMOTE_PORT" "REMOTE_KEY"
+if ! validate_required_vars "REMOTE_SERVER" "REMOTE_USER" "REMOTE_PORT" "REMOTE_KEY"; then
+  echo "Error: 必須変数が設定されていません。" >&2
+  exit 1
+fi
 
 echo "========================================"
 echo "リモートサーバーから画像を同期"
@@ -43,6 +44,9 @@ IMG_DIRS=(
   "oc-img-th"
   "oc-img-tw"
 )
+
+# エラーカウンター
+FAILED_DIRS=()
 
 for DIR_NAME in "${IMG_DIRS[@]}"; do
   echo "同期中: ${DIR_NAME}"
@@ -79,7 +83,8 @@ for DIR_NAME in "${IMG_DIRS[@]}"; do
     '
 
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
-    echo "Warning: ${DIR_NAME} の同期に失敗しました。" >&2
+    echo "✗ ${DIR_NAME} の同期に失敗しました。" >&2
+    FAILED_DIRS+=("${DIR_NAME}")
   else
     echo "✓ ${DIR_NAME} を同期しました。"
   fi
@@ -92,7 +97,12 @@ done
 # ========================================
 
 echo "========================================"
-echo "✓ 全ての画像同期が完了しました！"
+if [ ${#FAILED_DIRS[@]} -eq 0 ]; then
+  echo "✓ 全ての画像同期が完了しました！"
+else
+  echo "✗ 一部の画像同期に失敗しました"
+  echo "失敗したディレクトリ: ${FAILED_DIRS[*]}"
+fi
 echo "========================================"
 echo ""
 echo "同期されたディレクトリ:"
@@ -102,5 +112,10 @@ for DIR_NAME in "${IMG_DIRS[@]}"; do
     echo "  - ${DIR_NAME}: ${FILE_COUNT} ファイル"
   fi
 done
+
+# 失敗があった場合は終了コード1
+if [ ${#FAILED_DIRS[@]} -gt 0 ]; then
+  exit 1
+fi
 
 exit 0
