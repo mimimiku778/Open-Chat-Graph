@@ -47,14 +47,38 @@ IMG_DIRS=(
 for DIR_NAME in "${IMG_DIRS[@]}"; do
   echo "同期中: ${DIR_NAME}"
 
-  # rsyncで差分同期（進捗を1行表示）
-  rsync -a --delete \
-    --info=progress2 \
-    -e "ssh -p ${CONFIG_VARS[REMOTE_PORT]} -i ${CONFIG_VARS[REMOTE_KEY]}" \
-    "${CONFIG_VARS[REMOTE_USER]}@${CONFIG_VARS[REMOTE_SERVER]}:${REMOTE_IMG_BASE}/${DIR_NAME}/" \
-    "${LOCAL_IMG_BASE}/${DIR_NAME}/"
+  # SSH接続設定
+  SSH_CMD="ssh -p ${CONFIG_VARS[REMOTE_PORT]} -i ${CONFIG_VARS[REMOTE_KEY]}"
+  REMOTE_PATH="${CONFIG_VARS[REMOTE_USER]}@${CONFIG_VARS[REMOTE_SERVER]}:${REMOTE_IMG_BASE}/${DIR_NAME}/"
+  LOCAL_PATH="${LOCAL_IMG_BASE}/${DIR_NAME}/"
 
-  if [ $? -ne 0 ]; then
+  # 1. 転送が必要なファイル数を取得（dry-run）
+  echo -n "転送ファイル数を確認中..."
+  TOTAL_FILES=$(rsync -an --delete --out-format="%n" -e "${SSH_CMD}" "${REMOTE_PATH}" "${LOCAL_PATH}" 2>/dev/null | grep -v '^$' | wc -l)
+  echo " ${TOTAL_FILES} ファイル"
+
+  if [ "${TOTAL_FILES}" -eq 0 ]; then
+    echo "✓ 同期済み（変更なし）"
+    echo ""
+    continue
+  fi
+
+  # 2. 実際に転送（進捗カウンター表示）
+  rsync -a --delete -v \
+    -e "${SSH_CMD}" \
+    "${REMOTE_PATH}" "${LOCAL_PATH}" 2>&1 | \
+    awk -v total="${TOTAL_FILES}" '
+      BEGIN { count=0 }
+      /^[^d].*\/$/ { next }
+      /^[^d]/ && NF>0 && !/(sending|total|sent|received)/ {
+        count++
+        printf "\r転送中: %d / %d ファイル (%.1f%%)", count, total, (count/total)*100
+        fflush()
+      }
+      END { print "" }
+    '
+
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo "Warning: ${DIR_NAME} の同期に失敗しました。" >&2
   else
     echo "✓ ${DIR_NAME} を同期しました。"
