@@ -909,31 +909,6 @@ try {
         exit;
     }
 
-    // 画像CDN（画像ハッシュは通常50文字以上）
-    if (preg_match('#^/([a-zA-Z0-9_-]{30,})(/preview)?$#', $requestUri, $matches)) {
-        $imageHash = $matches[1];
-
-        header('Content-Type: image/jpeg');
-        header('Cache-Control: public, max-age=31536000');
-
-        // ハッシュから一貫性のある画像生成
-        $seed = crc32($imageHash);
-        mt_srand($seed);
-
-        $r = mt_rand(150, 255);
-        $g = mt_rand(150, 255);
-        $b = mt_rand(150, 255);
-
-        $img = imagecreatetruecolor(100, 100);
-        $bgColor = imagecolorallocate($img, $r, $g, $b);
-        imagefill($img, 0, 0, $bgColor);
-
-        ob_start();
-        imagejpeg($img, null, 80);
-        echo ob_get_clean();
-        exit;
-    }
-
     // 404
     http_response_code(404);
     echo json_encode(['error' => 'Not Found', 'uri' => $requestUri]);
