@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # リモートサーバーから画像ディレクトリを同期するスクリプト
-# 本番環境のpublic/oc-img* ディレクトリをSCPでダウンロード
+# 本番環境のpublic/oc-img* ディレクトリをrsyncで差分同期
+# 進捗は1行で表示され、転送済みバイト数/速度/進捗率が更新される
 
 set -e  # エラーが発生したら即座に終了
 
@@ -46,10 +47,12 @@ IMG_DIRS=(
 for DIR_NAME in "${IMG_DIRS[@]}"; do
   echo "同期中: ${DIR_NAME}"
 
-  # SCPで直接ディレクトリを同期
-  scp -r -P "${CONFIG_VARS[REMOTE_PORT]}" -i "${CONFIG_VARS[REMOTE_KEY]}" \
-    "${CONFIG_VARS[REMOTE_USER]}@${CONFIG_VARS[REMOTE_SERVER]}:${REMOTE_IMG_BASE}/${DIR_NAME}" \
-    "${LOCAL_IMG_BASE}/"
+  # rsyncで差分同期（進捗を1行表示）
+  rsync -a --delete \
+    --info=progress2 \
+    -e "ssh -p ${CONFIG_VARS[REMOTE_PORT]} -i ${CONFIG_VARS[REMOTE_KEY]}" \
+    "${CONFIG_VARS[REMOTE_USER]}@${CONFIG_VARS[REMOTE_SERVER]}:${REMOTE_IMG_BASE}/${DIR_NAME}/" \
+    "${LOCAL_IMG_BASE}/${DIR_NAME}/"
 
   if [ $? -ne 0 ]; then
     echo "Warning: ${DIR_NAME} の同期に失敗しました。" >&2
