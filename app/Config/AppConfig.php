@@ -155,7 +155,6 @@ class AppConfig
 
     /** @var array<string,int> */
     static array $developmentEnvUpdateLimit = [
-        'OpenChatImageUpdater' => 10,
         'OpenChatHourlyInvitationTicketUpdater' => 10,
         'DailyUpdateCronService' => 10,
         'RankingBanTableUpdater' => 10,
