@@ -288,15 +288,20 @@ fix: 統計データ抽出クエリの重複実行を防止してDB負荷を軽�
 
 ### Bypassing CI/CD
 
-**Skip CI Tests and Deploy Checks:**
-For urgent fixes or trivial changes (typos, documentation updates):
+**Skip CI Tests and Deployment:**
+For urgent fixes or trivial changes (typos, documentation updates) that don't need testing or production deployment:
 - Add `skip-ci` label to the PR
 - Or prefix the PR title with `skip-ci:`
 
 Example: `skip-ci: Fix typo in README`
 
+**Important**: When `skip-ci` is used:
+- CI tests are skipped
+- Production deployment is completely skipped
+- Changes are merged to main but NOT deployed to the live site
+
 **Skip Social Media Post:**
-To skip the automatic X (Twitter) post after merge:
+To skip the automatic X (Twitter) post after merge (but still run CI and deploy):
 - Add `skip-post` label to the PR
 - Or prefix the PR title with `skip-post:`
 
