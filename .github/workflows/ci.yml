@@ -8,6 +8,10 @@ on:
 
 jobs:
   test:
+    # skip-ciラベルまたはタイトルプレフィックスがある場合はスキップ
+    if: |
+      !contains(github.event.pull_request.labels.*.name, 'skip-ci') &&
+      !startsWith(github.event.pull_request.title, 'skip-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:

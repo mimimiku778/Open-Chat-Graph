@@ -139,6 +139,13 @@ ENABLE_XDEBUG=1 make up-mock
 make ci-test
 ```
 
+**CIテストとデプロイをスキップ:**
+緊急修正などでCIテストをスキップしたい場合：
+- PRに `skip-ci` ラベルを付ける
+- またはPRタイトルの先頭に `skip-ci:` を追加
+
+例: `skip-ci: READMEの誤字修正`
+
 ### テストスクリプト
 
 Mock環境で時刻を進めながらクローリングをテスト：
