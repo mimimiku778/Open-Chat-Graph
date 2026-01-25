@@ -106,7 +106,15 @@ for SOURCE_DB in "${!TABLE_MAP[@]}"; do
   echo "  ダンプ中: $SOURCE_DB → $FILE_NAME"
 
   ssh -i "${CONFIG_VARS[REMOTE_KEY]}" -p "${CONFIG_VARS[REMOTE_PORT]}" "${CONFIG_VARS[REMOTE_USER]}@${CONFIG_VARS[REMOTE_SERVER]}" \
-    "MYSQL_PWD='${CONFIG_VARS[REMOTE_MYSQL_PASS]}' mysqldump -u '${CONFIG_VARS[REMOTE_MYSQL_USER]}' --add-drop-table --databases '${SOURCE_DB}' > '${CONFIG_VARS[REMOTE_DUMP_DIR]}/${FILE_NAME}'"
+    bash -s "${CONFIG_VARS[REMOTE_MYSQL_USER]}" "${CONFIG_VARS[REMOTE_MYSQL_PASS]}" "${SOURCE_DB}" "${CONFIG_VARS[REMOTE_DUMP_DIR]}" "${FILE_NAME}" <<'EOFREMOTE'
+set -eo pipefail
+MYSQL_USER=$1
+MYSQL_PASS=$2
+SOURCE_DB=$3
+DUMP_DIR=$4
+FILE_NAME=$5
+MYSQL_PWD="$MYSQL_PASS" mysqldump -u "$MYSQL_USER" --add-drop-table --databases "$SOURCE_DB" > "$DUMP_DIR/$FILE_NAME"
+EOFREMOTE
 
   if [ $? -ne 0 ]; then
     echo "Error: ${SOURCE_DB} のダンプに失敗しました。" >&2
