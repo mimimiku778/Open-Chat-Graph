@@ -44,25 +44,18 @@ jobs:
         echo "CI Test passed. Proceeding with deployment."
 
     - name: Setup SSH
-      uses: webfactory/ssh-agent@v0.9.0
+      uses: shimataro/ssh-key-action@v2
       with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        known_hosts: unnecessary
+        if_key_exists: replace
 
     - name: Add known hosts
-      run: |
-        mkdir -p ~/.ssh
-        ssh-keyscan -p ${{ vars.SSH_PORT }} ${{ vars.SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
-
-    - name: Debug SSH
-      run: |
-        echo "SSH keys loaded in agent:"
-        ssh-add -l
-        echo "Known hosts:"
-        cat ~/.ssh/known_hosts
+      run: ssh-keyscan -p ${{ vars.SSH_PORT }} ${{ vars.SSH_HOST }} >> ~/.ssh/known_hosts
 
     - name: Deploy
       run: |
-        ssh -vvv -p ${{ vars.SSH_PORT }} ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }} "cd ${{ vars.SSH_PATH }} && git fetch origin && git reset --hard origin/main"
+        ssh -p ${{ vars.SSH_PORT }} ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }} "cd ${{ vars.SSH_PATH }} && git fetch origin && git reset --hard origin/main"
 
     - name: Checkout repository
       if: |
