@@ -48,13 +48,11 @@ jobs:
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        echo "Host ${{ vars.SSH_HOST }}" >> ~/.ssh/config
-        echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-        echo "  UserKnownHostsFile /dev/null" >> ~/.ssh/config
+        echo "[${{ vars.SSH_HOST }}]:${{ vars.SSH_PORT }} ${{ secrets.SSH_HOST_KEY }}" >> ~/.ssh/known_hosts
 
     - name: Deploy
       run: |
-        ssh -p ${{ vars.SSH_PORT }} ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }} "cd ${{ vars.SSH_PATH }} && git pull"
+        ssh -p ${{ vars.SSH_PORT }} ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }} "cd ${{ vars.SSH_PATH }} && git fetch origin && git reset --hard origin/main"
 
     - name: Checkout repository
       if: |
