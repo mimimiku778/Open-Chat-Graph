@@ -46,7 +46,7 @@ jobs:
     - name: Setup SSH
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        printf '%s' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         echo "[${{ vars.SSH_HOST }}]:${{ vars.SSH_PORT }} ${{ vars.SSH_HOST_KEY }}" >> ~/.ssh/known_hosts
         echo "Debug: Key file lines: $(wc -l < ~/.ssh/id_rsa)"
