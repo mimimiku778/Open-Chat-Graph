@@ -110,7 +110,7 @@ Route::path(
         if (!$isValid)
             return false;
 
-        handleRequestWithETagAndCache(json_encode($reception->input() . MimimalCmsConfig::$urlRoot));
+        handleRequestWithETagAndCache(json_encode($reception->input()) . MimimalCmsConfig::$urlRoot);
         return true;
     });
 
@@ -146,7 +146,7 @@ Route::path(
     ->matchNum('category', min: 0)
     ->matchStr('sort', regex: ['ranking', 'rising'])
     ->match(function (Reception $reception) {
-        handleRequestWithETagAndCache(json_encode($reception->input() . MimimalCmsConfig::$urlRoot));
+        handleRequestWithETagAndCache(json_encode($reception->input()) . MimimalCmsConfig::$urlRoot);
     });
 
 // TODO: test-api
