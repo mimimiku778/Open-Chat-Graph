@@ -49,10 +49,8 @@ jobs:
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
 
-        # known_hostsにホストキーを追加（複数のキータイプをサポート）
-        cat > ~/.ssh/known_hosts << 'EOF'
-        ${{ secrets.SSH_HOST_KEYS }}
-        EOF
+        # known_hostsにホストキーを追加
+        echo "${{ secrets.SSH_HOST_KEY }}" > ~/.ssh/known_hosts
         chmod 644 ~/.ssh/known_hosts
 
     - name: Deploy
