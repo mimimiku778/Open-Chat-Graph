@@ -47,13 +47,14 @@ jobs:
       run: |
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
-        # base64エンコードされた秘密鍵をデコードして書き込み
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ~/.ssh/id_rsa
+        # 秘密鍵を書き込み（ダブルクォートで改行を保持）
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         # デバッグ用: ファイルの先頭と末尾を確認（秘密鍵は表示しない）
         echo "Key file size: $(wc -c < ~/.ssh/id_rsa) bytes"
         echo "Key file lines: $(wc -l < ~/.ssh/id_rsa)"
         head -n 1 ~/.ssh/id_rsa
+        tail -n 1 ~/.ssh/id_rsa
 
     - name: Deploy
       run: |
