@@ -49,13 +49,9 @@ jobs:
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
 
-        # known_hostsにホストキーを追加
-        echo "${{ secrets.SSH_HOST_KEY }}" > ~/.ssh/known_hosts
-        chmod 644 ~/.ssh/known_hosts
-
     - name: Deploy
       run: |
-        ssh -i ~/.ssh/id_rsa -p ${{ vars.SSH_PORT }} ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }} "cd ${{ vars.SSH_PATH }} && git fetch origin && git reset --hard origin/main"
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa -p ${{ vars.SSH_PORT }} ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }} "cd ${{ vars.SSH_PATH }} && git fetch origin && git reset --hard origin/main"
 
     - name: Checkout repository
       if: |
