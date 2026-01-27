@@ -51,7 +51,7 @@ jobs:
     - name: Add known hosts
       run: |
         mkdir -p ~/.ssh
-        echo "[${{ vars.SSH_HOST }}]:${{ vars.SSH_PORT }} ${{ vars.SSH_HOST_KEY }}" >> ~/.ssh/known_hosts
+        ssh-keyscan -p ${{ vars.SSH_PORT }} ${{ vars.SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
     - name: Deploy
       run: |
