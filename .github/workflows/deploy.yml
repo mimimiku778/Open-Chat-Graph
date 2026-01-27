@@ -53,9 +53,16 @@ jobs:
         mkdir -p ~/.ssh
         ssh-keyscan -p ${{ vars.SSH_PORT }} ${{ vars.SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
+    - name: Debug SSH
+      run: |
+        echo "SSH keys loaded in agent:"
+        ssh-add -l
+        echo "Known hosts:"
+        cat ~/.ssh/known_hosts
+
     - name: Deploy
       run: |
-        ssh -p ${{ vars.SSH_PORT }} ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }} "cd ${{ vars.SSH_PATH }} && git fetch origin && git reset --hard origin/main"
+        ssh -vvv -p ${{ vars.SSH_PORT }} ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }} "cd ${{ vars.SSH_PATH }} && git fetch origin && git reset --hard origin/main"
 
     - name: Checkout repository
       if: |
