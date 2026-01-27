@@ -48,11 +48,16 @@ jobs:
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        echo "[${{ vars.SSH_HOST }}]:${{ vars.SSH_PORT }} ${{ secrets.SSH_HOST_KEY }}" >> ~/.ssh/known_hosts
+
+        # known_hostsにホストキーを追加（複数のキータイプをサポート）
+        cat > ~/.ssh/known_hosts << 'EOF'
+        ${{ secrets.SSH_HOST_KEYS }}
+        EOF
+        chmod 644 ~/.ssh/known_hosts
 
     - name: Deploy
       run: |
-        ssh -p ${{ vars.SSH_PORT }} ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }} "cd ${{ vars.SSH_PATH }} && git fetch origin && git reset --hard origin/main"
+        ssh -i ~/.ssh/id_rsa -p ${{ vars.SSH_PORT }} ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }} "cd ${{ vars.SSH_PATH }} && git fetch origin && git reset --hard origin/main"
 
     - name: Checkout repository
       if: |
