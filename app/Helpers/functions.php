@@ -286,34 +286,6 @@ function purgeCacheCloudFlare(
     throw new \RuntimeException($errorMessage);
 }
 
-function getHouryUpdateTime()
-{
-    return file_get_contents(AppConfig::getStorageFilePath('hourlyCronUpdatedAtDatetime'));
-}
-
-function getDailyUpdateTime()
-{
-    return file_get_contents(AppConfig::getStorageFilePath('dailyCronUpdatedAtDate'));
-}
-
-/**
- * @return string oc-img/{$idPath}/{$imgUrl}.webp
- */
-function getImgPath(int $open_chat_id, string $imgUrl): string
-{
-    $subDir = filePathNumById($open_chat_id);
-    return AppConfig::OPENCHAT_IMG_PATH[MimimalCmsConfig::$urlRoot] . "/{$subDir}/{$imgUrl}.webp";
-}
-
-/**
- * @return string oc-img/preview/{$idPath}/{$imgUrl}_p.webp
- */
-function getImgPreviewPath(int $open_chat_id, string $imgUrl): string
-{
-    $subDir = filePathNumById($open_chat_id);
-    return AppConfig::OPENCHAT_IMG_PATH[MimimalCmsConfig::$urlRoot] . '/' . AppConfig::OPENCHAT_IMG_PREVIEW_PATH . "/{$subDir}/{$imgUrl}" . AppConfig::OPENCHAT_IMG_PREVIEW_SUFFIX . ".webp";
-}
-
 function imgUrl($img_url)
 {
     return AppConfig::$lineImageUrl . $img_url;
@@ -322,11 +294,6 @@ function imgUrl($img_url)
 function imgPreviewUrl($img_url)
 {
     return AppConfig::$lineImageUrl . $img_url . AppConfig::LINE_IMG_URL_PREVIEW_PATH;
-}
-
-function filePathNumById(int $id): string
-{
-    return (string)floor($id / 1000);
 }
 
 function getCategoryName(int $category): string
