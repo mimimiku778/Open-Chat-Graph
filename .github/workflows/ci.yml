@@ -141,16 +141,12 @@ jobs:
           sleep 2
         done
 
-    - name: Install dependencies
-      run: |
-        echo "Installing Composer dependencies..."
-        docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T -u root -e COMPOSER_ALLOW_SUPERUSER=1 app composer install --no-dev --optimize-autoloader
-        echo "Fixing vendor directory permissions..."
-        docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T -u root app chown -R www-data:www-data /var/www/html/vendor
-
     - name: Initialize database and storage
       run: |
         echo "Initializing database and storage..."
+        # CI環境ではwww-dataが書き込めるように権限を設定
+        chmod 777 .
+        chmod -R 777 storage
         ./setup/local-setup.default.sh -y -n
 
     - name: Run CI tests
