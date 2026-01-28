@@ -144,10 +144,10 @@ jobs:
     - name: Initialize database and storage
       run: |
         echo "Initializing database and storage..."
-        # CI環境ではwww-dataが書き込めるように権限を設定
+        ./setup/local-setup.default.sh -y
+        # setup実行後、Docker経由で作成されたファイルの権限を修正
         chmod 777 .
-        chmod -R 777 storage
-        ./setup/local-setup.default.sh -y -n
+        chmod -R 777 storage vendor
 
     - name: Run CI tests
       run: |
