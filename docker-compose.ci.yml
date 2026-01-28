@@ -14,7 +14,7 @@ services:
       # HTTP専用のApache設定
       - "./docker/app/apache2/sites-available/000-default-ci.conf:/etc/apache2/sites-available/000-default.conf"
       - "./docker/app/apache2/sites-available/000-default-ci.conf:/etc/apache2/sites-enabled/000-default.conf"
-      # SSL設定を無効化
+      # SSL設定を無効化（mod_sslが無効な環境ではSSL VirtualHostを定義しない）
       - "./docker/app/apache2/sites-available/000-default-ssl-disabled.conf:/etc/apache2/sites-enabled/000-default-ssl.conf"
     depends_on:
       - line-mock-api

@@ -13,6 +13,12 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# www-dataのUID/GIDを1000に変更（ホストユーザーと一致させる）
+RUN usermod -u 1000 www-data && \
+    groupmod -g 1000 www-data && \
+    find / -user 33 -exec chown -h 1000 {} \; 2>/dev/null || true && \
+    find / -group 33 -exec chgrp -h 1000 {} \; 2>/dev/null || true
+
 # Apacheのmod_rewriteを有効化
 RUN a2enmod rewrite
 

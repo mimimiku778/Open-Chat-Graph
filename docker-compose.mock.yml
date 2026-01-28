@@ -19,6 +19,9 @@ services:
       - mock-network
     cap_add:
       - SYS_TIME  # コンテナのシステム時刻を変更可能にする（テスト用）
+    environment:
+      - IS_MOCK_ENVIRONMENT=1
+      - LINE_MOCK_PORT=${LINE_MOCK_PORT:-9000}
 
   mysql:
     networks:

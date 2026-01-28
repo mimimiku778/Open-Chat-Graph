@@ -12,6 +12,7 @@ run_as_root() {
     fi
 }
 
+
 # 環境変数を保持してrootまたはsudoでコマンドを実行する関数
 run_as_root_with_env() {
     if [ "$(id -u)" != "0" ]; then
@@ -20,27 +21,6 @@ run_as_root_with_env() {
         "$@"
     fi
 }
-
-# Mock環境用：storageディレクトリをコピー（匿名ボリューム使用時）
-if [ ! -d "/var/www/html/storage/ja" ]; then
-    echo "Copying storage directory from host..."
-    # /var/www/html/storage-host から /var/www/html/storage にコピー
-    if [ -d "/var/www/html/storage-host" ]; then
-        run_as_root cp -a /var/www/html/storage-host/. /var/www/html/storage/
-        run_as_root chown -R www-data:www-data /var/www/html/storage
-        echo "Storage directory copied successfully"
-    else
-        echo "Warning: /var/www/html/storage-host not found, storage directory not initialized"
-    fi
-fi
-
-# ランキングファイルを削除（タイムスタンプ偽装のため、新規作成させる）
-# 匿名ボリュームに古いデータが残っている場合に備えて常に実行
-if [ -d "/var/www/html/storage-host" ]; then
-    echo "Removing old ranking files for timestamp manipulation..."
-    rm -f /var/www/html/storage/*/ranking_position/*.dat 2>/dev/null || true
-    rm -f /var/www/html/storage/*/rising_position/*.dat 2>/dev/null || true
-fi
 
 # Xdebug設定（環境変数ENABLE_XDEBUG=1で有効化）
 if [ "${ENABLE_XDEBUG}" = "1" ]; then
@@ -83,11 +63,8 @@ if [ -f /usr/local/share/ca-certificates/mkcert-rootCA.crt ]; then
 fi
 
 # Apache設定ファイルのHTTPSポート番号を環境変数で置換
-HTTPS_PORT_VALUE=${HTTPS_PORT:-8443}
-if [ -f /etc/apache2/sites-enabled/000-default.conf ]; then
-    run_as_root sed -i "s/{{HTTPS_PORT}}/${HTTPS_PORT_VALUE}/g" /etc/apache2/sites-enabled/000-default.conf
-    echo "Apache HTTP config updated: HTTPS_PORT=${HTTPS_PORT_VALUE}"
-fi
+# 注意: 000-default.confはvolumeマウントされているため置換しない
+# （置換するとホスト側のファイルが変更されてgit diffが発生する）
 
 echo "Starting Apache..."
 

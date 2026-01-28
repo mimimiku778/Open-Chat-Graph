@@ -1,9 +1,18 @@
 {
   "name": "My Project",
-  "dockerComposeFile": "../docker-compose.yml",
+  "dockerComposeFile": [
+    "../docker-compose.yml",
+    "../docker-compose.mock.yml"
+  ],
   "service": "app",
   "workspaceFolder": "/var/www/html",
   "remoteUser": "vscode",
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
   "customizations": {
     "vscode": {
       "settings": {
@@ -28,5 +37,5 @@
       ]
     }
   },
-  "postCreateCommand": "sudo chown -R vscode:vscode /var/www/html/.devcontainer && /var/www/html/.devcontainer/post-create-command.sh"
+  "postCreateCommand": "/var/www/html/.devcontainer/post-create-command.sh"
 }

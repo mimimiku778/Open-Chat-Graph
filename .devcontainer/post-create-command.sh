@@ -1,9 +1,6 @@
 sudo sed -i 's/host\.docker\.internal/172.17.0.1/g' /usr/local/etc/php/php.ini
 sudo service apache2 reload
 
-cd /var/www/html
-composer install
-
 cat << 'EOF' > /var/www/html/shared/secrets.php
 <?php
 
@@ -15,3 +12,6 @@ if (
     $_SERVER['HTTPS'] = 'on';
 }
 EOF
+
+# 初期化処理（make init相当）
+/var/www/html/setup/local-setup.default.sh -y -n

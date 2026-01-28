@@ -77,10 +77,16 @@ RUN if [ "$ENABLE_SSL" = "true" ]; then a2enmod ssl; fi
 # タイムゾーン設定（変更頻度低）
 RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 
-# ユーザーID 1000でvscodeユーザーを作成（WSL互換性のため）（変更頻度低）
-RUN useradd -m -u 1000 -G www-data -s /bin/bash vscode && \
+# www-dataのUID/GIDを1000に変更（ホストユーザーと一致させる）（変更頻度低）
+RUN usermod -u 1000 www-data && \
+    groupmod -g 1000 www-data && \
+    find / -user 33 -exec chown -h 1000 {} \; 2>/dev/null || true && \
+    find / -group 33 -exec chgrp -h 1000 {} \; 2>/dev/null || true
+
+# vscodeユーザーをwww-dataの別名として作成（VS Code用）（変更頻度低）
+RUN useradd -m -u 1000 -g 1000 -o -s /bin/bash vscode && \
     mkdir -p /home/vscode/.vscode-server && \
-    chown -R vscode:vscode /home/vscode
+    chown -R 1000:1000 /home/vscode
 
 # sudoers追加（vscodeとwww-data）（変更頻度低）
 RUN echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
