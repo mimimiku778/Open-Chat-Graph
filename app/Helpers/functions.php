@@ -288,11 +288,17 @@ function purgeCacheCloudFlare(
 
 function imgUrl($img_url)
 {
+    if (filter_var($img_url, FILTER_VALIDATE_URL))
+        return $img_url;
+
     return AppConfig::$lineImageUrl . $img_url;
 }
 
 function imgPreviewUrl($img_url)
 {
+    if (filter_var($img_url, FILTER_VALIDATE_URL))
+        return $img_url;
+
     return AppConfig::$lineImageUrl . $img_url . AppConfig::LINE_IMG_URL_PREVIEW_PATH;
 }
 
