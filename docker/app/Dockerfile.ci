@@ -113,16 +113,36 @@ RUN --mount=type=cache,target=/root/.composer,sharing=locked \
 
 # storageディレクトリとサブディレクトリを作成し、権限を設定（書き込み可能にする）
 RUN mkdir -p /var/www/html/storage/ja/static_data_top \
-             /var/www/html/storage/ja/static_data_recommend \
+             /var/www/html/storage/ja/static_data_recommend/tag \
+             /var/www/html/storage/ja/static_data_recommend/category \
+             /var/www/html/storage/ja/static_data_recommend/official \
              /var/www/html/storage/ja/SQLite/statistics \
              /var/www/html/storage/ja/SQLite/ranking_position \
              /var/www/html/storage/ja/SQLite/ocgraph_sqlapi \
+             /var/www/html/storage/ja/open_chat_sub_categories \
+             /var/www/html/storage/ja/ranking_position/ranking \
+             /var/www/html/storage/ja/ranking_position/rising \
+             /var/www/html/storage/ja/logs \
              /var/www/html/storage/tw/static_data_top \
+             /var/www/html/storage/tw/static_data_recommend/tag \
+             /var/www/html/storage/tw/static_data_recommend/category \
+             /var/www/html/storage/tw/static_data_recommend/official \
              /var/www/html/storage/tw/SQLite/statistics \
              /var/www/html/storage/tw/SQLite/ranking_position \
+             /var/www/html/storage/tw/open_chat_sub_categories \
+             /var/www/html/storage/tw/ranking_position/ranking \
+             /var/www/html/storage/tw/ranking_position/rising \
+             /var/www/html/storage/tw/logs \
              /var/www/html/storage/th/static_data_top \
+             /var/www/html/storage/th/static_data_recommend/tag \
+             /var/www/html/storage/th/static_data_recommend/category \
+             /var/www/html/storage/th/static_data_recommend/official \
              /var/www/html/storage/th/SQLite/statistics \
-             /var/www/html/storage/th/SQLite/ranking_position && \
+             /var/www/html/storage/th/SQLite/ranking_position \
+             /var/www/html/storage/th/open_chat_sub_categories \
+             /var/www/html/storage/th/ranking_position/ranking \
+             /var/www/html/storage/th/ranking_position/rising \
+             /var/www/html/storage/th/logs && \
     chown -R www-data:www-data /var/www/html/storage && \
     chmod -R 775 /var/www/html/storage
 

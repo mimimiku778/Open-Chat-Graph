@@ -149,11 +149,10 @@ jobs:
         done
 
     - name: Initialize database and storage
-      env:
-        COMPOSE_FILE: .github/docker-compose.ci.yml
       run: |
         echo "Initializing database and storage..."
         # CI環境: イメージに埋め込まれたコードを使用（権限設定は不要）
+        export COMPOSE_FILE=.github/docker-compose.ci.yml
         ./setup/local-setup.default.sh -y
 
     - name: Run CI tests
@@ -161,51 +160,37 @@ jobs:
         chmod +x ./.github/scripts/test-ci.sh ./.github/scripts/test-urls.sh ./.github/scripts/check-error-log.sh
         ./.github/scripts/test-ci.sh -y && ./.github/scripts/test-urls.sh && ./.github/scripts/check-error-log.sh
 
-    - name: Handle test failure
+
+    - name: Collect container logs and debug info
       if: failure()
       run: |
-        echo "=== Container logs (app) ==="
-        docker compose -f .github/docker-compose.ci.yml logs app --tail=100
-        echo ""
-        echo "=== Container logs (line-mock-api) ==="
-        docker compose -f .github/docker-compose.ci.yml logs line-mock-api --tail=100
-        echo ""
-        echo "=== Exception log ==="
-        if [ -f storage/exception.log ]; then
-          cat storage/exception.log
-        else
-          echo "No exception.log found"
-        fi
+        echo "=== Collecting container logs and debug information ==="
+        mkdir -p container-logs
 
-    - name: Upload logs on failure
+        # コンテナログ（最新100行のみ、タイムアウト付き）
+        timeout 30 docker compose -f .github/docker-compose.ci.yml logs app --tail=100 > container-logs/app.log 2>&1 || echo "App log collection timeout or failed" > container-logs/app.log
+        timeout 30 docker compose -f .github/docker-compose.ci.yml logs mysql --tail=100 > container-logs/mysql.log 2>&1 || echo "MySQL log collection timeout or failed" > container-logs/mysql.log
+        timeout 30 docker compose -f .github/docker-compose.ci.yml logs line-mock-api --tail=100 > container-logs/line-mock-api.log 2>&1 || echo "Mock API log collection timeout or failed" > container-logs/line-mock-api.log
+
+        # Apacheエラーログ
+        docker compose -f .github/docker-compose.ci.yml exec -T app cat /var/log/apache2/error.log > container-logs/apache-error.log 2>&1 || echo "No Apache error log" > container-logs/apache-error.log
+
+        # storage構造とlocal-secrets.php
+        docker compose -f .github/docker-compose.ci.yml exec -T app ls -laR /var/www/html/storage > container-logs/storage-tree.log 2>&1 || echo "Storage listing failed" > container-logs/storage-tree.log
+        docker compose -f .github/docker-compose.ci.yml exec -T app cat /var/www/html/local-secrets.php > container-logs/local-secrets.php 2>&1 || echo "No local-secrets.php" > container-logs/local-secrets.php
+
+        # CI環境変数
+        docker compose -f .github/docker-compose.ci.yml exec -T app env > container-logs/env.log 2>&1 || echo "Env listing failed" > container-logs/env.log
+
+    - name: Upload debug artifacts
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: ci-logs
+        name: debug-logs
         path: |
+          container-logs/
           test-logs/
           storage/exception.log
-        retention-days: 7
-        if-no-files-found: ignore
-
-    - name: Collect container logs on failure
-      if: failure()
-      run: |
-        echo "=== Collecting container logs ==="
-        mkdir -p container-logs
-        docker compose -f .github/docker-compose.ci.yml logs app > container-logs/app.log 2>&1 || true
-        docker compose -f .github/docker-compose.ci.yml logs mysql > container-logs/mysql.log 2>&1 || true
-        docker compose -f .github/docker-compose.ci.yml logs line-mock-api > container-logs/line-mock-api.log 2>&1 || true
-        docker compose -f .github/docker-compose.ci.yml exec -T app cat /var/log/apache2/error.log > container-logs/apache-error.log 2>&1 || true
-        docker compose -f .github/docker-compose.ci.yml exec -T app ls -la /var/www/html/storage > container-logs/storage-ls.log 2>&1 || true
-        docker compose -f .github/docker-compose.ci.yml exec -T app cat /var/www/html/local-secrets.php > container-logs/local-secrets.php 2>&1 || true
-
-    - name: Upload container logs on failure
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: container-logs
-        path: container-logs/
         retention-days: 7
         if-no-files-found: ignore
 

@@ -32,6 +32,21 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     exit 0
 fi
 
+# CI環境判定とCompose設定（test-ci.shと同じロジック）
+if [ -n "$CI" ] || [ -n "$COMPOSE_FILE" ]; then
+    # CI環境または環境変数でCOMPOSE_FILEが指定されている場合
+    if [ -n "$COMPOSE_FILE" ]; then
+        COMPOSE_FILES="-f ${COMPOSE_FILE}"
+    else
+        COMPOSE_FILES="-f .github/docker-compose.ci.yml"
+    fi
+    echo "CI環境を検出: ${COMPOSE_FILES} を使用します"
+else
+    COMPOSE_FILES=""
+fi
+
+COMPOSE_CMD="docker compose ${COMPOSE_FILES}"
+
 db_init_auto=false
 overwrite_secrets=true
 
@@ -56,9 +71,9 @@ if ls storage/*/SQLite/statistics/*.db* >/dev/null 2>&1 || \
 fi
 
 # MySQLデータベースの存在確認（docker composeが起動している場合のみ）
-if [ "$has_existing_data" = false ] && docker compose ps mysql 2>/dev/null | grep -q "Up"; then
+if [ "$has_existing_data" = false ] && ${COMPOSE_CMD} ps mysql 2>/dev/null | grep -q "Up"; then
     # MySQLコンテナが起動している場合、データベースの存在を確認
-    mysql_check=$(docker compose exec -T mysql mysql -uroot -ptest_root_pass -e "SHOW DATABASES LIKE 'ocgraph_%';" 2>/dev/null | grep -c "ocgraph_") || mysql_check=0
+    mysql_check=$(${COMPOSE_CMD} exec -T mysql mysql -uroot -ptest_root_pass -e "SHOW DATABASES LIKE 'ocgraph_%';" 2>/dev/null | grep -c "ocgraph_") || mysql_check=0
     if [ "$mysql_check" -gt 0 ]; then
         has_existing_data=true
     fi
@@ -128,9 +143,9 @@ echo "既存データを削除しています..."
 # appコンテナの起動状態を確認（CI環境ではスキップ）
 APP_WAS_STOPPED=0
 if [ "${CI}" != "true" ]; then
-    if ! docker compose ps app 2>/dev/null | grep -q "Up"; then
+    if ! ${COMPOSE_CMD} ps app 2>/dev/null | grep -q "Up"; then
         echo "appコンテナを一時的に起動します..."
-        docker compose up -d app >/dev/null 2>&1
+        ${COMPOSE_CMD} up -d app >/dev/null 2>&1
         APP_WAS_STOPPED=1
         sleep 2
     fi
@@ -139,7 +154,7 @@ else
 fi
 
 # Docker経由でファイル削除
-docker compose exec -T -u www-data app bash -c '
+${COMPOSE_CMD} exec -T -u www-data app bash -c '
     rm -f storage/*/open_chat_sub_categories/subcategories.json
     rm -f storage/*/static_data_top/*.dat
     rm -f storage/*/static_data_recommend/*/*.dat
@@ -156,7 +171,7 @@ docker compose exec -T -u www-data app bash -c '
 
 # Composerの依存関係インストール（CI環境ではスキップ）
 if [ "${CI}" != "true" ]; then
-    docker compose exec -T -u www-data app bash -c 'set -e
+    ${COMPOSE_CMD} exec -T -u www-data app bash -c 'set -e
         composer install --no-interaction
     '
 else
@@ -217,7 +232,7 @@ echo ""
 
 # テンプレートファイルをコピー
 echo "テンプレートファイルをコピーしています..."
-docker compose exec -T -u www-data app bash -c 'set -e
+${COMPOSE_CMD} exec -T -u www-data app bash -c 'set -e
     mkdir -p storage/ja/static_data_top storage/tw/static_data_top storage/th/static_data_top
     cp setup/template/static_data_top/* storage/ja/static_data_top/
     cp setup/template/static_data_top/* storage/tw/static_data_top/
@@ -232,14 +247,14 @@ for lang in ja tw th; do
     echo "  ${lang} のデータベースを生成中..."
 
     # statistics.db を生成
-    cat setup/schema/sqlite/statistics.sql | docker compose exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/statistics/statistics.db"
+    cat setup/schema/sqlite/statistics.sql | ${COMPOSE_CMD} exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/statistics/statistics.db"
 
     # ranking_position.db を生成
-    cat setup/schema/sqlite/ranking_position.sql | docker compose exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/ranking_position/ranking_position.db"
+    cat setup/schema/sqlite/ranking_position.sql | ${COMPOSE_CMD} exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/ranking_position/ranking_position.db"
 
     # sqlapi.db を生成（jaのみ）
     if [ "$lang" == "ja" ]; then
-        cat setup/schema/sqlite/sqlapi.sql | docker compose exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/ocgraph_sqlapi/sqlapi.db"
+        cat setup/schema/sqlite/sqlapi.sql | ${COMPOSE_CMD} exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/ocgraph_sqlapi/sqlapi.db"
     fi
 done
 
@@ -253,5 +268,5 @@ rm -f docker/line-mock-api/data/hour_index.txt
 # 一時起動したコンテナを停止（CI環境ではスキップ）
 if [ $APP_WAS_STOPPED -eq 1 ] && [ "${CI}" != "true" ]; then
     echo "appコンテナを停止します..."
-    docker compose stop app >/dev/null 2>&1
+    ${COMPOSE_CMD} stop app >/dev/null 2>&1
 fi

@@ -13,37 +13,44 @@ echo "================================"
 echo "データベース初期構築"
 echo "================================"
 
-# docker composeでMySQLサービスが起動しているか確認
-COMPOSE_FILES=""
-
-# COMPOSE_FILE環境変数が設定されている場合はそれを使用（CI環境用）
-if [ -n "${COMPOSE_FILE}" ]; then
-    COMPOSE_FILES="-f ${COMPOSE_FILE}"
-    echo "Using COMPOSE_FILE環境変数: ${COMPOSE_FILE}"
-elif [ -f ".github/docker-compose.ci.yml" ] && docker compose -f .github/docker-compose.ci.yml ps mysql 2>/dev/null | grep -q "Up"; then
-    COMPOSE_FILES="-f .github/docker-compose.ci.yml"
-elif docker compose -f docker-compose.yml -f docker-compose.mock.yml ps mysql 2>/dev/null | grep -q "Up"; then
-    COMPOSE_FILES="-f docker-compose.yml -f docker-compose.mock.yml"
-elif docker compose ps mysql 2>/dev/null | grep -q "Up"; then
-    COMPOSE_FILES=""
+# CI環境判定とCompose設定（local-setup.default.shと同じロジック）
+if [ -n "$CI" ] || [ -n "$COMPOSE_FILE" ]; then
+    # CI環境または環境変数でCOMPOSE_FILEが指定されている場合
+    if [ -n "$COMPOSE_FILE" ]; then
+        COMPOSE_FILES="-f ${COMPOSE_FILE}"
+    else
+        COMPOSE_FILES="-f .github/docker-compose.ci.yml"
+    fi
+    echo "CI環境を検出: ${COMPOSE_FILES} を使用します"
 else
-    echo "エラー: MySQLコンテナが起動していません"
-    echo "先に環境を起動してください:"
-    echo "  make up または make up-mock"
-    exit 1
+    # ローカル環境: 起動しているコンテナから判定
+    if docker compose -f docker-compose.yml -f docker-compose.mock.yml ps mysql 2>/dev/null | grep -q "Up"; then
+        COMPOSE_FILES="-f docker-compose.yml -f docker-compose.mock.yml"
+        echo "Mock環境を検出"
+    elif docker compose ps mysql 2>/dev/null | grep -q "Up"; then
+        COMPOSE_FILES=""
+        echo "基本環境を検出"
+    else
+        echo "エラー: MySQLコンテナが起動していません"
+        echo "先に環境を起動してください:"
+        echo "  make up または make up-mock"
+        exit 1
+    fi
 fi
 
-echo "MySQL: docker compose ${COMPOSE_FILES} exec mysql"
+COMPOSE_CMD="docker compose ${COMPOSE_FILES}"
+
+echo "MySQL: ${COMPOSE_CMD} exec mysql"
 echo "User: $MYSQL_USER"
 echo ""
 
 # MySQLコマンド構築（docker compose経由）
-MYSQL_CMD="docker compose ${COMPOSE_FILES} exec -T mysql mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD}"
+MYSQL_CMD="${COMPOSE_CMD} exec -T mysql mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD}"
 
 # MySQLが完全に起動するまで待機（最大30秒）
 echo "MySQLの準備を待機中..."
 for i in {1..30}; do
-    if docker compose ${COMPOSE_FILES} exec -T mysql mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} -e "SELECT 1" >/dev/null 2>&1; then
+    if ${MYSQL_CMD} -e "SELECT 1" >/dev/null 2>&1; then
         echo "MySQLが準備完了しました"
         break
     fi
