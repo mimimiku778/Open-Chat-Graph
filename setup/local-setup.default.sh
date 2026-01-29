@@ -181,7 +181,8 @@ AppConfig::$isDevlopment = true;
 // 環境変数でisMockEnvironmentを制御
 if (function_exists('getenv') && ($isMockEnv = getenv('IS_MOCK_ENVIRONMENT')) !== false) {
     AppConfig::$isMockEnvironment = filter_var($isMockEnv, FILTER_VALIDATE_BOOLEAN);
-    AppConfig::$lineImageUrl = 'http://localhost:' . getenv('LINE_MOCK_PORT') . '/obs/';
+    // Docker環境ではサービス名を使用、CI環境でも同様
+    AppConfig::$lineImageUrl = 'http://line-mock-api/obs/';
 } else {
     AppConfig::$isMockEnvironment = false;
 }
