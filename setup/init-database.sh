@@ -15,8 +15,13 @@ echo "================================"
 
 # docker composeでMySQLサービスが起動しているか確認
 COMPOSE_FILES=""
-if [ -f "docker-compose.ci.yml" ] && docker compose -f docker-compose.yml -f docker-compose.ci.yml ps mysql 2>/dev/null | grep -q "Up"; then
-    COMPOSE_FILES="-f docker-compose.yml -f docker-compose.ci.yml"
+
+# COMPOSE_FILE環境変数が設定されている場合はそれを使用（CI環境用）
+if [ -n "${COMPOSE_FILE}" ]; then
+    COMPOSE_FILES="-f ${COMPOSE_FILE}"
+    echo "Using COMPOSE_FILE環境変数: ${COMPOSE_FILE}"
+elif [ -f ".github/docker-compose.ci.yml" ] && docker compose -f .github/docker-compose.ci.yml ps mysql 2>/dev/null | grep -q "Up"; then
+    COMPOSE_FILES="-f .github/docker-compose.ci.yml"
 elif docker compose -f docker-compose.yml -f docker-compose.mock.yml ps mysql 2>/dev/null | grep -q "Up"; then
     COMPOSE_FILES="-f docker-compose.yml -f docker-compose.mock.yml"
 elif docker compose ps mysql 2>/dev/null | grep -q "Up"; then
