@@ -1,0 +1,123 @@
+# CI環境専用Dockerfile - コード埋め込み方式
+# 既存のDockerfileをベースに、アプリケーションコードをイメージに埋め込む
+
+FROM php:8.3-apache
+
+# ビルド引数（CI環境では常にfalse）
+ARG INSTALL_XDEBUG=false
+ARG ENABLE_SSL=false
+
+# apt-getのキャッシュマウントを使用して高速化（変更頻度低）
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+        default-mysql-client \
+        libfreetype6-dev \
+        libjpeg62-turbo-dev \
+        libpng-dev \
+        libwebp-dev \
+        libpq-dev \
+        libonig-dev \
+        libxml2-dev \
+        libzip-dev \
+        libxslt-dev \
+        zlib1g-dev \
+        libcurl4-openssl-dev \
+        libsqlite3-dev \
+        sqlite3 \
+        libicu-dev \
+        libssl-dev \
+        git \
+        zip \
+        unzip \
+        vim \
+        wget \
+        msmtp \
+        msmtp-mta \
+        sudo \
+        cron \
+        faketime \
+        libfaketime
+
+# PHP拡張の設定とインストール（変更頻度低）
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp
+
+RUN docker-php-ext-install -j$(nproc) \
+        gd \
+        pdo \
+        pdo_mysql \
+        pdo_pgsql \
+        mysqli \
+        zip \
+        mbstring \
+        intl \
+        xml \
+        soap \
+        xsl \
+        curl \
+        opcache \
+        bcmath \
+        exif \
+        pcntl \
+        sockets \
+        gettext
+
+RUN docker-php-ext-enable opcache
+
+# Composerインストール（変更頻度低）
+RUN cd /usr/bin && curl -s http://getcomposer.org/installer | php && ln -s /usr/bin/composer.phar /usr/bin/composer
+
+# Apache設定（変更頻度低）
+RUN a2enmod rewrite
+
+# タイムゾーン設定（変更頻度低）
+RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
+
+# www-dataのUID/GIDを1000に変更（ホストユーザーと一致させる）（変更頻度低）
+RUN usermod -u 1000 www-data && \
+    groupmod -g 1000 www-data && \
+    find / -user 33 -exec chown -h 1000 {} \; 2>/dev/null || true && \
+    find / -group 33 -exec chgrp -h 1000 {} \; 2>/dev/null || true
+
+# sudoers追加（www-data）（変更頻度低）
+RUN echo "www-data ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# openssl.iniファイルを作成して書き込み可能にする（変更頻度低）
+RUN touch /usr/local/etc/php/conf.d/openssl.ini && \
+    chmod 666 /usr/local/etc/php/conf.d/openssl.ini
+
+# 設定ファイルのコピー（Docker固有ファイル、変更頻度高）
+COPY docker/app/php.ini /usr/local/etc/php/php.ini
+RUN chmod 644 /usr/local/etc/php/php.ini
+
+COPY docker/app/setup-cron.sh /usr/local/bin/setup-cron.sh
+RUN chmod +x /usr/local/bin/setup-cron.sh
+
+# Apache CI設定ファイルをイメージに埋め込む
+RUN mkdir -p /etc/apache2/sites-available-ci
+COPY docker/app/apache2/sites-available/000-default-ci.conf /etc/apache2/sites-available-ci/000-default-ci.conf
+COPY docker/app/apache2/sites-available/000-default-ssl-disabled.conf /etc/apache2/sites-available-ci/000-default-ssl-disabled.conf
+RUN chmod 644 /etc/apache2/sites-available-ci/000-default-ci.conf /etc/apache2/sites-available-ci/000-default-ssl-disabled.conf
+
+# 作業ディレクトリを設定
+WORKDIR /var/www/html
+
+# アプリケーションコードをコピー（.dockerignoreで除外されたファイル以外）
+# 注: .dockerignoreで .git, vendor, node_modules などは除外される
+# contextはリポジトリルートなので、すべてのファイルをコピー
+COPY --chown=www-data:www-data . /var/www/html/
+
+# Composer依存関係のインストール（本番用のみ、devは除外）
+RUN --mount=type=cache,target=/root/.composer,sharing=locked \
+    composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+
+# storageディレクトリの権限を設定（書き込み可能にする）
+RUN mkdir -p /var/www/html/storage && \
+    chown -R www-data:www-data /var/www/html/storage && \
+    chmod -R 775 /var/www/html/storage
+
+# entrypointスクリプトをコピー（CI環境検出ロジックを含む）
+COPY docker/app/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

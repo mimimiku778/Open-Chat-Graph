@@ -1,0 +1,39 @@
+# Git関連
+.git
+.gitignore
+.gitattributes
+
+# Docker関連
+Dockerfile
+Dockerfile.*
+.dockerignore
+
+# IDE/エディタ設定
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# ドキュメント
+*.md
+LICENSE*
+
+# ログファイル
+*.log
+logs/
+
+# 一時ファイル
+tmp/
+temp/
+*.tmp
+*.cache
+
+# OS固有のファイル
+.DS_Store
+Thumbs.db
+
+# storage内の動的生成ファイル（実行時に生成される）
+storage/*.json
+storage/*.db
+storage/*.sqlite

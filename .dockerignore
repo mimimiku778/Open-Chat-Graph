@@ -1,0 +1,65 @@
+# Git関連
+.git
+.gitignore
+.gitattributes
+
+# Docker関連（必要なファイルは後で追加）
+docker
+!docker/app/php.ini
+!docker/app/setup-cron.sh
+docker-compose*.yml
+Dockerfile
+Dockerfile.*
+.dockerignore
+
+# IDE/エディタ設定
+.vscode
+.devcontainer
+.idea
+*.swp
+*.swo
+*~
+
+# CI/CD関連
+.github
+
+# ドキュメント
+*.md
+!README.md
+LICENSE*
+
+# 開発ツール
+.editorconfig
+.env.example
+
+# ビルド成果物（ローカルでビルドされる）
+vendor/
+node_modules/
+
+# ログファイル
+*.log
+logs/
+
+# 一時ファイル
+tmp/
+temp/
+*.tmp
+*.cache
+
+# OS固有のファイル
+.DS_Store
+Thumbs.db
+
+# テスト関連
+tests/
+phpunit.xml
+.phpunit.result.cache
+
+# セットアップスクリプト（ホスト側から実行するため、イメージには不要）
+setup/
+
+# Makefile（ホスト側から使用するため、イメージには不要）
+Makefile
+
+# local-secrets.php（CI環境では別途生成）
+local-secrets.php

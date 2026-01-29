@@ -66,6 +66,18 @@ fi
 # 注意: 000-default.confはvolumeマウントされているため置換しない
 # （置換するとホスト側のファイルが変更されてgit diffが発生する）
 
+# CI環境検出とApache設定の適用
+if [ "${CI}" = "true" ]; then
+    echo "CI environment detected, applying CI Apache configuration..."
+
+    # CI用Apache設定をコピー（イメージに埋め込まれた設定を使用）
+    run_as_root cp /etc/apache2/sites-available-ci/000-default-ci.conf /etc/apache2/sites-available/000-default.conf
+    run_as_root cp /etc/apache2/sites-available-ci/000-default-ci.conf /etc/apache2/sites-enabled/000-default.conf
+    run_as_root cp /etc/apache2/sites-available-ci/000-default-ssl-disabled.conf /etc/apache2/sites-enabled/000-default-ssl.conf
+
+    echo "CI Apache configuration applied (HTTP only, SSL disabled)"
+fi
+
 echo "Starting Apache..."
 
 # Cron設定スクリプトを実行（CRON=1の場合は有効化、それ以外はクリーンアップ）

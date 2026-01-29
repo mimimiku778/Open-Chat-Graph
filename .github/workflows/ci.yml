@@ -39,6 +39,13 @@ jobs:
             - 'docker/**'
             - 'composer.json'
             - 'composer.lock'
+          app-code:
+            - 'app/**'
+            - 'shadow/**'
+            - 'shared/**'
+            - 'batch/**'
+            - 'public/**'
+            - 'storage/**'
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -52,17 +59,16 @@ jobs:
 
     - name: Pull or build app image
       run: |
-        # Docker関連ファイルに変更がある場合は必ずビルド
-        if [ "${{ steps.check_changes.outputs.docker }}" = "true" ]; then
-          echo "Building app image (Docker-related files changed)"
+        # Docker関連ファイルまたはアプリケーションコードに変更がある場合は必ずビルド
+        if [ "${{ steps.check_changes.outputs.docker }}" = "true" ] || [ "${{ steps.check_changes.outputs.app-code }}" = "true" ]; then
+          echo "Building app image (code or Docker-related files changed)"
           docker buildx build \
-            --build-arg INSTALL_XDEBUG=false \
-            --build-arg ENABLE_SSL=false \
-            --cache-from type=gha,scope=app \
-            --cache-to type=gha,scope=app,mode=max \
+            --file docker/app/Dockerfile.ci \
+            --cache-from type=gha,scope=app-ci \
+            --cache-to type=gha,scope=app-ci,mode=max \
             --load \
             -t oc-review-mock-app:latest \
-            ./docker/app/
+            .
         # 変更がない場合はプリビルドイメージを使用
         elif docker pull ghcr.io/${{ github.repository_owner }}/oc-review-mock-app:latest 2>/dev/null; then
           echo "✓ Using prebuilt app image"
@@ -70,13 +76,12 @@ jobs:
         else
           echo "Building app image (no prebuilt image found)"
           docker buildx build \
-            --build-arg INSTALL_XDEBUG=false \
-            --build-arg ENABLE_SSL=false \
-            --cache-from type=gha,scope=app \
-            --cache-to type=gha,scope=app,mode=max \
+            --file docker/app/Dockerfile.ci \
+            --cache-from type=gha,scope=app-ci \
+            --cache-to type=gha,scope=app-ci,mode=max \
             --load \
             -t oc-review-mock-app:latest \
-            ./docker/app/
+            .
         fi
 
     - name: Pull or build LINE Mock API image
@@ -85,8 +90,9 @@ jobs:
         if [ "${{ steps.check_changes.outputs.docker }}" = "true" ]; then
           echo "Building LINE Mock API image (Docker-related files changed)"
           docker buildx build \
-            --cache-from type=gha,scope=line-mock-api \
-            --cache-to type=gha,scope=line-mock-api,mode=max \
+            --file docker/line-mock-api/Dockerfile.ci \
+            --cache-from type=gha,scope=line-mock-api-ci \
+            --cache-to type=gha,scope=line-mock-api-ci,mode=max \
             --load \
             -t oc-review-mock-line-mock-api:latest \
             ./docker/line-mock-api/
@@ -97,8 +103,9 @@ jobs:
         else
           echo "Building LINE Mock API image (no prebuilt image found)"
           docker buildx build \
-            --cache-from type=gha,scope=line-mock-api \
-            --cache-to type=gha,scope=line-mock-api,mode=max \
+            --file docker/line-mock-api/Dockerfile.ci \
+            --cache-from type=gha,scope=line-mock-api-ci \
+            --cache-to type=gha,scope=line-mock-api-ci,mode=max \
             --load \
             -t oc-review-mock-line-mock-api:latest \
             ./docker/line-mock-api/
@@ -144,8 +151,7 @@ jobs:
     - name: Initialize database and storage
       run: |
         echo "Initializing database and storage..."
-        # CI環境: カレントディレクトリを書き込み可能にする
-        chmod 777 .
+        # CI環境: イメージに埋め込まれたコードを使用（権限設定は不要）
         ./setup/local-setup.default.sh -y
 
     - name: Run CI tests
