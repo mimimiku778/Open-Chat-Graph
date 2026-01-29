@@ -149,6 +149,8 @@ jobs:
         done
 
     - name: Initialize database and storage
+      env:
+        COMPOSE_FILE: .github/docker-compose.ci.yml
       run: |
         echo "Initializing database and storage..."
         # CI環境: イメージに埋め込まれたコードを使用（権限設定は不要）
