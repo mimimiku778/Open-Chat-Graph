@@ -111,8 +111,18 @@ COPY --chown=www-data:www-data . /var/www/html/
 RUN --mount=type=cache,target=/root/.composer,sharing=locked \
     composer install --no-dev --optimize-autoloader --no-interaction --no-progress
 
-# storageディレクトリの権限を設定（書き込み可能にする）
-RUN mkdir -p /var/www/html/storage && \
+# storageディレクトリとサブディレクトリを作成し、権限を設定（書き込み可能にする）
+RUN mkdir -p /var/www/html/storage/ja/static_data_top \
+             /var/www/html/storage/ja/static_data_recommend \
+             /var/www/html/storage/ja/SQLite/statistics \
+             /var/www/html/storage/ja/SQLite/ranking_position \
+             /var/www/html/storage/ja/SQLite/ocgraph_sqlapi \
+             /var/www/html/storage/tw/static_data_top \
+             /var/www/html/storage/tw/SQLite/statistics \
+             /var/www/html/storage/tw/SQLite/ranking_position \
+             /var/www/html/storage/th/static_data_top \
+             /var/www/html/storage/th/SQLite/statistics \
+             /var/www/html/storage/th/SQLite/ranking_position && \
     chown -R www-data:www-data /var/www/html/storage && \
     chmod -R 775 /var/www/html/storage
 
