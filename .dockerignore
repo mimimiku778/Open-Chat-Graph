@@ -60,8 +60,10 @@ tests/
 phpunit.xml
 .phpunit.result.cache
 
-# セットアップスクリプト（ホスト側から実行するため、イメージには不要）
+# セットアップスクリプト（スクリプトは除外、テンプレートとスキーマは含める）
 setup/
+!setup/template/
+!setup/schema/
 
 # Makefile（ホスト側から使用するため、イメージには不要）
 Makefile
