@@ -188,6 +188,27 @@ jobs:
         retention-days: 7
         if-no-files-found: ignore
 
+    - name: Collect container logs on failure
+      if: failure()
+      run: |
+        echo "=== Collecting container logs ==="
+        mkdir -p container-logs
+        docker compose -f .github/docker-compose.ci.yml logs app > container-logs/app.log 2>&1 || true
+        docker compose -f .github/docker-compose.ci.yml logs mysql > container-logs/mysql.log 2>&1 || true
+        docker compose -f .github/docker-compose.ci.yml logs line-mock-api > container-logs/line-mock-api.log 2>&1 || true
+        docker compose -f .github/docker-compose.ci.yml exec -T app cat /var/log/apache2/error.log > container-logs/apache-error.log 2>&1 || true
+        docker compose -f .github/docker-compose.ci.yml exec -T app ls -la /var/www/html/storage > container-logs/storage-ls.log 2>&1 || true
+        docker compose -f .github/docker-compose.ci.yml exec -T app cat /var/www/html/local-secrets.php > container-logs/local-secrets.php 2>&1 || true
+
+    - name: Upload container logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: container-logs
+        path: container-logs/
+        retention-days: 7
+        if-no-files-found: ignore
+
     - name: Show final status
       if: always()
       run: |
