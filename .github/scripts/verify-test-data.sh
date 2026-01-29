@@ -6,7 +6,7 @@ set -e
 
 # CI環境判定とCompose設定
 if [ -n "$CI" ]; then
-    COMPOSE_FILES="-f docker-compose.yml -f docker-compose.ci.yml"
+    COMPOSE_FILES="-f .github/docker-compose.ci.yml"
 else
     COMPOSE_FILES="-f docker-compose.yml -f docker-compose.mock.yml"
 fi
