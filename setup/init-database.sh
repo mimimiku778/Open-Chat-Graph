@@ -40,6 +40,22 @@ echo ""
 # MySQLコマンド構築（docker compose経由）
 MYSQL_CMD="docker compose ${COMPOSE_FILES} exec -T mysql mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD}"
 
+# MySQLが完全に起動するまで待機（最大30秒）
+echo "MySQLの準備を待機中..."
+for i in {1..30}; do
+    if docker compose ${COMPOSE_FILES} exec -T mysql mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} -e "SELECT 1" >/dev/null 2>&1; then
+        echo "MySQLが準備完了しました"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "エラー: MySQLの起動がタイムアウトしました"
+        exit 1
+    fi
+    echo "  待機中... ($i/30)"
+    sleep 1
+done
+echo ""
+
 # スキーマファイルの順序（依存関係を考慮）
 SCHEMA_FILES=(
     "ocgraph_ocreview_schema.sql"
