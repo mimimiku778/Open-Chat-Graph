@@ -156,6 +156,10 @@ jobs:
         ./setup/local-setup.default.sh -y
 
     - name: Run CI tests
+      env:
+        TEST_JA_HOURS: 1
+        TEST_TW_HOURS: 1
+        TEST_TH_HOURS: 1
       run: |
         chmod +x ./.github/scripts/test-ci.sh ./.github/scripts/test-urls.sh ./.github/scripts/check-error-log.sh
         ./.github/scripts/test-ci.sh -y && ./.github/scripts/test-urls.sh && ./.github/scripts/check-error-log.sh
