@@ -150,10 +150,14 @@ docker compose exec -T -u www-data app bash -c '
     rm -f public/sitemap.xml
 '
 
-# Composerの依存関係インストール
-docker compose exec -T -u www-data app bash -c 'set -e
-    composer install --no-interaction
-'
+# Composerの依存関係インストール（CI環境ではスキップ）
+if [ "${CI}" != "true" ]; then
+    docker compose exec -T -u www-data app bash -c 'set -e
+        composer install --no-interaction
+    '
+else
+    echo "CI環境: composer installはイメージに含まれているためスキップします。"
+fi
 
 # local-secrets.phpの作成（ファイルが存在しない場合は-nフラグでも作成する）
 if [ "$overwrite_secrets" = true ] || [ ! -f "local-secrets.php" ]; then
