@@ -7,6 +7,11 @@
 docker
 !docker/app/php.ini
 !docker/app/setup-cron.sh
+!docker/app/entrypoint.sh
+!docker/app/apache2/
+!docker/app/apache2/sites-available/
+!docker/app/apache2/sites-available/000-default-ci.conf
+!docker/app/apache2/sites-available/000-default-ssl-disabled.conf
 docker-compose*.yml
 Dockerfile
 Dockerfile.*
