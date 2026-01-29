@@ -35,7 +35,9 @@ COPY --chown=www-data:www-data . /app/
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
 
 # データディレクトリの権限を設定（JSONファイル生成に必要）
+# CI環境ではhour_index.txtを削除して常に0から開始
 RUN mkdir -p /app/data && \
+    rm -f /app/data/hour_index.txt && \
     chown -R www-data:www-data /app/data && \
     chmod -R 775 /app/data
 

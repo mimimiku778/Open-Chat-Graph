@@ -231,7 +231,12 @@ main() {
     # hourIndexの処理（既存の値があれば継続するか確認）
     docker exec "$MOCK_CONTAINER" mkdir -p /app/data
     local existing_hour_index=0
-    if docker exec "$MOCK_CONTAINER" test -f /app/data/hour_index.txt 2>/dev/null; then
+
+    # CI環境では常にhourIndex=0から開始（対話モード無効）
+    if [ -n "$CI" ]; then
+        log_info "CI環境: hourIndexを0に初期化します"
+        existing_hour_index=0
+    elif docker exec "$MOCK_CONTAINER" test -f /app/data/hour_index.txt 2>/dev/null; then
         existing_hour_index=$(docker exec "$MOCK_CONTAINER" cat /app/data/hour_index.txt 2>/dev/null || echo "0")
         existing_hour_index=$((existing_hour_index))
 

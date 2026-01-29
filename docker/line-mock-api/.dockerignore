@@ -37,3 +37,6 @@ Thumbs.db
 storage/*.json
 storage/*.db
 storage/*.sqlite
+
+# データディレクトリ内の動的生成ファイル（実行時に生成される）
+data/hour_index.txt
