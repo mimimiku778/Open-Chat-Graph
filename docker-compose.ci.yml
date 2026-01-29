@@ -10,7 +10,9 @@ services:
   app:
     image: oc-review-mock-app:latest
     # CI環境ではプリビルドイメージを使用（.github/workflows/ci.ymlでpull/build）
-    volumes: []  # docker-compose.ymlのvolumesを無効化（イメージに埋め込まれたコードを使用）
+    # IMPORTANT: volumesを完全に再定義してdocker-compose.ymlのマウントを無効化
+    volumes: !reset []
+    working_dir: /var/www/html
     depends_on:
       - line-mock-api
     networks:
