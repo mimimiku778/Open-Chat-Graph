@@ -1,0 +1,54 @@
+# CI環境専用のDocker Compose設定
+# 使い方: docker compose -f docker-compose.ci.yml up
+#
+# 重要: このファイルは完全に独立しており、docker-compose.ymlとマージしません
+# ローカル環境との共通点を持たず、CI専用の設定のみを含みます
+
+services:
+  app:
+    image: oc-review-mock-app:latest
+    working_dir: /var/www/html
+    depends_on:
+      - mysql
+      - line-mock-api
+    networks:
+      - default
+      - mock-network
+    environment:
+      - CI=true
+      - IS_MOCK_ENVIRONMENT=1
+      - CRON=0
+      - ENABLE_XDEBUG=0
+
+  mysql:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      - MYSQL_DATABASE=test_db_name
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=test_user
+      - MYSQL_PASSWORD=test_pass
+      - MYSQL_ROOT_PASSWORD=test_root_pass
+      - TZ=Asia/Tokyo
+    networks:
+      - default
+      - mock-network
+
+  line-mock-api:
+    image: oc-review-mock-line-mock-api:latest
+    ports:
+      - "9000:80"
+    environment:
+      - TZ=Asia/Tokyo
+      - LANG=ja_JP.UTF-8
+      - MOCK_API_TYPE=fixed
+    networks:
+      mock-network:
+        ipv4_address: 10.99.0.10
+
+networks:
+  mock-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.99.0.0/16

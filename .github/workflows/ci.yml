@@ -114,13 +114,13 @@ jobs:
     - name: Start mock environment
       run: |
         echo "Starting CI mock environment..."
-        docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+        docker compose -f .github/docker-compose.ci.yml up -d
 
     - name: Wait for services
       run: |
         echo "Waiting for MySQL..."
         for i in {1..30}; do
-          if docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T mysql mysqladmin ping -uroot -ptest_root_pass --silent 2>/dev/null; then
+          if docker compose -f .github/docker-compose.ci.yml exec -T mysql mysqladmin ping -uroot -ptest_root_pass --silent 2>/dev/null; then
             echo "MySQL is ready"
             break
           fi
@@ -130,7 +130,7 @@ jobs:
 
         echo "Waiting for App container..."
         for i in {1..30}; do
-          if docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T app php -v > /dev/null 2>&1; then
+          if docker compose -f .github/docker-compose.ci.yml exec -T app php -v > /dev/null 2>&1; then
             echo "App container is ready"
             break
           fi
@@ -163,10 +163,10 @@ jobs:
       if: failure()
       run: |
         echo "=== Container logs (app) ==="
-        docker compose -f docker-compose.yml -f docker-compose.ci.yml logs app --tail=100
+        docker compose -f .github/docker-compose.ci.yml logs app --tail=100
         echo ""
         echo "=== Container logs (line-mock-api) ==="
-        docker compose -f docker-compose.yml -f docker-compose.ci.yml logs line-mock-api --tail=100
+        docker compose -f .github/docker-compose.ci.yml logs line-mock-api --tail=100
         echo ""
         echo "=== Exception log ==="
         if [ -f storage/exception.log ]; then
@@ -190,4 +190,4 @@ jobs:
       if: always()
       run: |
         echo "=== Final container status ==="
-        docker compose -f docker-compose.yml -f docker-compose.ci.yml ps
+        docker compose -f .github/docker-compose.ci.yml ps
