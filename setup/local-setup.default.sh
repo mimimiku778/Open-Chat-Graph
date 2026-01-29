@@ -125,13 +125,17 @@ echo ""
 # storage内のファイル削除（Docker経由で実行）
 echo "既存データを削除しています..."
 
-# appコンテナの起動状態を確認
+# appコンテナの起動状態を確認（CI環境ではスキップ）
 APP_WAS_STOPPED=0
-if ! docker compose ps app 2>/dev/null | grep -q "Up"; then
-    echo "appコンテナを一時的に起動します..."
-    docker compose up -d app >/dev/null 2>&1
-    APP_WAS_STOPPED=1
-    sleep 2
+if [ "${CI}" != "true" ]; then
+    if ! docker compose ps app 2>/dev/null | grep -q "Up"; then
+        echo "appコンテナを一時的に起動します..."
+        docker compose up -d app >/dev/null 2>&1
+        APP_WAS_STOPPED=1
+        sleep 2
+    fi
+else
+    echo "CI環境: appコンテナは既に起動しているためスキップします。"
 fi
 
 # Docker経由でファイル削除
@@ -245,8 +249,8 @@ echo ""
 
 rm -f docker/line-mock-api/data/hour_index.txt
 
-# 一時起動したコンテナを停止
-if [ $APP_WAS_STOPPED -eq 1 ]; then
+# 一時起動したコンテナを停止（CI環境ではスキップ）
+if [ $APP_WAS_STOPPED -eq 1 ] && [ "${CI}" != "true" ]; then
     echo "appコンテナを停止します..."
     docker compose stop app >/dev/null 2>&1
 fi
