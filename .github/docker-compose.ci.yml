@@ -17,6 +17,7 @@ services:
     environment:
       - CI=true
       - IS_MOCK_ENVIRONMENT=1
+      - LINE_MOCK_PORT=9000
       - CRON=0
       - ENABLE_XDEBUG=0
 
@@ -42,6 +43,7 @@ services:
       - TZ=Asia/Tokyo
       - LANG=ja_JP.UTF-8
       - MOCK_API_TYPE=fixed
+      - MOCK_DELAY_ENABLED=0
     networks:
       mock-network:
         ipv4_address: 10.99.0.10
