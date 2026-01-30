@@ -122,7 +122,7 @@ fi
 echo "セットアップを開始します..."
 echo ""
 
-# storage内のファイル削除（Docker経由で実行）
+# 既存データの削除とディレクトリ権限の設定
 echo "既存データを削除しています..."
 
 # appコンテナの起動状態を確認
@@ -134,8 +134,9 @@ if ! docker compose ps app 2>/dev/null | grep -q "Up"; then
     sleep 2
 fi
 
-# Docker経由でファイル削除（rootユーザーとして実行）
+# Docker経由でroot所有のファイル・ディレクトリを削除（rootユーザーとして実行）
 docker compose exec -T -u root app bash -c '
+    rm -rf vendor/
     rm -f storage/*/open_chat_sub_categories/subcategories.json
     rm -f storage/*/static_data_top/*.dat
     rm -f storage/*/static_data_recommend/*/*.dat
@@ -150,9 +151,18 @@ docker compose exec -T -u root app bash -c '
     rm -f public/sitemap.xml
 '
 
-# Composerの依存関係インストール（Docker経由、rootユーザーとして実行）
-# CI環境ではvscodeユーザーにvendor作成権限がないためrootで実行
+# ディレクトリの権限を最初に修正（www-dataが書き込めるようにする）
+echo "ディレクトリの権限を修正しています..."
 docker compose exec -T -u root app bash -c 'set -e
+    chmod -R 777 storage/
+    chmod -R 777 public/sitemaps
+    chmod 777 public/
+    mkdir -p vendor && chmod 777 vendor
+'
+
+# Composerの依存関係インストール（www-dataユーザーとして実行）
+echo "Composerの依存関係をインストールしています..."
+docker compose exec -T -u www-data app bash -c 'set -e
     composer install --no-interaction
 '
 
@@ -207,16 +217,16 @@ else
 fi
 echo ""
 
-# テンプレートファイルをコピー（Docker経由、rootユーザーとして実行）
+# テンプレートファイルをコピー（www-dataユーザーとして実行）
 echo "テンプレートファイルをコピーしています..."
-docker compose exec -T -u root app bash -c 'set -e
+docker compose exec -T -u www-data app bash -c 'set -e
     mkdir -p storage/ja/static_data_top storage/tw/static_data_top storage/th/static_data_top
     cp setup/template/static_data_top/* storage/ja/static_data_top/
     cp setup/template/static_data_top/* storage/tw/static_data_top/
     cp setup/template/static_data_top/* storage/th/static_data_top/
 '
 
-# スキーマファイルからSQLiteデータベースを生成（Docker経由、rootユーザーとして実行）
+# スキーマファイルからSQLiteデータベースを生成（www-dataユーザーとして実行）
 echo "スキーマファイルからSQLiteデータベースを生成しています..."
 
 # 各言語のディレクトリに対して処理
@@ -224,31 +234,19 @@ for lang in ja tw th; do
     echo "  ${lang} のデータベースを生成中..."
 
     # statistics.db を生成
-    cat setup/schema/sqlite/statistics.sql | docker compose exec -T -u root app sqlite3 "storage/${lang}/SQLite/statistics/statistics.db"
+    cat setup/schema/sqlite/statistics.sql | docker compose exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/statistics/statistics.db"
 
     # ranking_position.db を生成
-    cat setup/schema/sqlite/ranking_position.sql | docker compose exec -T -u root app sqlite3 "storage/${lang}/SQLite/ranking_position/ranking_position.db"
+    cat setup/schema/sqlite/ranking_position.sql | docker compose exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/ranking_position/ranking_position.db"
 
     # sqlapi.db を生成（jaのみ）
     if [ "$lang" == "ja" ]; then
-        cat setup/schema/sqlite/sqlapi.sql | docker compose exec -T -u root app sqlite3 "storage/${lang}/SQLite/ocgraph_sqlapi/sqlapi.db"
+        cat setup/schema/sqlite/sqlapi.sql | docker compose exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/ocgraph_sqlapi/sqlapi.db"
     fi
 done
 
 echo "SQLiteデータベースの生成が完了しました。"
 echo ""
-
-# storageおよび書き込み可能ディレクトリの権限を修正（www-dataが書き込めるようにする）
-echo "ディレクトリの権限を修正しています..."
-docker compose exec -T -u root app bash -c 'set -e
-    chown -R www-data:www-data storage/
-    chmod -R 775 storage/
-    chown -R www-data:www-data public/sitemaps
-    chmod -R 775 public/sitemaps
-    # sitemap.xmlはpublic/直下に作成されるため、publicディレクトリも書き込み可能にする
-    chown www-data:www-data public/
-    chmod 775 public/
-'
 
 ./setup/init-database.sh
 
