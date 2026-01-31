@@ -19,5 +19,8 @@ if (
 
 EOF
 
+# MySQL設定ファイルのパーミッションを修正（Codespaces環境でworld-writable警告を防ぐ）
+chmod 644 docker/mysql/server.cnf
+
 echo "🚀 Codespaces環境のセットアップが完了しました！"
 
