@@ -511,6 +511,13 @@ main() {
         sleep 1
     done
 
+    # ディレクトリの権限を最初に修正（www-dataが書き込めるようにする）
+    echo "ディレクトリの権限を修正しています..."
+    docker compose exec -T -u root app bash -c 'set -e
+        chmod -R 777 storage/
+        chmod 777 public/sitemap.xml
+    '
+
     log "========================================="
     log "カテゴリ別クローリングテスト完了"
     log "ログファイル: ${LOG_FILE}"

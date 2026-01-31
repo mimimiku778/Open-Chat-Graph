@@ -148,6 +148,7 @@ docker compose exec -T -u root app bash -c '
     rm -f storage/*/*/*.log
     rm -f public/sitemaps/*.xml
     rm -f public/sitemap.xml
+    rm -f docker/line-mock-api/data/hour_index.txt
 '
 
 # ディレクトリの権限を最初に修正（www-dataが書き込めるようにする）
@@ -161,9 +162,7 @@ docker compose exec -T -u root app bash -c 'set -e
 
 # Composerの依存関係インストール（www-dataユーザーとして実行）
 echo "Composerの依存関係をインストールしています..."
-docker compose exec -T -u www-data app bash -c 'set -e
-    composer install --no-interaction
-'
+docker compose exec -T -u www-data app composer install --no-interaction
 
 # local-secrets.phpの作成（ファイルが存在しない場合は-nフラグでも作成する）
 if [ "$overwrite_secrets" = true ] || [ ! -f "local-secrets.php" ]; then
@@ -248,8 +247,6 @@ echo "SQLiteデータベースの生成が完了しました。"
 echo ""
 
 ./setup/init-database.sh
-
-rm -f docker/line-mock-api/data/hour_index.txt
 
 # 一時起動したコンテナを停止
 if [ $APP_WAS_STOPPED -eq 1 ]; then
