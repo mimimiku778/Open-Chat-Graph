@@ -25,22 +25,4 @@ RUN install -m 0755 -d /etc/apt/keyrings && \
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin && \
     rm -rf /var/lib/apt/lists/*
 
-# 開発用ユーザーの作成（既存のubuntuユーザーをvscodeにリネーム）
-ARG USERNAME=vscode
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
-
-RUN if id -u ubuntu > /dev/null 2>&1; then \
-        usermod -l $USERNAME ubuntu && \
-        groupmod -n $USERNAME ubuntu && \
-        usermod -d /home/$USERNAME -m $USERNAME; \
-    elif ! id -u $USERNAME > /dev/null 2>&1; then \
-        groupadd --gid $USER_GID $USERNAME && \
-        useradd --uid $USER_UID --gid $USER_GID -m $USERNAME -s /bin/bash; \
-    fi && \
-    echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME && \
-    chmod 0440 /etc/sudoers.d/$USERNAME && \
-    usermod -aG docker $USERNAME
-
-USER $USERNAME
 WORKDIR /workspace

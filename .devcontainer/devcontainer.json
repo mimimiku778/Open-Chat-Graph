@@ -4,7 +4,7 @@
     "dockerfile": "Dockerfile"
   },
   "workspaceFolder": "/workspace",
-  "remoteUser": "vscode",
+  "remoteUser": "ubuntu",
   "mounts": [
     "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
   ],
