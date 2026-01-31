@@ -3,16 +3,8 @@ set -e
 
 echo "🚀 Codespaces環境のセットアップを開始します..."
 
-# リポジトリのルートディレクトリに移動
-cd /workspace
-
-# mkcertのインストール（SSL証明書生成用）
-echo "📦 mkcertをインストールしています..."
-wget -q https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64
-chmod +x mkcert-v1.4.4-linux-amd64
-sudo mv mkcert-v1.4.4-linux-amd64 /usr/local/bin/mkcert
-
 # ローカル認証局のインストール
+echo "📦 SSL証明書をセットアップしています..."
 mkcert -install
 
 # 初期セットアップの実行

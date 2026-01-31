@@ -25,4 +25,9 @@ RUN install -m 0755 -d /etc/apt/keyrings && \
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin && \
     rm -rf /var/lib/apt/lists/*
 
-WORKDIR /workspace
+# mkcertのインストール
+RUN wget -q https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64 && \
+    chmod +x mkcert-v1.4.4-linux-amd64 && \
+    mv mkcert-v1.4.4-linux-amd64 /usr/local/bin/mkcert
+
+WORKDIR /workspaces
