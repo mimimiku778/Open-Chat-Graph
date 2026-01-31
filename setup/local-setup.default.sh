@@ -136,7 +136,6 @@ fi
 
 # Docker経由でroot所有のファイル・ディレクトリを削除（rootユーザーとして実行）
 docker compose exec -T -u root app bash -c '
-    rm -rf vendor/
     rm -f storage/*/open_chat_sub_categories/subcategories.json
     rm -f storage/*/static_data_top/*.dat
     rm -f storage/*/static_data_recommend/*/*.dat
