@@ -6,7 +6,7 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
 echo "✅ Claude CLIのインストールが完了しました。"
 echo "実行コマンド: claude --dangerously-skip-permissions"
 
-cat << 'EOF' > /var/www/html/shared/secrets.php
+cat << 'EOF' > ../shared/secrets.php
 <?php
 
 if (
@@ -20,3 +20,4 @@ if (
 EOF
 
 echo "🚀 Codespaces環境のセットアップが完了しました！"
+
