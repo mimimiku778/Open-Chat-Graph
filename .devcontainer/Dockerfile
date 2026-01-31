@@ -30,4 +30,8 @@ RUN wget -q https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcer
     chmod +x mkcert-v1.4.4-linux-amd64 && \
     mv mkcert-v1.4.4-linux-amd64 /usr/local/bin/mkcert
 
+# ubuntuユーザーにsudo権限を付与（パスワード不要）
+RUN echo "ubuntu ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/ubuntu && \
+    chmod 0440 /etc/sudoers.d/ubuntu
+
 WORKDIR /workspaces
