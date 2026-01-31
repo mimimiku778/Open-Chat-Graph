@@ -1,17 +1,29 @@
-sudo sed -i 's/host\.docker\.internal/172.17.0.1/g' /usr/local/etc/php/php.ini
-sudo service apache2 reload
+#!/bin/bash
+set -e
 
-cd /var/www/html
-composer install
+echo "🚀 Codespaces環境のセットアップを開始します..."
 
-cat << 'EOF' > /var/www/html/shared/secrets.php
-<?php
+# リポジトリのルートディレクトリに移動
+cd /workspace
 
-if (
-    isset($_SERVER['HTTP_HOST'], $_SERVER["HTTP_X_FORWARDED_HOST"])
-    && str_contains($_SERVER["HTTP_X_FORWARDED_HOST"], 'github.dev')
-) {
-    $_SERVER['HTTP_HOST'] = $_SERVER["HTTP_X_FORWARDED_HOST"];
-    $_SERVER['HTTPS'] = 'on';
-}
-EOF
+# mkcertのインストール（SSL証明書生成用）
+echo "📦 mkcertをインストールしています..."
+wget -q https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64
+chmod +x mkcert-v1.4.4-linux-amd64
+sudo mv mkcert-v1.4.4-linux-amd64 /usr/local/bin/mkcert
+
+# ローカル認証局のインストール
+mkcert -install
+
+# 初期セットアップの実行
+echo "🔧 初期セットアップを実行しています..."
+make init-y
+
+echo ""
+echo "✅ セットアップが完了しました！"
+echo ""
+echo "📝 次のステップ:"
+echo "  1. Mock環境を起動: make up-mock"
+echo "  2. ブラウザでアクセス: https://localhost:8443"
+echo ""
+echo "詳細はREADME.mdを参照してください。"

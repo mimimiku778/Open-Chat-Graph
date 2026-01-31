@@ -1,9 +1,13 @@
 {
-  "name": "My Project",
-  "dockerComposeFile": "../docker-compose.yml",
-  "service": "app",
-  "workspaceFolder": "/var/www/html",
+  "name": "Open Chat Graph (Codespaces)",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "workspaceFolder": "/workspace",
   "remoteUser": "vscode",
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
   "customizations": {
     "vscode": {
       "settings": {
@@ -28,5 +32,28 @@
       ]
     }
   },
-  "postCreateCommand": "sudo chown -R vscode:vscode /var/www/html/.devcontainer && /var/www/html/.devcontainer/post-create-command.sh"
+  "postCreateCommand": "bash .devcontainer/post-create-command.sh",
+  "forwardPorts": [8443, 8543, 3306, 8080, 9000],
+  "portsAttributes": {
+    "8443": {
+      "label": "HTTPS (Basic)",
+      "onAutoForward": "notify"
+    },
+    "8543": {
+      "label": "HTTPS (Mock)",
+      "onAutoForward": "notify"
+    },
+    "3306": {
+      "label": "MySQL",
+      "onAutoForward": "silent"
+    },
+    "8080": {
+      "label": "phpMyAdmin",
+      "onAutoForward": "silent"
+    },
+    "9000": {
+      "label": "LINE Mock API",
+      "onAutoForward": "notify"
+    }
+  }
 }
