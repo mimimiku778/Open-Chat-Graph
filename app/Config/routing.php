@@ -8,6 +8,7 @@ use App\Controllers\Api\CommentListApiController;
 use App\Controllers\Api\CommentPostApiController;
 use App\Controllers\Api\CommentReportApiController;
 use App\Controllers\Api\DatabaseApiController;
+use App\Controllers\Api\ImageErrorReportApiController;
 use Shadow\Kernel\Route;
 use App\Services\Admin\AdminAuthService;
 use App\Controllers\Api\OpenChatRankingPageApiController;
@@ -183,6 +184,9 @@ Route::path('mylist-api', [MyListApiController::class, 'index'])
 
         noStore();
     });
+
+Route::path('api/report-image-error@post', [ImageErrorReportApiController::class, 'index'])
+    ->matchStr('url', maxLen: 2000);
 
 Route::path('recent-comment-api', [RecentCommentApiController::class, 'index'])
     ->match(function (FileStorageInterface $fileStorage) {

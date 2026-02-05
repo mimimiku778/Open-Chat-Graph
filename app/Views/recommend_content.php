@@ -179,6 +179,7 @@ viewComponent('head', compact('_css', '_schema', 'canonical') + ['_meta' => $_me
   <?php \App\Views\Ads\GoogleAdsense::loadAdsTag() ?>
 
   <script defer src="<?php echo fileurl("/js/site_header_footer.js", urlRoot: '') ?>"></script>
+  <script defer src="<?php echo fileUrl("/js/imageErrorReporter.js", urlRoot: '') ?>"></script>
 
   <?php if ($enableAdsense): ?>
     <script defer src="<?php echo fileurl("/js/security.js", urlRoot: '') ?>"></script>
