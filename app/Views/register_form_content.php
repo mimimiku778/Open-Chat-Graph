@@ -42,7 +42,7 @@
             <sup class="add-openchat-message success" id="add-openchat-describedby"><?php echo h(session('message')) ?></sup>
             <div class="openchat-item add-openchat-form-item">
                 <a class="link-overlay unset" href="<?php echo url('/oc/' . $requestOpenChat['id']) ?>" tabindex="-1"></a>
-                <img alt class="openchat-item-img" src="<?php echo imgPreviewUrl($requestOpenChat['id'], $requestOpenChat['img_url']) ?>">
+                <img alt class="openchat-item-img" src="<?php echo imgPreviewUrl($requestOpenChat['img_url']) ?>">
                 <h2 class="unset">
                     <a class="openchat-item-title unset" href="<?php echo url('/oc/' . $requestOpenChat['id']) ?>"><?php echo $requestOpenChat['name'] ?></a>
                 </h2>
@@ -86,9 +86,7 @@
         // 古いSafariの対策
         addOpenChatForm.addEventListener('submit', e => e.target.elements['submit'].disabled && e.preventDefault())
     </script>
-    <script>
-        const admin = <?php echo isAdmin() ? 1 : 0; ?>;
-    </script>
+
     <script defer src="<?php echo fileUrl("/js/site_header_footer.js", urlRoot: '') ?>"></script>
 </body>
 

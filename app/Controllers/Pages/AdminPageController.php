@@ -147,38 +147,6 @@ class AdminPageController
     }
 
     /**
-     * 画像全件更新実行
-     * LINE公式から提供されているすべてのオープンチャットの画像を更新します。
-     * @param string $lang ja|tw|th
-     */
-    function updateimgeall(?string $lang)
-    {
-        $urlRoot = null;
-        switch ($lang) {
-            case 'ja':
-                $urlRoot = '';
-                break;
-            case 'tw':
-                $urlRoot = '/tw';
-                break;
-            case 'th':
-                $urlRoot = '/th';
-                break;
-        }
-
-        if (is_null($urlRoot)) {
-            return view('admin/admin_message_page', ['title' => 'exec', 'message' => 'パラメータ(lang)が不正です。']);
-        }
-
-        $path = AppConfig::ROOT_PATH . 'batch/exec/imageupdater_exec.php';
-        $arg = escapeshellarg($urlRoot);
-
-        exec(AppConfig::$phpBinary . " {$path} {$arg} >/dev/null 2>&1 &");
-
-        return view('admin/admin_message_page', ['title' => 'exec', 'message' => $path . ' を実行しました。']);
-    }
-
-    /**
      * 毎時処理途中経過チェックバッチ実行
      */
     private function halfcheck()
@@ -198,15 +166,6 @@ class AdminPageController
         if (!($oc = Validator::num($oc))) return false;
         $result = $deleteOpenChatRepository->deleteOpenChat($oc);
         return view('admin/admin_message_page', ['title' => 'オープンチャット削除', 'message' => $result ? '削除しました' : '削除されたオープンチャットはありません']);
-    }
-
-    /**
-     * ダウンロード済みのランキングJSONファイルを毎時統計DBに反映する
-     */
-    function positiondb(RankingPositionHourPersistence $rankingPositionHourPersistence)
-    {
-        $rankingPositionHourPersistence->persistStorageFileToDb();
-        echo 'done';
     }
 
     /**

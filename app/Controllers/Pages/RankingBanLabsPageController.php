@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controllers\Pages;
 
-use App\Config\AppConfig;
 use App\Services\RankingBan\RakingBanPageService;
+use App\Services\Storage\FileStorageInterface;
 use App\Views\RankingBanSelectElementPagination;
 
 class RankingBanLabsPageController
@@ -13,6 +13,7 @@ class RankingBanLabsPageController
     function index(
         RakingBanPageService $rakingBanPageService,
         RankingBanSelectElementPagination $rankingBanSelectElementPagination,
+        FileStorageInterface $fileStorage,
         int $change,
         int $publish,
         int $percent,
@@ -36,8 +37,8 @@ class RankingBanLabsPageController
 
         $_css = ['room_list', 'site_header', 'site_footer'];
 
-        $_updatedAt = new \DateTime(file_get_contents(AppConfig::getStorageFilePath('hourlyRealUpdatedAtDatetime')));
-        $_now = file_get_contents(AppConfig::getStorageFilePath('hourlyCronUpdatedAtDatetime'));
+        $_updatedAt = new \DateTime($fileStorage->getContents('@hourlyRealUpdatedAtDatetime'));
+        $_now = $fileStorage->getContents('@hourlyCronUpdatedAtDatetime');
 
         $limit = 50;
 

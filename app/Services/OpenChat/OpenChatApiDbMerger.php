@@ -5,29 +5,31 @@ declare(strict_types=1);
 namespace App\Services\OpenChat;
 
 use App\Config\AppConfig;
-use App\Services\OpenChat\Crawler\OpenChatApiRankingDownloader;
-use App\Services\OpenChat\Crawler\OpenChatApiRankingDownloaderProcess;
-use App\Services\OpenChat\Crawler\OpenChatApiRisingDownloaderProcess;
-use App\Models\Repositories\Log\LogRepositoryInterface;
-use App\Services\RankingPosition\Store\RankingPositionStore;
-use App\Services\RankingPosition\Store\RisingPositionStore;
-use App\Services\RankingPosition\Store\AbstractRankingPositionStore;
-use App\Services\OpenChat\Updater\Process\OpenChatApiDbMergerProcess;
-use App\Services\OpenChat\Dto\OpenChatApiDtoFactory;
-use App\Services\OpenChat\Dto\OpenChatDto;
 use App\Exceptions\ApplicationException;
+use App\Models\Repositories\Log\LogRepositoryInterface;
 use App\Models\Repositories\SyncOpenChatStateRepositoryInterface;
 use App\Services\Cron\Enum\SyncOpenChatStateType;
+use App\Services\Cron\Utility\CronUtility;
+use App\Services\OpenChat\Crawler\OpenChatApiRankingDownloader;
+use App\Services\OpenChat\Crawler\OpenChatApiDownloaderProcessFactory;
+use App\Services\OpenChat\Enum\RankingType;
+use App\Services\OpenChat\Dto\OpenChatApiDtoFactory;
+use App\Services\OpenChat\Dto\OpenChatDto;
+use App\Services\OpenChat\Updater\Process\OpenChatApiDbMergerProcess;
 use App\Services\OpenChat\Utility\OpenChatServicesUtility;
-use Shared\MimimalCmsConfig;
+use App\Services\RankingPosition\Store\AbstractRankingPositionStore;
+use App\Services\RankingPosition\Store\RankingPositionStore;
+use App\Services\RankingPosition\Store\RisingPositionStore;
 
 class OpenChatApiDbMerger
 {
     /** URL取得の遅延警告閾値（秒） */
-    private const URL_FETCH_SLOW_THRESHOLD_SECONDS = 10;
+    private const URL_FETCH_SLOW_THRESHOLD_SECONDS = 5;
 
     private OpenChatApiRankingDownloader $rankingDownloader;
     private OpenChatApiRankingDownloader $risingDownloader;
+
+    private \DateTime $startTime;
 
     function __construct(
         private OpenChatApiDtoFactory $openChatApiDtoFactory,
@@ -36,18 +38,12 @@ class OpenChatApiDbMerger
         private RankingPositionStore $rankingStore,
         private RisingPositionStore $risingStore,
         private SyncOpenChatStateRepositoryInterface $syncOpenChatStateRepository,
-        OpenChatApiRankingDownloaderProcess $openChatApiRankingDownloaderProcess,
-        OpenChatApiRisingDownloaderProcess $openChatApiRisingDownloaderProcess,
+        OpenChatApiDownloaderProcessFactory $downloaderFactory,
     ) {
-        $this->rankingDownloader = app(
-            OpenChatApiRankingDownloader::class,
-            ['openChatApiRankingDownloaderProcess' => $openChatApiRankingDownloaderProcess]
-        );
+        $this->rankingDownloader = $downloaderFactory->createDownloader(RankingType::Ranking);
+        $this->risingDownloader = $downloaderFactory->createDownloader(RankingType::Rising);
 
-        $this->risingDownloader = app(
-            OpenChatApiRankingDownloader::class,
-            ['openChatApiRankingDownloaderProcess' => $openChatApiRisingDownloaderProcess]
-        );
+        $this->startTime = OpenChatServicesUtility::getModifiedCronTime('now');
     }
 
     /**
@@ -55,7 +51,7 @@ class OpenChatApiDbMerger
      */
     private function getCategoryLabel(string $category, AbstractRankingPositionStore $positionStore): string
     {
-        $categoryName = array_flip(AppConfig::OPEN_CHAT_CATEGORY[MimimalCmsConfig::$urlRoot])[$category] ?? 'Unknown';
+        $categoryName = getCategoryName((int)$category);
         $typeLabel = str_contains(getClassSimpleName($positionStore), 'Rising') ? '急上昇' : 'ランキング';
         return "{$categoryName}の{$typeLabel}";
     }
@@ -70,7 +66,7 @@ class OpenChatApiDbMerger
     {
         $this->setKillFlagFalse();
         $startTime = microtime(true);
-        addVerboseCronLog("LINE公式APIからランキングデータを取得開始");
+        CronUtility::addVerboseCronLog("LINE公式APIからランキングデータを取得開始");
 
         try {
             $result1 = $this->fetchOpenChatApiRankingAllProcess($this->risingStore, $this->risingDownloader);
@@ -80,7 +76,7 @@ class OpenChatApiDbMerger
             $this->logRepository->logUpdateOpenChatError(0, $e->__toString());
             throw $e;
         } finally {
-            addVerboseCronLog("LINE公式APIからランキングデータを取得完了（" . formatElapsedTime($startTime) . "）");
+            CronUtility::addVerboseCronLog("LINE公式APIからランキングデータを取得完了（" . formatElapsedTime($startTime) . "）");
         }
     }
 
@@ -120,7 +116,8 @@ class OpenChatApiDbMerger
                         ? formatElapsedTime($startTimes[$currentCategory])
                         : '不明';
                     $sinceLastFormatted = round($sinceLastCallback, 1);
-                    addCronLog("[警告] URL1件の取得に{$sinceLastFormatted}秒: {$urlCount}件目（カテゴリ開始から{$categoryElapsed}経過）");
+                    $categoryName = getCategoryName((int)$currentCategory);
+                    CronUtility::addCronLog("[警告] URL1件（ランキング40件分）のデータ取得に{$sinceLastFormatted}秒: {$urlCount}件目（{$categoryName}の取得開始から{$categoryElapsed}経過）");
                 }
             }
 
@@ -135,7 +132,6 @@ class OpenChatApiDbMerger
 
         /** @var array<string, string|float> $startTimes APIカテゴリごとの処理 */
         $startTimes = [];
-
         $callbackByCategoryBefore = function (string $category) use (
             $positionStore,
             &$startTimes,
@@ -148,16 +144,17 @@ class OpenChatApiDbMerger
             $urlCount = 0; // カテゴリごとにリセット
             $lastCallbackTime = null; // カテゴリごとにリセット
 
+            // 既に最新データが取得済みかどうかをチェック
             $fileTime = $positionStore->getFileDateTime($category)->format('Y-m-d H:i:s');
             $now = OpenChatServicesUtility::getModifiedCronTime('now')->format('Y-m-d H:i:s');
             $isDownloadedCategory = $fileTime === $now;
 
             if ($isDownloadedCategory) {
-                addVerboseCronLog(
+                CronUtility::addVerboseCronLog(
                     $this->getCategoryLabel($category, $positionStore) . "は最新のためスキップ（取得日時: " . substr($fileTime, 0, -3) . "）"
                 );
             } else {
-                addVerboseCronLog($this->getCategoryLabel($category, $positionStore) . "を取得中");
+                CronUtility::addVerboseCronLog($this->getCategoryLabel($category, $positionStore) . "を取得中");
             }
 
             return $isDownloadedCategory;
@@ -166,7 +163,7 @@ class OpenChatApiDbMerger
         $callbackByCategoryAfter = function (string $category) use ($positionStore, &$startTimes): void {
             $label = $this->getCategoryLabel($category, $positionStore) . $positionStore->getCacheCount() . "件";
             $elapsed = isset($startTimes[$category]) ? "（" . formatElapsedTime($startTimes[$category]) . "）" : '';
-            addVerboseCronLog("{$label}取得完了{$elapsed}");
+            CronUtility::addVerboseCronLog("{$label}取得完了{$elapsed}");
 
             $positionStore->clearAllCacheDataAndSaveCurrentCategoryApiDataCache($category);
         };
@@ -177,8 +174,13 @@ class OpenChatApiDbMerger
     /** @throws ApplicationException */
     private function checkKillFlag()
     {
-        $this->syncOpenChatStateRepository->getBool(SyncOpenChatStateType::openChatApiDbMergerKillFlag)
-            && throw new ApplicationException('OpenChatApiDbMerger: 強制終了しました');
+        if ($this->syncOpenChatStateRepository->getBool(SyncOpenChatStateType::openChatApiDbMergerKillFlag)) {
+            $message = "OpenChatApiDbMergerの処理が外部から中断されました。";
+            $message .= $this->startTime == OpenChatServicesUtility::getModifiedCronTime('now')
+                ? ''
+                : 'この時間帯のデータ更新は失敗しました。';
+            throw new ApplicationException($message);
+        }
     }
 
     static function setKillFlagTrue()

@@ -12,7 +12,7 @@ viewComponent('head', compact('_css', '_meta') + ['dataOverlays' => 'bottom']) ?
 
 <body class="body">
     <?php if ($enableAdsense): ?>
-        <?php \App\Views\Ads\GoogleAdsense::gTag('bottom') ?>
+        <?php \App\Views\Ads\GoogleAdsense::gTag() ?>
     <?php endif ?>
     <style>
         .list-title {
@@ -140,9 +140,7 @@ viewComponent('head', compact('_css', '_meta') + ['dataOverlays' => 'bottom']) ?
 
         applyTimeElapsedString()
     </script>
-    <script>
-        const admin = <?php echo isAdmin() ? 1 : 0; ?>;
-    </script>
+
     <script defer src="<?php echo fileUrl("/js/site_header_footer.js", urlRoot: '') ?>"></script>
     <?php if ($enableAdsense): ?>
         <script defer src="<?php echo fileurl("/js/security.js", urlRoot: '') ?>"></script>

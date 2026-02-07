@@ -14,7 +14,7 @@ viewComponent('oc_head', compact('_css', '_meta') + ['dataOverlays' => 'bottom']
     }
   </style>
   <?php viewComponent('site_header') ?>
-  <?php \App\Views\Ads\GoogleAdsense::gTag('bottom') ?>
+  <?php \App\Views\Ads\GoogleAdsense::gTag() ?>
   <?php GAd::output(GAd::AD_SLOTS['siteTopRectangle'], true) ?>
   <div class="unset openchat body" style="overflow: hidden; max-width: 600px;">
     <article class="unset" style="display: block;">
@@ -24,7 +24,7 @@ viewComponent('oc_head', compact('_css', '_meta') + ['dataOverlays' => 'bottom']
         <div class="oc-jump-image-wrapper">
           <img class="talkroom_banner_img" style="aspect-ratio: 1.8; border-radius: 0;"
             alt="<?php echo $oc['name'] ?>"
-            src="<?php echo $oc['img_url'] ? imgUrl($oc['id'], $oc['img_url']) : lineImgUrl($oc['api_img_url']) ?>">
+            src="<?php echo imgUrl($oc['img_url']) ?>">
         </div>
         <div class="oc-jump-info-content">
           <h1 class="talkroom_link_h1 unset" style="text-align: center; white-space: normal;">
@@ -52,7 +52,7 @@ viewComponent('oc_head', compact('_css', '_meta') + ['dataOverlays' => 'bottom']
             class="oc-jump-rule-image">
         </div>
         <div style="display: flex; flex-direction: row; align-items: center; gap: 6px; margin: 1rem;">
-          <img class="openchat-item-title-img" aria-hidden="true" alt="<?php echo $oc['name'] ?>" src="<?php echo $oc['img_url'] ? imgPreviewUrl($oc['id'], $oc['img_url']) : linePreviewUrl($oc['api_img_url']) ?>">
+          <img class="openchat-item-title-img" aria-hidden="true" alt="<?php echo $oc['name'] ?>" src="<?php echo imgPreviewUrl($oc['img_url']) ?>">
           <div style="display: flex; flex-direction: column; gap: 2px;">
             <div class="title-bar-oc-name-wrapper" style="padding-right: 1.5rem;">
               <div class="title-bar-oc-name" style="color: #111; font-size: 12px;"><?php if ($oc['emblem'] === 1) : ?><span class="super-icon sp"></span><?php elseif ($oc['emblem'] === 2) : ?><span class="super-icon official"></span><?php endif ?><?php echo $oc['name'] ?></div>
@@ -80,9 +80,6 @@ viewComponent('oc_head', compact('_css', '_meta') + ['dataOverlays' => 'bottom']
     <?php viewComponent('footer_inner') ?>
   </div>
   <?php \App\Views\Ads\GoogleAdsense::loadAdsTag() ?>
-  <script>
-    const admin = <?php echo isAdmin() ? 1 : 0; ?>;
-  </script>
   <script src="<?php echo fileUrl("/js/site_header_footer.js", urlRoot: '') ?>"></script>
   <script defer src="<?php echo fileurl("/js/security.js", urlRoot: '') ?>"></script>
 </body>

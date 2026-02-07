@@ -23,10 +23,13 @@ use App\Services\Statistics\Dto\StatisticsChartDto;
 use App\Views\Classes\CollapseKeywordEnumerationsInterface;
 use App\Views\Classes\Dto\RankingPositionChartArgDtoFactoryInterface;
 use App\Views\Classes\Dto\CommentArgDtoFactoryInterface;
+use App\Services\Storage\FileStorageInterface;
 use Shared\MimimalCmsConfig;
 
 class OpenChatPageController
 {
+    private FileStorageInterface $fileStorage;
+
     function index(
         OpenChatPageRepositoryInterface $ocRepo,
         OcPageMeta $meta,
@@ -40,9 +43,11 @@ class OpenChatPageController
         RankingPositionChartArgDtoFactoryInterface $rankingPositionChartArgDtoFactory,
         CommentArgDtoFactoryInterface $commentArgDtoFactory,
         CollapseKeywordEnumerationsInterface $collapseKeywordEnumerations,
+        FileStorageInterface $fileStorage,
         int $open_chat_id,
         ?string $isAdminPage,
     ) {
+        $this->fileStorage = $fileStorage;
         AppConfig::$listLimitTopRanking = 5;
 
         $_adminDto = isset($isAdminPage) && adminMode() ? $this->getAdminDto($open_chat_id) : null;
@@ -122,8 +127,8 @@ class OpenChatPageController
         $collapsedDescription = $collapseKeywordEnumerations->collapse($oc['description'], extraText: $oc['name']);
         $formatedDescription = trim(preg_replace("/(\r\n){3,}|\r{3,}|\n{3,}/", "\n\n", $collapsedDescription));
 
-        $_meta = $meta->generateMetadata($open_chat_id, [...$oc, 'description' => $formatedDescription])->setImageUrl(imgUrl($oc['id'], $oc['img_url']));
-        $_meta->thumbnail = imgPreviewUrl($oc['id'], $oc['img_url']);
+        $_meta = $meta->generateMetadata($open_chat_id, [...$oc, 'description' => $formatedDescription])->setImageUrl(imgUrl($oc['img_url']));
+        $_meta->thumbnail = imgPreviewUrl($oc['img_url']);
 
         $_breadcrumbsShema = $breadcrumbsShema->generateSchema(
             $oc['tag1'] ?: $category,
@@ -207,7 +212,7 @@ class OpenChatPageController
         if (!isset($oc['rh_diff_member']) || $oc['rh_diff_member'] < AppConfig::RECOMMEND_MIN_MEMBER_DIFF_HOUR)
             return null;
 
-        $hourlyUpdatedAt =  new \DateTime(getHouryUpdateTime());
+        $hourlyUpdatedAt =  new \DateTime($this->fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
         $hourlyTime = $hourlyUpdatedAt->format(\DateTime::ATOM);
         $hourlyUpdatedAt->modify('-1hour');
 

@@ -9,6 +9,7 @@ use App\Models\ApiRepositories\OpenChatStatsRankingApiRepository;
 use App\Models\ApiRepositories\OpenChatApiArgs;
 use App\Models\ApiRepositories\OpenChatOfficialRankingApiRepository;
 use App\Services\OpenChat\Enum\RankingType;
+use App\Services\Storage\FileStorageInterface;
 use Shared\Exceptions\BadRequestException as HTTP400;
 use Shadow\Kernel\Reception as Recp;
 use Shadow\Kernel\Validator as Valid;
@@ -17,7 +18,8 @@ use Shared\MimimalCmsConfig;
 class OpenChatRankingPageApiController
 {
     function __construct(
-        private OpenChatApiArgs $args
+        private OpenChatApiArgs $args,
+        private FileStorageInterface $fileStorage
     ) {
         $this->validateInputs();
     }
@@ -28,7 +30,7 @@ class OpenChatRankingPageApiController
         Recp::$isJson = true;
 
         $this->args->page = Valid::num(Recp::input('page', 0), min: 0, e: $error);
-        $this->args->limit = Valid::num(Recp::input('limit'), min: 1, e: $error);
+        $this->args->limit = Valid::num(Recp::input('limit'), min: 1, max: 20, e: $error);
         $this->args->category = (int)Valid::str(Recp::input('category', '0'), regex: AppConfig::OPEN_CHAT_CATEGORY[MimimalCmsConfig::$urlRoot], e: $error);
 
         $this->args->list = Valid::str(Recp::input('list', 'daily'), regex: ['hourly', 'daily', 'weekly', 'all', 'ranking', 'rising'], e: $error);
@@ -66,7 +68,7 @@ class OpenChatRankingPageApiController
         /** @var OpenChatOfficialRankingApiRepository $repo */
         $repo = app(OpenChatOfficialRankingApiRepository::class);
 
-        $time = new \DateTime(getHouryUpdateTime());
+        $time = new \DateTime($this->fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
         $time->modify('-1hour');
         $timeStr = $time->format('Y-m-d H:i:s');
 

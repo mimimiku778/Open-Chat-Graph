@@ -51,7 +51,7 @@ class RecentCommentListRepository implements RecentCommentListRepositoryInterfac
             "SELECT
                 oc.id,
                 oc.name,
-                oc.local_img_url AS img_url,
+                oc.img_url,
                 oc.category,
                 oc.member,
                 oc.emblem
@@ -72,7 +72,7 @@ class RecentCommentListRepository implements RecentCommentListRepositoryInterfac
                     'id' => 0,
                     'user' => ($el['name'] ?: '匿名'),
                     'name' => 'オプチャグラフとは？',
-                    'img_url' => 'siteicon',
+                    'img_url' => fileUrl('assets/icon-192x192.png'),
                     'emblem' => 0,
                     'description' => $el['text'],
                     'time' => $el['time'],

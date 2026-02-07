@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
-use App\Config\AppConfig;
 use App\Models\CommentRepositories\RecentCommentListRepositoryInterface;
 use App\Services\Auth\AuthInterface;
 
@@ -17,15 +16,10 @@ class RecentCommentApiController
     function index(int $open_chat_id)
     {
         if (!$open_chat_id) {
-            $updatedAt = file_get_contents(AppConfig::getStorageFilePath('commentUpdatedAtMicrotime'));
-            handleRequestWithETagAndCache(
-                "recent-comment-api{$updatedAt}",
-                hourly: false
-            );
-        } else {
-            noStore();
+            return $this->response('', $open_chat_id);
         }
 
+        noStore();
         return $this->response('', $open_chat_id);
     }
 

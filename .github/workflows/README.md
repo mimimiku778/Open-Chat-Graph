@@ -1,68 +1,83 @@
 # GitHub Actions Workflows
 
-## post-pr-merge.yml
+## 概要
 
-PRがmainブランチにマージされたときに、X (Twitter) に通知を投稿するワークフローです。
+### ci.yml
+PRマージ前の自動テスト実行
 
-### 必要なシークレット設定
+**実行タイミング:**
+- `main`ブランチへのPull Request
+- 手動実行（workflow_dispatch）
 
-このワークフローを有効にするには、GitHubリポジトリに以下のシークレットを設定する必要があります。
-
-リポジトリの Settings → Secrets and variables → Actions → New repository secret から設定してください。
-
-#### 必須シークレット
-
-1. `TWITTER_API_KEY` - Twitter API Key (Consumer Key)
-2. `TWITTER_API_SECRET` - Twitter API Secret (Consumer Secret)
-3. `TWITTER_ACCESS_TOKEN` - Twitter Access Token
-4. `TWITTER_ACCESS_TOKEN_SECRET` - Twitter Access Token Secret
-
-### Twitter API キーの取得方法
-
-1. [Twitter Developer Portal](https://developer.twitter.com/en/portal/dashboard) にアクセス
-2. プロジェクトとアプリを作成
-3. アプリの設定から "Keys and tokens" タブを開く
-4. API Key and Secret を生成（既に生成済みの場合は表示）
-5. Access Token and Secret を生成（Read and Write 権限が必要）
-6. 各値をコピーしてGitHubのシークレットに設定
-
-### 投稿されるメッセージ形式
-
-```
-✨ プルリクエストがマージされました
-
-#123: プルリクエストのタイトル
-By @ユーザー名
-
-https://github.com/owner/repo/pull/123
-
-#オプチャグラフ #OpenChatGraph
+**ローカルでの実行:**
+```bash
+make ci-test
 ```
 
-### トリガー条件
+### post-pr-merge.yml
+PRマージ時にX (Twitter) に通知を投稿
 
-- `main` ブランチへのプルリクエストがマージされたとき
-- `workflow_dispatch` による手動実行は未対応
+- `skip-post` ラベル: 投稿をスキップ
+- draft PR: 自動的にスキップ
 
-### テスト方法
+---
 
-1. テストブランチを作成してプルリクエストを作成
-2. プルリクエストを `main` にマージ
-3. Actions タブでワークフローの実行を確認
-4. X (Twitter) に投稿されたか確認
+## CI環境の特徴
 
-### トラブルシューティング
+CI環境では`docker-compose.yml`と`docker-compose.ci.yml`を組み合わせて使用:
 
-#### ワークフローが実行されない
-- PRが本当にマージされたか確認（クローズだけでは実行されません）
-- ターゲットブランチが `main` であることを確認
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ci.yml up
+```
 
-#### Xへの投稿が失敗する
-- シークレットが正しく設定されているか確認
-- Twitter APIのアクセストークンに Read and Write 権限があるか確認
-- APIの利用制限に達していないか確認
+**主な設定:**
+- **HTTP通信のみ**: SSL証明書生成不要（ビルド高速化）
+- **Xdebug無効**: `INSTALL_XDEBUG: false`
+- **Mock API使用**: `line-mock-api`サービスでLINE公式サイトをエミュレート
+- **自動クローリング無効**: `CRON=0`
 
-#### エラーログの確認方法
-1. リポジトリの Actions タブを開く
-2. 失敗したワークフローをクリック
-3. "Post to X (Twitter)" ステップのログを確認
+### テスト内容
+
+1. **クローリングテスト** (`.github/scripts/test-ci.sh`)
+   - Mock APIを使用して25時間分のデータ収集
+   - 日本語/繁体字/タイ語の並列テスト
+
+2. **URLテスト** (`.github/scripts/test-urls.sh`)
+   - 80以上のエンドポイントへのアクセステスト
+   - 多言語ページ、検索、POSTリクエスト
+
+3. **エラーログチェック** (`.github/scripts/check-error-log.sh`)
+   - `storage/exception.log`の確認
+
+---
+
+## ローカル環境との違い
+
+| 項目 | ローカル（Mock） | CI環境 |
+|------|-----------------|--------|
+| Docker Compose | `docker-compose.mock.yml` | `docker-compose.ci.yml` |
+| SSL/TLS | HTTPS:8543 | HTTP:8000 |
+| SSL証明書 | mkcert | 不要 |
+| Xdebug | 設定可能 | 無効 |
+
+---
+
+## 関連ファイル
+
+### ワークフロー定義
+- `.github/workflows/ci.yml`: CI設定
+- `.github/workflows/post-pr-merge.yml`: PR通知設定
+
+### テストスクリプト
+- `.github/scripts/test-ci.sh`: クローリングテスト
+- `.github/scripts/test-urls.sh`: URLテスト
+- `.github/scripts/check-error-log.sh`: エラーログチェック
+
+### Docker設定
+- `docker-compose.yml`: 基本設定
+- `docker-compose.ci.yml`: CI環境用オーバーライド
+- `docker-compose.mock.yml`: ローカルMock環境用オーバーライド
+
+### Apache設定
+- `docker/app/apache2/sites-available/000-default-ci.conf`: CI用HTTP設定
+- `docker/app/apache2/sites-available/000-default-ssl-disabled.conf`: SSL無効化用

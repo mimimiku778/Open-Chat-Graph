@@ -2,23 +2,39 @@ services:
   app:
     build:
       context: "docker/app/"
+      args:
+        INSTALL_XDEBUG: ${INSTALL_XDEBUG:-true}
     ports:
       - "${WEB_PORT:-8000}:80"
-      - "${HTTPS_PORT:-7443}:443"
+      - "${HTTPS_PORT:-8443}:443"
     working_dir: /var/www/html
-    user: "1000:1000"
     volumes:
       - "./:/var/www/html"
+      - "./docker/app/logs:/var/log/app"
       - "./docker/app/apache2/apache2.conf:/etc/apache2/apache2.conf"
       - "./docker/app/apache2/sites-available/000-default.conf:/etc/apache2/sites-available/000-default.conf"
-      - "./docker/app/apache2/sites-available/000-default-ssl.conf:/etc/apache2/sites-available/000-default-ssl.conf"
       - "./docker/app/apache2/sites-available/000-default.conf:/etc/apache2/sites-enabled/000-default.conf"
-      - "./docker/app/apache2/sites-available/000-default-ssl.conf:/etc/apache2/sites-enabled/000-default-ssl.conf"
-      - "./docker/app/ssl/localhost+3.pem:/etc/ssl/certs/localhost+3.pem"
-      - "./docker/app/ssl/localhost+3-key.pem:/etc/ssl/certs/localhost+3-key.pem"
+      - "./docker/app/apache2/sites-available/000-default-ssl-prod.conf:/etc/apache2/sites-available/000-default-ssl.conf"
+      - "./docker/app/apache2/sites-available/000-default-ssl-prod.conf:/etc/apache2/sites-enabled/000-default-ssl.conf"
+      - "./docker/app/ssl-new/localhost.pem:/etc/ssl/certs/localhost.pem"
+      - "./docker/app/ssl-new/localhost-key.pem:/etc/ssl/certs/localhost-key.pem"
       - "./docker/mysql/server.cnf:/etc/mysql/mariadb.conf.d/server.cnf"
+      - "./docker/app/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro"
+    entrypoint: ["/usr/local/bin/entrypoint.sh"]
     depends_on:
       - mysql
+    environment:
+      - APACHE_RUN_USER=www-data
+      - APACHE_RUN_GROUP=www-data
+      - APACHE_LOG_DIR=/var/log/apache2
+      # Cron自動実行モード（1で有効、0で無効）
+      - CRON=${CRON:-0}
+      # Mock環境モード（1で有効、0で無効）
+      - IS_MOCK_ENVIRONMENT=${IS_MOCK_ENVIRONMENT:-0}
+      # Xdebug有効化（1で有効、0で無効）
+      - ENABLE_XDEBUG=${ENABLE_XDEBUG:-0}
+      - WEB_PORT=${WEB_PORT:-8000}
+      - HTTPS_PORT=${HTTPS_PORT:-8443}
   mysql:
     build:
       context: "docker/mysql/"
@@ -31,11 +47,15 @@ services:
       - MYSQL_ROOT_PASSWORD=test_root_pass
       - TZ=Asia/Tokyo
     volumes:
+      - mysql_data:/var/lib/mysql
       - "./docker/mysql/server.cnf:/etc/mysql/mariadb.conf.d/server.cnf"
     ports:
       - "${MYSQL_PORT:-3306}:3306"
+
   phpmyadmin:
     image: phpmyadmin:latest
+    profiles:
+      - dev
     ports:
       - "${PHP_MY_ADMIN_PORT:-8080}:80"
     environment:
@@ -44,5 +64,7 @@ services:
       - PMA_PASSWORD=test_root_pass
     depends_on:
       - mysql
+
 volumes:
+  mysql_data:
   storage:

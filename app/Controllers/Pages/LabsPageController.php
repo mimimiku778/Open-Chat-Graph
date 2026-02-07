@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Controllers\Pages;
 
-use App\Config\AppConfig;
 use App\Services\StaticData\StaticDataFile;
 use App\Views\Schema\PageBreadcrumbsListSchema;
 
@@ -24,15 +23,12 @@ class LabsPageController
 
         $_recommendDto = $staticDataGeneration->getRecommendPageDto();
 
-        $view = view('labs_content', compact(
+        return view('labs_content', compact(
             '_meta',
             '_css',
             '_breadcrumbsShema',
             '_recommendDto',
         ));
-
-        handleRequestWithETagAndCache($view->getRenderCache(), ...AppConfig::ETAG_ARG);
-        return $view;
     }
 
     function live()

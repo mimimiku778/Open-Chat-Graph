@@ -6,7 +6,6 @@ namespace App\Controllers\Pages;
 
 use App\Views\OpenChatStatisticsRecent;
 use App\Config\AppConfig;
-use App\Services\Admin\AdminAuthService;
 use App\Views\Schema\PageBreadcrumbsListSchema;
 use App\Views\SelectElementPagination;
 use Shadow\Kernel\Reception;
@@ -19,7 +18,7 @@ class RecentOpenChatPageController
         private PageBreadcrumbsListSchema $breadcrumbsShema
     ) {}
     
-    function index(AdminAuthService $adminAuthService)
+    function index()
     {
         $recentPage = Reception::input('page');
         $rankingList = $this->openChatStatsRecent->getAllOrderByRegistrationDate(
@@ -35,8 +34,6 @@ class RecentOpenChatPageController
         $path = 'recently-registered';
         $pageTitle = 'オプチャグラフに最近登録されたオープンチャット';
         $_css = ['room_list', 'site_header', 'site_footer'];
-
-        $isAdmin = $adminAuthService->auth();
 
         // ページネーションのselect要素
         [$title, $_select, $_label] = $this->pagination->geneSelectElementPagerAsc(
@@ -56,7 +53,7 @@ class RecentOpenChatPageController
 
         return view(
             'recent_content',
-            compact('_meta', '_css', '_select', '_label', 'path', 'isAdmin', '_breadcrumbsShema') + $rankingList
+            compact('_meta', '_css', '_select', '_label', 'path', '_breadcrumbsShema') + $rankingList
         );
     }
 }

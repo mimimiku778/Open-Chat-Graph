@@ -10,13 +10,13 @@ use Asika\Sitemap\ChangeFreq;
 use Asika\Sitemap\SitemapIndex;
 use App\Models\Repositories\OpenChatListRepositoryInterface;
 use App\Services\Recommend\RecommendUpdater;
+use App\Services\Storage\FileStorageInterface;
 use App\Models\Repositories\DB;
 use Shared\MimimalCmsConfig;
 
 class SitemapGenerator
 {
-    const SITE_URL = 'https://openchat-review.me';
-    const SITEMAP_PATH = 'https://openchat-review.me/sitemaps/';
+    const SITEMAP_PATH = '/sitemaps/';
     const SITEMAP_DIR = __DIR__ . '/../../public/sitemaps/';
     const INDEX_SITEMAP = __DIR__ . '/../../public/sitemap.xml';
     const MINIMUM_LASTMOD = '2025-08-23 21:30:00';
@@ -26,6 +26,7 @@ class SitemapGenerator
     function __construct(
         private OpenChatListRepositoryInterface $ocRepo,
         private RecommendUpdater $recommendUpdater,
+        private FileStorageInterface $fileStorage,
     ) {}
 
     function generate()
@@ -34,11 +35,11 @@ class SitemapGenerator
         $index = new SitemapIndex();
         foreach (array_keys(AppConfig::$dbName) as $lang) {
             MimimalCmsConfig::$urlRoot = $lang;
-            $this->currentUrl = self::SITE_URL . $lang . '/';
+            $this->currentUrl = AppConfig::$siteDomain . $lang . '/';
             $this->generateEachLanguage($index);
         }
 
-        safeFileRewrite(self::INDEX_SITEMAP, $index->render(), 0755);
+        $this->fileStorage->safeFileRewrite(self::INDEX_SITEMAP, $index->render());
         MimimalCmsConfig::$urlRoot = $ccurrentUrlRoot;
         $this->cleanSitemapFiles(self::SITEMAP_DIR, $this->currentNum);
     }
@@ -54,8 +55,8 @@ class SitemapGenerator
 
     private function generateSitemap1(): string
     {
-        $date = file_get_contents(AppConfig::getStorageFilePath('dailyCronUpdatedAtDate'));
-        $datetime = file_get_contents(AppConfig::getStorageFilePath('hourlyCronUpdatedAtDatetime'));
+        $date = $this->fileStorage->getContents('@dailyCronUpdatedAtDate');
+        $datetime = $this->fileStorage->getContents('@hourlyCronUpdatedAtDatetime');
 
         $sitemap = new Sitemap();
         $sitemap->addItem(rtrim($this->currentUrl, "/"), changeFreq: ChangeFreq::DAILY, lastmod: new \DateTime);
@@ -63,7 +64,7 @@ class SitemapGenerator
         if (MimimalCmsConfig::$urlRoot === '') {
             $sitemap->addItem($this->currentUrl . 'oc');
         }
-        
+
         $sitemap->addItem($this->currentUrl . 'policy');
         $sitemap->addItem($this->currentUrl . 'ranking', lastmod: $datetime);
         $sitemap->addItem($this->currentUrl . 'ranking?keyword=' . urlencode('badge:' . AppConfig::OFFICIAL_EMBLEMS[MimimalCmsConfig::$urlRoot][1]), lastmod: $datetime);
@@ -113,9 +114,9 @@ class SitemapGenerator
         $n = $this->currentNum;
 
         $fileName = "sitemap{$n}.xml";
-        safeFileRewrite(self::SITEMAP_DIR . $fileName, $sitemap->render(), 0755);
+        $this->fileStorage->safeFileRewrite(self::SITEMAP_DIR . $fileName, $sitemap->render());
 
-        return self::SITEMAP_PATH . $fileName;
+        return AppConfig::$siteDomain . self::SITEMAP_PATH . $fileName;
     }
 
     /**

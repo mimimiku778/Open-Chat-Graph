@@ -1,55 +1,68 @@
-*.Identifier
+# エディタ・OS
 .DS_Store
 Thumbs.db
+*.Identifier
 /.vscode/sftp.json
 
-/.git
-/node_modules
+# 依存関係
 /vendor
+/node_modules
 
+# 設定ファイル
 local-secrets.php
 prod-secrets.php
 /shared/secrets.php
+local-setup.sh
+prod-setup.sh
+local-setup-prod-sync.sh
+*.env
+docker/line-mock-api/.env.mock
+.user.ini
+.htaccess
+!docker/line-mock-api/public/.htaccess
 
-/public/oc-img/*
-/public/oc-img-*/*
-!/public/oc-img/default
-!/public/oc-img-*/default
-!/public/oc-img/preview
-!/public/oc-img-*/preview
-/public/oc-img/preview/*
-/public/oc-img-*/preview/*
-!/public/oc-img/preview/default
-!/public/oc-img-*/preview/default
+# セットアップスクリプト
+setup.sh
+prid-setup.sh
+setup/local-setup.sh
+/password.openchat-review.me
 
+# バッチ処理
+batch/sh/*.key
+batch/sh/sqldump
+
+# サイトマップ
 public/sitemaps/**
 public/sitemap.xml
 
+# ストレージ
 storage/exception.log
 storage/furigana/**
 storage/*/logs/*
 storage/*/SQLite/statistics/statistics.db
 storage/*/SQLite/ranking_position/ranking_position.db
 storage/*/SQLite/ocgraph_sqlapi/*.db
-storage/ja/SQLite/*/*.db-shm
-storage/ja/SQLite/*/*.db-wal
+storage/*/SQLite/*/*.db-shm
+storage/*/SQLite/*/*.db-wal
 storage/*/ranking_position/*/*
-storage/*/ranking_position/filter.dat
-storage/*/ranking_position/filter_date.dat
+storage/*/ranking_position/*.dat
 storage/*/static_data_top/*
-!storage/*/static_data_top/template
+!storage/*/static_data_top/non_essential_storage_file_sample
 storage/*/static_data_recommend/*/*
 storage/*/open_chat_sub_categories/subcategories.json
 
-!*.gitkeep
-.htaccess
+# Docker関連
+/docker/app/ssl/*.pem
+/docker/app/ssl-new/*.pem
+/docker/app/logs/*.log
+/docker/line-mock-api/data/
+/docker/line-mock-api/storage/*
 
-*.env
-batch/sh/*.key
-batch/sh/sqldump
-setup.sh
-local-setup.sh
-prid-setup.sh
-.user.ini
-/password.openchat-review.me
-.playwright-mcp
+# 別端末用のルートCA証明書（スマホ等でHTTPS接続する際に使用）
+*-rootCA.pem
+
+# テスト関連
+test-logs/
+
+# 例外: .gitkeepは含める
+!*.gitkeep

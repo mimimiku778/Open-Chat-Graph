@@ -10,6 +10,7 @@ use Shadow\Kernel\Dispatcher\ReceptionInitializer;
 use Shadow\Kernel\Utility\KernelUtility;
 use Shared\Exceptions\NotFoundException;
 use Shared\MimimalCmsConfig;
+use Symfony\Component\HttpClient\RetryableHttpClient;
 
 /**
  * Inserts HTML line breaks before all newlines in a string.
@@ -167,61 +168,130 @@ function noStore()
     header('Cache-Control: no-store, no-cache, must-revalidate');
 }
 
-function handleRequestWithETagAndCache(string $content, int $maxAge = 0, int $sMaxAge = 3600, $hourly = true): void
-{
-    if (AppConfig::$isStaging || !AppConfig::$enableCloudflare) {
+/**
+ * Last-Modifiedヘッダーを使用したHTTPキャッシュ制御
+ *
+ * routing.phpのmatchクロージャで使用することを想定した関数。
+ * 指定された最終更新時刻を基にLast-Modifiedヘッダーを生成し、
+ * リクエストのIf-Modified-Sinceヘッダーと比較する。
+ * 更新されていない場合は304 Not Modifiedを返してexitする。
+ *
+ * この関数をコントローラー実行前に呼び出すことで：
+ * - データベースクエリをスキップ
+ * - ビュー生成をスキップ
+ * - レスポンス組み立てをスキップ
+ * → 真のパフォーマンス向上を実現
+ *
+ * Cloudflare環境での利点：
+ * - ETagと異なり、圧縮方法の影響を受けない
+ * - CloudflareとオリジンサーバーでLast-Modifiedヘッダーが一致する
+ * - Cloudflareキャッシュヒット時にCloudflareが304を返せる
+ *
+ * @param \DateTime|string|int $lastModifiedTime 最終更新時刻（DateTime、Y-m-d H:i:s形式の文字列、またはUNIXタイムスタンプ）
+ * @param int $maxAge ブラウザキャッシュの最大期間（秒）
+ * @param int $sMaxAge CDNキャッシュの最大期間（秒）
+ * @return void 304の場合はexit、そうでなければLast-Modifiedヘッダーを設定して続行
+ *
+ * @throws \InvalidArgumentException 時刻が無効な型の場合
+ */
+function checkLastModified(
+    \DateTime|string|int $lastModifiedTime,
+    int $maxAge = 0,
+    int $sMaxAge = 3600
+): void {
+    if (!AppConfig::$enableCloudflare) {
         cache();
         return;
     }
 
-    // ETagを生成（ここではコンテンツのMD5ハッシュを使用）
-    if ($hourly) {
-        $etag = '"' . md5(MimimalCmsConfig::$urlRoot . $content . filemtime(AppConfig::getStorageFilePath('hourlyCronUpdatedAtDatetime'))) . '"';
+    // 最終更新時刻をDateTimeオブジェクトに変換
+    if ($lastModifiedTime instanceof \DateTime) {
+        $dateTime = clone $lastModifiedTime;
+    } elseif (is_string($lastModifiedTime)) {
+        try {
+            $dateTime = new \DateTime($lastModifiedTime);
+        } catch (\Exception $e) {
+            throw new \InvalidArgumentException("Invalid datetime string: {$lastModifiedTime}");
+        }
+    } elseif (is_int($lastModifiedTime)) {
+        $dateTime = new \DateTime('@' . $lastModifiedTime);
     } else {
-        $etag = '"' . md5(MimimalCmsConfig::$urlRoot . $content) . '"';
+        throw new \InvalidArgumentException('lastModifiedTime must be DateTime, string, or int');
     }
 
-    // max-ageと共にCache-Controlヘッダーを設定
+    // UTCに変換
+    $dateTime->setTimezone(new \DateTimeZone('UTC'));
+
+    // Last-ModifiedヘッダーをRFC 7231形式で生成
+    $lastModifiedHeader = $dateTime->format('D, d M Y H:i:s') . ' GMT';
+
+    // Cache-Controlヘッダーを設定
     header("Cache-Control: public, max-age={$maxAge}, must-revalidate");
     header("Cloudflare-CDN-Cache-Control: max-age={$sMaxAge}");
 
-    // 現在のリクエストのETagを取得
-    $requestEtag = isset($_SERVER['HTTP_IF_NONE_MATCH']) ? str_replace('-gzip', '', trim($_SERVER['HTTP_IF_NONE_MATCH'])) : '';
+    // リクエストのIf-Modified-Sinceヘッダーを取得
+    $ifModifiedSince = $_SERVER['HTTP_IF_MODIFIED_SINCE'] ?? null;
 
-    // ETagが一致する場合は304 Not Modifiedを返して終了
-    if ($requestEtag === $etag) {
-        header("HTTP/1.1 304 Not Modified");
-        exit;
+    // If-Modified-Sinceヘッダーがある場合、時刻を比較
+    if ($ifModifiedSince !== null) {
+        try {
+            $ifModifiedSinceTime = new \DateTime($ifModifiedSince);
+            $ifModifiedSinceTime->setTimezone(new \DateTimeZone('UTC'));
+
+            // 秒単位で比較（Last-Modifiedは秒精度）
+            if ($dateTime->getTimestamp() <= $ifModifiedSinceTime->getTimestamp()) {
+                header("HTTP/1.1 304 Not Modified");
+                header("Last-Modified: {$lastModifiedHeader}");
+                exit;
+            }
+        } catch (\Exception $e) {
+            // If-Modified-Sinceが不正な形式の場合は無視して続行
+        }
     }
 
-    header("ETag: $etag");
+    // Last-Modifiedヘッダーを設定
+    header("Last-Modified: {$lastModifiedHeader}");
 }
 
+/**
+ * @return string 成功メッセージ
+ * @throws \RuntimeException 失敗時
+ */
 function purgeCacheCloudFlare(
     ?string $zoneID = null,
     ?string $apiKey = null,
-    ?array $files = null
+    ?array $files = null,
+    ?array $prefixes = null
 ): string {
     $zoneID = $zoneID ?? SecretsConfig::$cloudFlareZoneId;
     $apiKey = $apiKey ?? SecretsConfig::$cloudFlareApiKey;
 
-    if (AppConfig::$isStaging || AppConfig::$isDevlopment || !AppConfig::$enableCloudflare) {
-        return 'is Development';
+    if (!AppConfig::$enableCloudflare) {
+        return 'Cloudflareは無効化されています';
+    }
+
+    if (AppConfig::$isStaging || AppConfig::$isDevlopment) {
+        return 'Cloudflareキャッシュ削除はステージング・開発環境では実行されません';
     }
 
     // cURLセッションを初期化
     $ch = curl_init();
 
     // Cloudflare APIに送信するデータを設定
+    $payload = [];
     if ($files) {
-        $data = json_encode([
-            'files' => $files,
-        ]);
-    } else {
-        $data = json_encode([
-            'purge_everything' => true,
-        ]);
+        $payload['files'] = $files;
     }
+
+    if ($prefixes) {
+        $payload['prefixes'] = $prefixes;
+    }
+
+    if (empty($payload)) {
+        $payload['purge_everything'] = true;
+    }
+
+    $data = json_encode($payload);
 
     curl_setopt($ch, CURLOPT_URL, "https://api.cloudflare.com/client/v4/zones/$zoneID/purge_cache");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -238,82 +308,54 @@ function purgeCacheCloudFlare(
     // リクエストを実行し、レスポンスを取得
     $response = curl_exec($ch);
 
-    // エラーチェック
+    // cURLエラーチェック
     if (curl_errno($ch)) {
-        echo 'Error:' . curl_error($ch);
+        $error = curl_error($ch);
+        throw new \RuntimeException("CDNキャッシュ削除失敗（cURLエラー）: {$error}");
     }
 
-    // cURLセッションを終了
-    curl_close($ch);
+    // レスポンスをパース
+    $responseData = json_decode($response, true);
+    if (!is_array($responseData)) {
+        throw new \RuntimeException("CDNキャッシュ削除失敗: 不正なレスポンス形式 - {$response}");
+    }
 
-    return $response;
+    // successチェック
+    if (isset($responseData['success']) && $responseData['success'] === true) {
+        return 'CDNキャッシュ削除完了';
+    }
+
+    // エラーメッセージを抽出
+    $errorMessage = 'CDNキャッシュ削除失敗: ';
+    if (isset($responseData['errors']) && is_array($responseData['errors']) && !empty($responseData['errors'])) {
+        $messages = [];
+        foreach ($responseData['errors'] as $error) {
+            if (isset($error['message'])) {
+                $messages[] = $error['message'];
+            }
+        }
+        $errorMessage .= implode(', ', $messages);
+    } else {
+        $errorMessage .= 'success要素が存在しないか、falseです';
+    }
+
+    throw new \RuntimeException($errorMessage);
 }
 
-function getHouryUpdateTime()
+function imgUrl($img_url)
 {
-    return file_get_contents(AppConfig::getStorageFilePath('hourlyCronUpdatedAtDatetime'));
+    if (filter_var($img_url, FILTER_VALIDATE_URL))
+        return $img_url;
+
+    return AppConfig::$lineImageUrl . $img_url;
 }
 
-function getDailyUpdateTime()
+function imgPreviewUrl($img_url)
 {
-    return file_get_contents(AppConfig::getStorageFilePath('dailyCronUpdatedAtDate'));
-}
+    if (filter_var($img_url, FILTER_VALIDATE_URL))
+        return $img_url;
 
-function imgUrl(int $id, string $local_img_url): string
-{
-    return url(["urlRoot" => '', "paths" => [(in_array(
-        $local_img_url,
-        AppConfig::DEFAULT_OPENCHAT_IMG_URL_HASH
-    ) ? AppConfig::OPENCHAT_IMG_PATH[MimimalCmsConfig::$urlRoot] . "/default/{$local_img_url}.webp?id={$id}" : getImgPath($id, $local_img_url))]]);
-}
-
-function imgPreviewUrl(int $id, string $local_img_url): string
-{
-    return url(["urlRoot" => '', "paths" => [(
-        in_array($local_img_url, AppConfig::DEFAULT_OPENCHAT_IMG_URL_HASH)
-        ? AppConfig::OPENCHAT_IMG_PATH[MimimalCmsConfig::$urlRoot] . '/' . AppConfig::OPENCHAT_IMG_PREVIEW_PATH . "/default/{$local_img_url}" . AppConfig::OPENCHAT_IMG_PREVIEW_SUFFIX . ".webp?id={$id}"
-        : getImgPreviewPath($id, $local_img_url)
-    )]]);
-}
-
-function apiImgUrl(int $id, string $local_img_url): string
-{
-    return in_array($local_img_url, AppConfig::DEFAULT_OPENCHAT_IMG_URL_HASH)
-        ? ("default/{$local_img_url}" . AppConfig::OPENCHAT_IMG_PREVIEW_SUFFIX . ".webp?id={$id}")
-        : (filePathNumById($id) . "/{$local_img_url}" . AppConfig::OPENCHAT_IMG_PREVIEW_SUFFIX . ".webp");
-}
-
-/**
- * @return string oc-img/{$idPath}/{$imgUrl}.webp
- */
-function getImgPath(int $open_chat_id, string $imgUrl): string
-{
-    $subDir = filePathNumById($open_chat_id);
-    return AppConfig::OPENCHAT_IMG_PATH[MimimalCmsConfig::$urlRoot] . "/{$subDir}/{$imgUrl}.webp";
-}
-
-/**
- * @return string oc-img/preview/{$idPath}/{$imgUrl}_p.webp
- */
-function getImgPreviewPath(int $open_chat_id, string $imgUrl): string
-{
-    $subDir = filePathNumById($open_chat_id);
-    return AppConfig::OPENCHAT_IMG_PATH[MimimalCmsConfig::$urlRoot] . '/' . AppConfig::OPENCHAT_IMG_PREVIEW_PATH . "/{$subDir}/{$imgUrl}" . AppConfig::OPENCHAT_IMG_PREVIEW_SUFFIX . ".webp";
-}
-
-function lineImgUrl($img_url)
-{
-    return AppConfig::LINE_IMG_URL . $img_url;
-}
-
-function linePreviewUrl($img_url)
-{
-    return AppConfig::LINE_IMG_URL . $img_url . AppConfig::LINE_IMG_URL_PREVIEW_PATH;
-}
-
-function filePathNumById(int $id): string
-{
-    return (string)floor($id / 1000);
+    return AppConfig::$lineImageUrl . $img_url . AppConfig::LINE_IMG_URL_PREVIEW_PATH;
 }
 
 function getCategoryName(int $category): string
@@ -330,8 +372,20 @@ function isDailyUpdateTime(
         AppConfig::CRON_START_MINUTE[MimimalCmsConfig::$urlRoot]
     ];
 
-    $startTime = $nowStart->setTime(...$start);
+    // currentTimeの日付を基準にstartTimeを設定（faketimeに対応）
+    $baseDate = $currentTime->format('Y-m-d');
+    $startTime = (new DateTime($baseDate))->setTime(...$start);
     $endTime = (new DateTime($startTime->format('Y-m-d H:i:s')))->modify('+1 hour');
+
+    // 日次処理時刻が23時台の場合、日付跨ぎを考慮
+    // 例: 23:30開始の場合、23:30〜翌0:30が範囲
+    if ($start[0] >= 23) {
+        // 現在時刻が0時台かつ終了時刻より前なら、前日の開始時刻と比較
+        if ($currentTime->format('H') < $start[0] && $currentTime < $endTime) {
+            $startTime = (new DateTime($baseDate))->modify('-1 day')->setTime(...$start);
+            $endTime = (new DateTime($startTime->format('Y-m-d H:i:s')))->modify('+1 hour');
+        }
+    }
 
     if ($currentTime >= $startTime && $currentTime < $endTime) return true;
     return false;
@@ -376,8 +430,12 @@ function isDailyCronWithinHours(float $withinHours, ?string $urlRoot = null, ?Da
     return getDailyCronElapsedHours($urlRoot, $currentTime) < $withinHours;
 }
 
-function checkLineSiteRobots(int $retryLimit = 3, int $retryInterval = 1): string
+function checkLineSiteRobots(int $retryLimit = 3, int $retryInterval = 1): void
 {
+    if (AppConfig::$isMockEnvironment) {
+        return;
+    }
+
     $retryCount = 0;
 
     while ($retryCount < $retryLimit) {
@@ -387,7 +445,7 @@ function checkLineSiteRobots(int $retryLimit = 3, int $retryInterval = 1): strin
                 throw new \RuntimeException('Robots.txt: 拒否 ' . $robots);
             }
 
-            return $robots;
+            return;
         } catch (\Throwable $e) {
             $retryCount++;
             if ($retryCount >= $retryLimit) {
@@ -627,13 +685,6 @@ function adminMode(): true
     return true;
 }
 
-function isAdmin(): bool
-{
-    /** @var AdminAuthService $adminAuthService */
-    $adminAuthService = app(AdminAuthService::class);
-    return $adminAuthService->auth();
-}
-
 function getStorageFileTime(string $filename, bool $fullPath = false): int|false
 {
     $path = $fullPath === false ? (__DIR__ . '/../../storage/' . $filename) : $filename;
@@ -643,96 +694,6 @@ function getStorageFileTime(string $filename, bool $fullPath = false): int|false
     }
 
     return filemtime($path);
-}
-
-/**
- * Cronログを出力する
- *
- * 出力形式: 2025-01-07 05:33:01 [JA@05:30~12345] メッセージ GitHub::path/to/file.php:123
- * - JA/TH/TW: 言語コード（urlRootから判定）
- * - 05:30: Cron実行開始時刻
- * - 12345: プロセスID（PID）
- *
- * @param string|array $log ログメッセージ
- * @param string $setProcessTag プロセスタグを設定（初回のみ有効）
- * @param int $backtraceDepth backtraceの深さ（呼び出し元特定用）
- * @return string プロセスタグ
- */
-function addCronLog(string|array $log = '', string $setProcessTag = '', int $backtraceDepth = 1): string
-{
-    // セッション識別子を1回だけ生成: [言語コード@開始時刻~PID] 形式
-    static $processTag = null;
-    if ($setProcessTag !== '' && is_null($processTag)) {
-        $processTag = $setProcessTag;
-        return $processTag;
-    } elseif ($log === '' && is_string($processTag)) {
-        return $processTag;
-    } elseif (is_null($processTag)) {
-        $langCode = match (\Shared\MimimalCmsConfig::$urlRoot) {
-            '/th' => 'TH',
-            '/tw' => 'TW',
-            default => 'JA',
-        };
-        $startTime = date('H:i');
-        $processTag = $langCode . '@' . $startTime . '~' . getmypid();
-    }
-
-    if (is_string($log)) {
-        $log = [$log];
-    }
-
-    // 呼び出し元のファイル・行番号を取得してGitHub参照を生成
-    $githubRef = getCronLogGitHubRef($backtraceDepth);
-
-    foreach ($log as $string) {
-        error_log(
-            date('Y-m-d H:i:s') . ' [' . $processTag . '] ' . $string . ' ' . $githubRef . "\n",
-            3,
-            AppConfig::getStorageFilePath('addCronLogDest')
-        );
-    }
-
-    return $processTag;
-}
-
-/**
- * Verbose Cronログを出力する（AppConfig::$verboseCronLogがtrueの場合のみ）
- *
- * @param string|array $log ログメッセージ
- */
-function addVerboseCronLog(string|array $log): void
-{
-    if (AppConfig::$verboseCronLog) {
-        addCronLog($log, '', 2);
-    }
-}
-
-/**
- * Cronログ用のGitHub参照文字列を生成する
- *
- * backtraceの構造:
- * - trace[0]: getCronLogGitHubRefを呼び出した場所（addCronLog内）
- * - trace[1]: addCronLogを呼び出した場所（目的の行）
- * - trace[2]: その上位の呼び出し元
- *
- * @param int $backtraceDepth 1=直接の呼び出し元, 2=さらに上位の呼び出し元
- * @return string GitHub::path/to/file.php:123 形式の文字列
- */
-function getCronLogGitHubRef(int $backtraceDepth = 1): string
-{
-    // backtraceDepth + 1 フレームを取得（0から始まるため+1が必要）
-    $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, $backtraceDepth + 2);
-    $caller = $trace[$backtraceDepth] ?? $trace[0] ?? null;
-
-    if (!$caller || !isset($caller['file'], $caller['line'])) {
-        return '';
-    }
-
-    // プロジェクトルートからの相対パスを取得
-    $projectRoot = dirname(__DIR__, 2) . '/';
-    $relativePath = str_replace($projectRoot, '', $caller['file']);
-
-    return 'GitHub::' . $relativePath . ':' . $caller['line'];
 }
 
 /**
@@ -852,4 +813,52 @@ function formatElapsedTime(float $startTime): string
     $minutes = (int) floor($elapsedSeconds / 60);
     $seconds = (int) round($elapsedSeconds - ($minutes * 60));
     return $minutes > 0 ? "{$minutes}分{$seconds}秒" : "{$seconds}秒";
+}
+
+/**
+ * Returns the full URL of the current website, including the domain and optional path.
+ *
+ * @param string|array{ urlRoot:string,paths:string|string[] } $paths [optional] path to append to the domain in the URL. 
+ * 
+ * @return string      The full URL of the current website domain.
+ * 
+ * * **Example :** Input: `getSiteDomainUrl("home", "article")`  Output: `https://exmaple.com/home/article`
+ * * **Example :** Input: `getSiteDomainUrl("/home", "/article")`  Output: `https://exmaple.com/home/article`
+ * * **Example :** Input: `getSiteDomainUrl("home/", "article/")`  Output: `https://exmaple.com/home//article/`
+ * * **Example :** Input: `getSiteDomainUrl(["urlRoot" => "/en", "paths" => ["home", "article"]])`  Output: `https://example.com/en/home/article`
+ * 
+ * @throws \InvalidArgumentException If the argument passed is an array and does not contain the required keys.
+ */
+function getSiteDomainUrl(string|array ...$paths): string
+{
+    if (isset($paths[0]) && is_array($paths[0])) {
+        $urlRoot = $paths[0]['urlRoot'] ?? throw new \InvalidArgumentException('Invalid argument passed to url() function.');
+        $paths = $paths[0]['paths'] ?? throw new \InvalidArgumentException('Invalid argument passed to url() function.');
+    } else {
+        $urlRoot = MimimalCmsConfig::$urlRoot;
+    }
+
+    $uri = '';
+    foreach (is_array($paths) ? $paths : [$paths] as $path) {
+        $uri .= "/" . ltrim($path, "/");
+    }
+
+    return  AppConfig::$siteDomain . ($urlRoot ?? MimimalCmsConfig::$urlRoot) . $uri;
+}
+
+/**
+ * CloudFlare APIのprefixes用URLを生成する（スキームなし）
+ *
+ * CloudFlare APIの仕様:
+ * - files: フルURL必要（https://example.com/path）
+ * - prefixes: スキームなし（example.com/path）
+ *
+ * @param string|array ...$paths The paths to append to the site domain URL.
+ * @return string The site domain URL without scheme.
+ *
+ * * **Example :** Input: `getCdnPrefixUrl("ranking")`  Output: `openchat-review.me/ranking`
+ */
+function getCdnPrefixUrl(string|array ...$paths): string
+{
+    return preg_replace('#^https?://#', '', getSiteDomainUrl(...$paths));
 }

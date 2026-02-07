@@ -5,14 +5,16 @@ declare(strict_types=1);
 namespace App\Controllers\Api;
 
 use App\Config\SecretsConfig;
-use App\Config\AppConfig;
 use App\Models\CommentRepositories\CommentLogRepositoryInterface;
 use App\Models\CommentRepositories\CommentPostRepositoryInterface;
 use App\Models\CommentRepositories\Dto\CommentPostApiArgs;
 use App\Models\CommentRepositories\Enum\CommentLogType;
 use App\Models\Repositories\OpenChatPageRepositoryInterface;
+use App\Services\Admin\AdminTool;
 use App\Services\Auth\AuthInterface;
 use App\Services\Auth\GoogleReCaptcha;
+use App\Services\Storage\FileStorageInterface;
+use ExceptionHandler\ExceptionHandler;
 
 class CommentPostApiController
 {
@@ -22,6 +24,7 @@ class CommentPostApiController
         OpenChatPageRepositoryInterface $openChatPageRepository,
         AuthInterface $auth,
         GoogleReCaptcha $googleReCaptcha,
+        FileStorageInterface $fileStorage,
         string $token,
         int $open_chat_id,
         string $name,
@@ -57,14 +60,19 @@ class CommentPostApiController
         );
 
         if (!$flag) {
-            purgeCacheCloudFlare(
-                files: [
-                    url('recent-comment-api'),
-                    url('comments-timeline')
-                ]
-            );
+            try {
+                purgeCacheCloudFlare(
+                    files: [
+                        url('recent-comment-api'),
+                        url('comments-timeline')
+                    ]
+                );
+            } catch (\RuntimeException $e) {
+                AdminTool::sendDiscordNotify($e->getMessage());
+                ExceptionHandler::errorLog($e);
+            }
 
-            safeFileRewrite(AppConfig::getStorageFilePath('commentUpdatedAtMicrotime'), (string)microtime(true));
+            $fileStorage->safeFileRewrite('@commentUpdatedAtMicrotime', (string)microtime(true));
         } else {
             cookie(['comment_flag' => (string)$flag]);
         }

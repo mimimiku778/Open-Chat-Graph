@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services\OpenChat\Registration;
 
-use App\Config\OpenChatCrawlerConfig;
+use App\Services\Crawler\Config\OpenChatCrawlerConfigInterface;
 use App\Models\Repositories\OpenChatRepositoryInterface;
 use App\Models\Repositories\Log\LogRepositoryInterface;
 use App\Models\Repositories\UpdateOpenChatRepositoryInterface;
 use App\Services\OpenChat\Crawler\OpenChatApiFromEmidDownloader;
 use App\Services\OpenChat\Crawler\OpenChatUrlChecker;
 use App\Services\OpenChat\Dto\OpenChatDto;
-use App\Services\OpenChat\Updater\OpenChatImageStoreUpdater;
 use Shared\Exceptions\ThrottleRequestsException;
 use App\Services\OpenChat\Utility\OpenChatServicesUtility;
 use Shared\MimimalCmsConfig;
@@ -24,7 +23,7 @@ class OpenChatFromCrawlerRegistration
         private OpenChatApiFromEmidDownloader $openChatDtoFetcher,
         private OpenChatUrlChecker $openChatUrlChecker,
         private LogRepositoryInterface $logRepository,
-        private OpenChatImageStoreUpdater $openChatImageStoreUpdater,
+        private OpenChatCrawlerConfigInterface $config,
     ) {
     }
 
@@ -89,8 +88,6 @@ class OpenChatFromCrawlerRegistration
             return $this->returnMessage('ネットワークエラーが発生しました');
         }
 
-        $this->openChatImageStoreUpdater->updateImage($open_chat_id, $ocDto->profileImageObsHash);
-
         $this->logRepository->logAddOpenChat($open_chat_id, getIP(), getUA());
 
         return $this->returnMessage('オープンチャットを登録しました', $open_chat_id);
@@ -119,7 +116,7 @@ class OpenChatFromCrawlerRegistration
 
     private function parseEmidFromUrl(string $url): string
     {
-        if (!preg_match(OpenChatCrawlerConfig::LINE_URL_MATCH_PATTERN[MimimalCmsConfig::$urlRoot], $url, $match)) {
+        if (!preg_match($this->config->getLineUrlMatchPattern()[MimimalCmsConfig::$urlRoot], $url, $match)) {
             throw new \LogicException('URLのパターンがマッチしませんでした');
         }
 

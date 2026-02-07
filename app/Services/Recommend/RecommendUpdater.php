@@ -5,21 +5,28 @@ declare(strict_types=1);
 namespace App\Services\Recommend;
 
 use App\Config\AppConfig;
+use App\Services\Cron\Utility\CronUtility;
 use App\Services\OpenChat\Utility\OpenChatServicesUtility;
 use App\Models\Repositories\DB;
 use App\Services\Recommend\TagDefinition\RecommendUpdaterTagsInterface;
+use App\Services\Storage\FileStorageInterface;
 use Shared\MimimalCmsConfig;
 
 class RecommendUpdater
 {
     private RecommendUpdaterTagsInterface $recommendUpdaterTags;
+    private FileStorageInterface $fileStorage;
     public array $tags;
     protected string $start;
     protected string $end;
     protected string $openChatSubCategoriesTagKey = 'openChatSubCategoriesTag';
+    protected string $targetIdJoinClause = '';
 
-    function __construct(?RecommendUpdaterTagsInterface $recommendUpdaterTags = null)
-    {
+    function __construct(
+        FileStorageInterface $fileStorage,
+        ?RecommendUpdaterTagsInterface $recommendUpdaterTags = null
+    ) {
+        $this->fileStorage = $fileStorage;
         if ($recommendUpdaterTags) {
             $this->recommendUpdaterTags = $recommendUpdaterTags;
         } elseif (MimimalCmsConfig::$urlRoot === '/tw') {
@@ -34,20 +41,46 @@ class RecommendUpdater
         }
     }
 
+    private function getOpenChatSubCategoriesTag(): array
+    {
+        $path = \App\Services\Storage\FileStorageService::getStorageFilePath($this->openChatSubCategoriesTagKey);
+        $data = json_decode(
+            file_exists($path)
+                ? $this->fileStorage->getContents('@' . $this->openChatSubCategoriesTagKey)
+                : '{}',
+            true
+        );
+
+        return is_array($data) ? $data : [];
+    }
+
     function updateRecommendTables(bool $betweenUpdateTime = true, bool $onlyRecommend = false)
     {
         $this->start = $betweenUpdateTime
-            ? file_get_contents(AppConfig::getStorageFilePath('tagUpdatedAtDatetime'))
+            ? $this->fileStorage->getContents('@tagUpdatedAtDatetime')
             : '2023-10-16 00:00:00';
 
         $this->end = $betweenUpdateTime
             ? OpenChatServicesUtility::getModifiedCronTime(strtotime('+1hour'))->format('Y-m-d H:i:s')
             : '2033-10-16 00:00:00';
 
+        // 開発環境の場合、更新制限をかける
+        $isMock = AppConfig::$isMockEnvironment ?? false;
+        if ($isMock) {
+            $limit = 10;
+            $this->createTargetIdTable($limit);
+            $this->targetIdJoinClause = 'INNER JOIN target_oc_ids AS tid ON oc.id = tid.id';
+            CronUtility::addCronLog("Mock environment. Recommend Update limit: {$limit}");
+        }
+
         $this->updateRecommendTablesProcess($onlyRecommend);
 
-        safeFileRewrite(
-            AppConfig::getStorageFilePath('tagUpdatedAtDatetime'),
+        if ($isMock) {
+            $this->dropTargetIdTable();
+        }
+
+        $this->fileStorage->safeFileRewrite(
+            '@tagUpdatedAtDatetime',
             (new \DateTime)->format('Y-m-d H:i:s')
         );
     }
@@ -147,10 +180,7 @@ class RecommendUpdater
             $this->recommendUpdaterTags->getNameStrongTags(),
             $this->recommendUpdaterTags->getDescStrongTags(),
             $this->recommendUpdaterTags->getAfterDescStrongTags(),
-            array_merge(...json_decode(
-                file_get_contents(AppConfig::getStorageFilePath($this->openChatSubCategoriesTagKey)),
-                true
-            ))
+            array_merge(...$this->getOpenChatSubCategoriesTag())
         );
 
         $tags = array_map(fn($el) => is_array($el) ? $el[0] : $el, $tags);
@@ -183,10 +213,7 @@ class RecommendUpdater
     {
         $tags = array_merge(
             $this->recommendUpdaterTags->getNameStrongTags(),
-            array_merge(...json_decode(
-                file_get_contents(AppConfig::getStorageFilePath($this->openChatSubCategoriesTagKey)),
-                true
-            ))
+            array_merge(...$this->getOpenChatSubCategoriesTag())
         );
 
         $this->tags = array_map(fn($el) => is_array($el) ? $el[0] : $el, $tags);
@@ -225,6 +252,7 @@ class RecommendUpdater
                             oc.*
                         FROM
                             open_chat AS oc
+                            {$this->targetIdJoinClause}
                             LEFT JOIN {$table} AS t ON t.id = oc.id {$duplicateEntries}
                         WHERE
                             t.id IS NULL
@@ -241,7 +269,7 @@ class RecommendUpdater
     /** @return array{ string:string[] }  */
     protected function getReplacedTagsDesc(string $column): array
     {
-        $this->tags = json_decode((file_get_contents(AppConfig::getStorageFilePath($this->openChatSubCategoriesTagKey))), true);
+        $this->tags = $this->getOpenChatSubCategoriesTag();
 
         return [
             array_map(fn($a) => array_map(fn($str) => $this->replace($str, $column), $a), $this->tags),
@@ -273,6 +301,7 @@ class RecommendUpdater
                             oc.*
                         FROM
                             open_chat AS oc
+                            {$this->targetIdJoinClause}
                             LEFT JOIN {$targetTable} AS t ON t.id = oc.id {$duplicateEntries}
                         WHERE
                             oc.category = {$category}
@@ -327,6 +356,7 @@ class RecommendUpdater
                             oc.*
                         FROM
                             open_chat AS oc
+                            {$this->targetIdJoinClause}
                             LEFT JOIN {$targetTable} AS t ON t.id = oc.id
                         WHERE
                             t.id IS NULL
@@ -376,6 +406,7 @@ class RecommendUpdater
                             oc.*
                         FROM
                             open_chat AS oc
+                            {$this->targetIdJoinClause}
                             LEFT JOIN {$table} AS t ON t.id = oc.id
                         WHERE
                             t.id IS NULL
@@ -422,6 +453,7 @@ class RecommendUpdater
                             oc.*
                         FROM
                             open_chat AS oc
+                            {$this->targetIdJoinClause}
                             LEFT JOIN {$table} AS t ON t.id = oc.id {$duplicateEntries}
                             LEFT JOIN oc_tag AS t2 ON t2.id = oc.id
                         WHERE
@@ -455,6 +487,7 @@ class RecommendUpdater
                             oc.*
                         FROM
                             open_chat AS oc
+                            {$this->targetIdJoinClause}
                             LEFT JOIN {$targetTable} AS t ON t.id = oc.id
                             LEFT JOIN oc_tag AS t2 ON t2.id = oc.id
                         WHERE
@@ -493,46 +526,101 @@ class RecommendUpdater
 
     protected function deleteRecommendTags(string $table)
     {
-        DB::execute(
-            "DELETE FROM
-                {$table}
-            WHERE
-                id IN (
-                    SELECT
-                        oc.id
-                    FROM
-                        open_chat AS oc
-                        LEFT JOIN modify_recommend AS mr ON mr.id = oc.id
-                    WHERE
-                        mr.id IS NULL
-                        AND oc.updated_at BETWEEN :start
-                        AND :end
-                )",
-            ['start' => $this->start, 'end' => $this->end]
-        );
+        if ($this->targetIdJoinClause) {
+            // Mock環境：一時テーブルを使用
+            DB::execute(
+                "DELETE t FROM {$table} t
+                INNER JOIN (
+                    SELECT oc.id
+                    FROM open_chat AS oc
+                    INNER JOIN target_oc_ids AS tid ON oc.id = tid.id
+                    LEFT JOIN modify_recommend AS mr ON mr.id = oc.id
+                    WHERE mr.id IS NULL
+                        AND oc.updated_at BETWEEN :start AND :end
+                ) AS target ON t.id = target.id",
+                ['start' => $this->start, 'end' => $this->end]
+            );
+        } else {
+            // 本番環境：従来の方法
+            DB::execute(
+                "DELETE FROM
+                    {$table}
+                WHERE
+                    id IN (
+                        SELECT
+                            oc.id
+                        FROM
+                            open_chat AS oc
+                            LEFT JOIN modify_recommend AS mr ON mr.id = oc.id
+                        WHERE
+                            mr.id IS NULL
+                            AND oc.updated_at BETWEEN :start
+                            AND :end
+                    )",
+                ['start' => $this->start, 'end' => $this->end]
+            );
+        }
     }
 
     protected function deleteTags(string $table)
     {
-        DB::execute(
-            "DELETE FROM
-                {$table}
-            WHERE
-                id IN (
-                    SELECT
-                        oc.id
-                    FROM
-                        open_chat AS oc
-                    WHERE
-                        oc.updated_at BETWEEN :start
-                        AND :end
-                )",
-            ['start' => $this->start, 'end' => $this->end]
-        );
+        if ($this->targetIdJoinClause) {
+            // Mock環境：一時テーブルを使用
+            DB::execute(
+                "DELETE t FROM {$table} t
+                INNER JOIN (
+                    SELECT oc.id
+                    FROM open_chat AS oc
+                    INNER JOIN target_oc_ids AS tid ON oc.id = tid.id
+                    WHERE oc.updated_at BETWEEN :start AND :end
+                ) AS target ON t.id = target.id",
+                ['start' => $this->start, 'end' => $this->end]
+            );
+        } else {
+            // 本番環境：従来の方法
+            DB::execute(
+                "DELETE FROM
+                    {$table}
+                WHERE
+                    id IN (
+                        SELECT
+                            oc.id
+                        FROM
+                            open_chat AS oc
+                        WHERE
+                            oc.updated_at BETWEEN :start
+                            AND :end
+                    )",
+                ['start' => $this->start, 'end' => $this->end]
+            );
+        }
     }
 
     protected function modifyRecommendTags(string $table = 'recommend')
     {
         DB::execute("UPDATE {$table} AS t1 JOIN modify_recommend AS t2 ON t1.id = t2.id SET t1.tag = t2.tag");
+    }
+
+    /**
+     * Mock環境用：処理対象IDを制限する一時テーブルを作成
+     */
+    private function createTargetIdTable(int $limit): void
+    {
+        DB::execute("CREATE TEMPORARY TABLE IF NOT EXISTS target_oc_ids (id INT PRIMARY KEY)");
+        DB::execute(
+            "INSERT INTO target_oc_ids
+             SELECT id FROM open_chat
+             WHERE updated_at BETWEEN :start AND :end
+             LIMIT :limit",
+            ['start' => $this->start, 'end' => $this->end, 'limit' => $limit]
+        );
+    }
+
+    /**
+     * Mock環境用：一時テーブルを削除
+     */
+    private function dropTargetIdTable(): void
+    {
+        DB::execute("DROP TEMPORARY TABLE IF EXISTS target_oc_ids");
     }
 }

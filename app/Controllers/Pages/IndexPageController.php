@@ -39,6 +39,7 @@ class IndexPageController
             0,
             15,
         );
+
         $updatedAtHouryCron = $dto->rankingUpdatedAt;
 
         if (isset($dto->recentCommentList[0]['time'])) {

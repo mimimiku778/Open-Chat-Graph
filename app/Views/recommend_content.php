@@ -25,7 +25,7 @@ viewComponent('head', compact('_css', '_schema', 'canonical') + ['_meta' => $_me
 
 <body>
   <?php if ($enableAdsense): ?>
-    <?php \App\Views\Ads\GoogleAdsense::gTag('bottom') ?>
+    <?php \App\Views\Ads\GoogleAdsense::gTag() ?>
     <?php GAd::output(GAd::AD_SLOTS['recommendTopRectangle'], true) ?>
   <?php endif ?>
 
@@ -56,19 +56,19 @@ viewComponent('head', compact('_css', '_schema', 'canonical') + ['_meta' => $_me
           <?php $ocList = $recommend->getPreviewList(5) ?>
           <div class="talkroom_banner_img_area">
             <div class="talkroom_banner_img_area_inner">
-              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[0]['name'] ?>" src="<?php echo imgUrl($ocList[0]['id'], $ocList[0]['img_url']) ?>">
+              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[0]['name'] ?>" src="<?php echo imgUrl($ocList[0]['img_url']) ?>">
             </div>
             <div class="talkroom_banner_img_area_inner">
-              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[1]['name'] ?>" src="<?php echo imgUrl($ocList[1]['id'], $ocList[1]['img_url']) ?>">
+              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[1]['name'] ?>" src="<?php echo imgUrl($ocList[1]['img_url']) ?>">
             </div>
             <div class="talkroom_banner_img_area_inner">
-              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[2]['name'] ?>" src="<?php echo imgUrl($ocList[2]['id'], $ocList[2]['img_url']) ?>">
+              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[2]['name'] ?>" src="<?php echo imgUrl($ocList[2]['img_url']) ?>">
             </div>
             <div class="talkroom_banner_img_area_inner">
-              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[3]['name'] ?>" src="<?php echo imgUrl($ocList[3]['id'], $ocList[3]['img_url']) ?>">
+              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[3]['name'] ?>" src="<?php echo imgUrl($ocList[3]['img_url']) ?>">
             </div>
             <div class="talkroom_banner_img_area_inner">
-              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[4]['name'] ?>" src="<?php echo imgUrl($ocList[4]['id'], $ocList[4]['img_url']) ?>">
+              <img class="talkroom_banner_img" aria-hidden="true" alt="<?php echo $ocList[4]['name'] ?>" src="<?php echo imgUrl($ocList[4]['img_url']) ?>">
             </div>
           </div>
         </figure>
@@ -178,9 +178,6 @@ viewComponent('head', compact('_css', '_schema', 'canonical') + ['_meta' => $_me
 
   <?php \App\Views\Ads\GoogleAdsense::loadAdsTag() ?>
 
-  <script>
-    const admin = <?php echo isAdmin() ? 1 : 0; ?>;
-  </script>
   <script defer src="<?php echo fileurl("/js/site_header_footer.js", urlRoot: '') ?>"></script>
 
   <?php if ($enableAdsense): ?>

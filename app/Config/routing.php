@@ -18,9 +18,11 @@ use App\Controllers\Api\MyListApiController;
 use App\Controllers\Api\RecentCommentApiController;
 use App\Controllers\Pages\AlphaPageController;
 use App\Controllers\Pages\FuriganaPageController;
+use App\Controllers\Pages\IndexPageController;
 use App\Controllers\Pages\JumpOpenChatPageController;
 use App\Controllers\Pages\LabsPageController;
 use App\Controllers\Pages\OpenChatPageController;
+use App\Controllers\Pages\PolicyPageController;
 use App\Controllers\Pages\RankingBanLabsPageController;
 use App\Controllers\Pages\ReactRankingPageController;
 use App\Controllers\Pages\RecentCommentPageController;
@@ -33,65 +35,77 @@ use App\Middleware\VerifyCsrfToken;
 use App\ServiceProvider\ApiCommentListControllerServiceProvider;
 use App\ServiceProvider\ApiDbOpenChatControllerServiceProvider;
 use App\ServiceProvider\ApiRankingPositionPageRepositoryServiceProvider;
+use App\Services\Storage\FileStorageInterface;
 use Shadow\Kernel\Reception;
 use Shared\MimimalCmsConfig;
 
 Route::path('ranking/{category}', [ReactRankingPageController::class, 'ranking'])
     ->matchStr('list', default: 'all', emptyAble: true)
     ->matchNum('category', min: 1)
-    ->match(function (int $category) {
-        handleRequestWithETagAndCache("ranking/{$category}");
-        return isset(array_flip(AppConfig::OPEN_CHAT_CATEGORY[MimimalCmsConfig::$urlRoot])[$category]);
+    ->match(function (int $category, FileStorageInterface $fileStorage) {
+        if (!getCategoryName($category)) {
+            return false;
+        }
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
     });
 
 Route::path('ranking', [ReactRankingPageController::class, 'ranking'])
     ->matchStr('list', default: 'all', emptyAble: true)
     ->matchNum('category', emptyAble: true)
-    ->match(fn() => handleRequestWithETagAndCache("ranking"));
+    ->match(function (FileStorageInterface $fileStorage) {
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
+    });
 
 /* Route::path('official-ranking/{category}', [ReactRankingPageController::class, 'ranking'])
     ->matchStr('list', default: 'rising', emptyAble: true)
     ->matchNum('category', min: 1)
     ->match(function (int $category) {
-        handleRequestWithETagAndCache("official-ranking/{$category}");
         return isset(array_flip(AppConfig::OPEN_CHAT_CATEGORY[MimimalCmsConfig::$urlRoot])[$category]);
     });
 
 Route::path('official-ranking', [ReactRankingPageController::class, 'ranking'])
     ->matchStr('list', default: 'rising', emptyAble: true)
-    ->matchNum('category', emptyAble: true)
-    ->match(fn() => handleRequestWithETagAndCache("official-ranking"));
+    ->matchNum('category', emptyAble: true);
  */
 
-Route::path('policy');
+Route::path('policy', [PolicyPageController::class, 'index'])
+    ->match(function (FileStorageInterface $fileStorage) {
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
+    });
 
-Route::path('/')
-    ->match(fn() => handleRequestWithETagAndCache('index'));
+Route::path('/', [IndexPageController::class, 'index'])
+    ->match(function (FileStorageInterface $fileStorage) {
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
+    });
 
 Route::path('oc/{open_chat_id}', [OpenChatPageController::class, 'index'])
     ->matchNum('open_chat_id', min: 1)
-    ->match(function (int $open_chat_id) {
-        if (MimimalCmsConfig::$urlRoot === '')
-            handleRequestWithETagAndCache($open_chat_id);
+    ->match(function (FileStorageInterface $fileStorage) {
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
     });
 
 Route::path('oc/{open_chat_id}/jump', [JumpOpenChatPageController::class, 'index'])
     ->matchNum('open_chat_id', min: 1)
-    ->match(function (int $open_chat_id) {
-        return MimimalCmsConfig::$urlRoot !== '/tw';
+    ->match(function (int $open_chat_id, FileStorageInterface $fileStorage) {
+        if (MimimalCmsConfig::$urlRoot !== '')
+            return false;
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
     });
 
 // TODO: test-api
 Route::path('ocapi/{user}/{open_chat_id}', [OpenChatPageController::class, 'index'])
     ->matchNum('open_chat_id', min: 1)
     ->match(function (string $user) {
+        if (MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey)
+            return false;
 
         app(ApiDbOpenChatControllerServiceProvider::class)->register();
-        return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
     });
 
 Route::path('oclist', [OpenChatRankingPageApiController::class, 'index'])
-    ->match(fn(Reception $reception) => handleRequestWithETagAndCache(json_encode($reception->input())));
+    ->match(function (FileStorageInterface $fileStorage) {
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
+    });
 
 Route::path(
     'oc/{open_chat_id}/position',
@@ -102,14 +116,14 @@ Route::path(
     ->matchStr('sort', regex: ['ranking', 'rising'])
     ->matchStr('start_date')
     ->matchStr('end_date')
-    ->match(function (string $start_date, string $end_date, Reception $reception) {
+    ->match(function (string $start_date, string $end_date, Reception $reception, FileStorageInterface $fileStorage) {
         $isValid = $start_date === date("Y-m-d", strtotime($start_date))
             && $end_date === date("Y-m-d", strtotime($end_date))
             && strtotime($start_date) <= strtotime($end_date);
         if (!$isValid)
             return false;
 
-        handleRequestWithETagAndCache(json_encode($reception->input()));
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
         return true;
     });
 
@@ -123,15 +137,30 @@ Route::path(
     ->matchStr('sort', regex: ['ranking', 'rising'])
     ->matchStr('start_date')
     ->matchStr('end_date')
-    ->match(function (string $start_date, string $end_date, string $user) {
+    ->match(function (string $start_date, string $end_date, string $user, FileStorageInterface $fileStorage) {
+        if (MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey)
+            return false;
+
         $isValid = $start_date === date("Y-m-d", strtotime($start_date))
             && $end_date === date("Y-m-d", strtotime($end_date))
             && strtotime($start_date) <= strtotime($end_date);
         if (!$isValid)
             return false;
 
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
         app(ApiRankingPositionPageRepositoryServiceProvider::class)->register();
-        return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
+    });
+
+
+Route::path(
+    'oc/{open_chat_id}/position_hour',
+    [RankingPositionApiController::class, 'rankingPositionHour']
+)
+    ->matchNum('open_chat_id', min: 1)
+    ->matchNum('category', min: 0)
+    ->matchStr('sort', regex: ['ranking', 'rising'])
+    ->match(function (FileStorageInterface $fileStorage) {
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
     });
 
 // TODO: test-api
@@ -149,22 +178,20 @@ Route::path('ranking-position/{user}/oc/{open_chat_id}/position_hour')
         ]);
     });
 
-Route::path(
-    'oc/{open_chat_id}/position_hour',
-    [RankingPositionApiController::class, 'rankingPositionHour']
-)
-    ->matchNum('open_chat_id', min: 1)
-    ->matchNum('category', min: 0)
-    ->matchStr('sort', regex: ['ranking', 'rising'])
-    ->match(function (Reception $reception) {
-        handleRequestWithETagAndCache(json_encode($reception->input()));
+Route::path('mylist-api', [MyListApiController::class, 'index'])
+    ->match(function () {
+        if (MimimalCmsConfig::$urlRoot !== '')
+            return false;
+
+        noStore();
     });
 
-Route::path('mylist-api', [MyListApiController::class, 'index'])
-    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
-
 Route::path('recent-comment-api', [RecentCommentApiController::class, 'index'])
-    ->match(fn() => MimimalCmsConfig::$urlRoot === '')
+    ->match(function (FileStorageInterface $fileStorage) {
+        if (MimimalCmsConfig::$urlRoot !== '')
+            return false;
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
+    })
     ->matchNum('open_chat_id', min: 1, emptyAble: true);
 
 Route::path('recent-comment-api/nocache', [RecentCommentApiController::class, 'nocache'])
@@ -180,8 +207,8 @@ Route::path('recommend')
 
 Route::path('recommend/{tag}', [RecommendOpenChatPageController::class, 'index'])
     ->matchStr('tag', maxLen: 1000)
-    ->match(function (string $tag) {
-        handleRequestWithETagAndCache($tag);
+    ->match(function (string $tag, FileStorageInterface $fileStorage) {
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
         return ['tag' => urldecode($tag)];
     });
 
@@ -191,17 +218,18 @@ Route::path(
     [RegisterOpenChatPageController::class, 'index', 'get'],
 )
     ->middleware([VerifyCsrfToken::class])
-    ->matchStr('url', 'post', regex: OpenChatCrawlerConfig::LINE_URL_MATCH_PATTERN[MimimalCmsConfig::$urlRoot])
-
-    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+    ->matchStr('url', 'post', regex: \App\Services\Crawler\Config\OpenChatCrawlerConfig::LINE_URL_MATCH_PATTERN[MimimalCmsConfig::$urlRoot])
+    ->match(function () {
+        return MimimalCmsConfig::$urlRoot === '';
+    });
 
 Route::path(
     'recently-registered/{page}@get',
     [RecentOpenChatPageController::class, 'index'],
 )
     ->matchNum('page')
-    ->match(function (int $page) {
-        handleRequestWithETagAndCache("recently-registered/{$page}");
+    ->match(function (FileStorageInterface $fileStorage) {
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
     });
 
 Route::path(
@@ -209,8 +237,8 @@ Route::path(
     [RecentOpenChatPageController::class, 'index'],
 )
     ->matchNum('page', emptyAble: true)
-    ->match(function () {
-        handleRequestWithETagAndCache("recently-registered");
+    ->match(function (FileStorageInterface $fileStorage) {
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
     });
 
 Route::path(
@@ -218,11 +246,10 @@ Route::path(
     [RecentCommentPageController::class, 'index'],
 )
     ->matchNum('page')
-    ->match(function (int $page) {
+    ->match(function (int $page, FileStorageInterface $fileStorage) {
         if (MimimalCmsConfig::$urlRoot !== '')
             return false;
-
-        handleRequestWithETagAndCache("recent-comments/{$page}");
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
     });
 
 Route::path(
@@ -230,24 +257,31 @@ Route::path(
     [RecentCommentPageController::class, 'index'],
 )
     ->matchNum('page', emptyAble: true)
-    ->match(function () {
+    ->match(function (FileStorageInterface $fileStorage) {
         if (MimimalCmsConfig::$urlRoot !== '')
             return false;
-
-        handleRequestWithETagAndCache("recent-comments");
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
     });
 
 Route::path(
     'labs',
     [LabsPageController::class, 'index']
 )
-    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+    ->match(function (FileStorageInterface $fileStorage) {
+        if (MimimalCmsConfig::$urlRoot !== '')
+            return false;
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
+    });
 
 Route::path(
     'labs/live',
     [LabsPageController::class, 'live']
 )
-    ->match(fn() => MimimalCmsConfig::$urlRoot === '');
+    ->match(function (FileStorageInterface $fileStorage) {
+        if (MimimalCmsConfig::$urlRoot !== '')
+            return false;
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
+    });
 
 /* Route::path(
     'labs/tags',
@@ -257,8 +291,6 @@ Route::path(
     ->match(function () {
                 if (MimimalCmsConfig::$urlRoot !== '')
             return false;
-
-        handleRequestWithETagAndCache("labs/tags");
     }); */
 
 Route::path(
@@ -270,11 +302,10 @@ Route::path(
     ->matchNum('percent', min: 1, max: 100, default: 50, emptyAble: true)
     ->matchNum('page', min: 1, default: 1, emptyAble: true)
     ->matchStr('keyword', maxLen: 100, emptyAble: true)
-    ->match(function (Reception $reception) {
+    ->match(function (Reception $reception, FileStorageInterface $fileStorage) {
         if (MimimalCmsConfig::$urlRoot !== '')
             return false;
-
-        handleRequestWithETagAndCache(json_encode($reception->input()));
+        checkLastModified($fileStorage->getContents('@hourlyCronUpdatedAtDatetime'));
     });
 
 // コメントAPI
@@ -285,7 +316,7 @@ Route::path(
 )
     ->matchNum('open_chat_id', min: 0)
     ->matchNum('page', 'get', min: 0)
-    ->matchNum('limit', 'get', min: 1)
+    ->matchNum('limit', 'get', min: 1, max: 10)
     ->matchStr('token', 'post')
     ->matchStr('name', 'post', maxLen: 20, emptyAble: true)
     ->matchStr('text', 'post', maxLen: 1000)
@@ -309,7 +340,7 @@ Route::path(
 )
     ->matchNum('open_chat_id', min: 0)
     ->matchNum('page', 'get', min: 0)
-    ->matchNum('limit', 'get', min: 1)
+    ->matchNum('limit', 'get', min: 1, max: 10)
     ->match(function (string $user) {
         app(ApiCommentListControllerServiceProvider::class)->register();
         return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
@@ -338,9 +369,9 @@ Route::path(
 Route::path('admin/cookie')
     ->match(function (AdminAuthService $adminAuthService, ?string $key) {
         sessionStart();
-        if (!$adminAuthService->registerAdminCookie($key)) {
+        if (!$adminAuthService->registerAdminCookie($key))
             return false;
-        }
+
         return redirect();
     });
 
@@ -361,9 +392,13 @@ Route::path('admin/log/exception', [LogController::class, 'exceptionLog'])
 Route::path('admin/log/exception/detail', [LogController::class, 'exceptionDetail'])
     ->matchNum('index', min: 0)
     ->match(function (AdminAuthService $adminAuthService) {
+        if (MimimalCmsConfig::$urlRoot !== '')
+            return false;
+
+        $adminAuthService->auth();
         noStore();
-        return MimimalCmsConfig::$urlRoot === '' && $adminAuthService->auth();
     });
+
 Route::path('admin/log/{type}', [LogController::class, 'cronLog'])
     ->matchStr('type', regex: ['ja-cron', 'th-cron', 'tw-cron'])
     ->matchNum('page', min: 1, default: 1, emptyAble: true)
@@ -479,8 +514,8 @@ Route::path('furigana@POST')
 
 Route::path('furigana/guideline')
     ->match(function () {
-        handleRequestWithETagAndCache('guideline');
-        return MimimalCmsConfig::$urlRoot === '';
+        if (MimimalCmsConfig::$urlRoot !== '')
+            return false;
     });
 
 Route::path(
@@ -488,8 +523,8 @@ Route::path(
     [FuriganaPageController::class, 'defamationGuideline']
 )
     ->match(function () {
-        handleRequestWithETagAndCache('defamationGuideline');
-        return MimimalCmsConfig::$urlRoot === '';
+        if (MimimalCmsConfig::$urlRoot !== '')
+            return false;
     });
 
 Route::path(
@@ -497,8 +532,10 @@ Route::path(
     [DatabaseApiController::class, 'index']
 )
     ->match(function (string $user) {
+        if (MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey)
+            return false;
+
         allowCORS();
-        return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
     })
     ->matchStr('stmt');
 
@@ -507,8 +544,10 @@ Route::path(
     [DatabaseApiController::class, 'schema']
 )
     ->match(function (string $user) {
+        if (MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey)
+            return false;
+
         allowCORS();
-        return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
     });
 
 Route::path(
@@ -516,8 +555,10 @@ Route::path(
     [DatabaseApiController::class, 'ban']
 )
     ->match(function (string $user) {
+        if (MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey)
+            return false;
+
         allowCORS();
-        return MimimalCmsConfig::$urlRoot === '' && $user === SecretsConfig::$adminApiKey;
     })
     ->matchStr('date');
 
