@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models\SQLite;
 
+use App\Config\FileStorageServiceConfig;
 use Shadow\DBInterface;
 
 class SQLiteRankingPositionOhlc extends AbstractSQLite implements DBInterface
@@ -15,9 +16,20 @@ class SQLiteRankingPositionOhlc extends AbstractSQLite implements DBInterface
      */
     public static function connect(?array $config = null): \PDO
     {
-        return parent::connect([
+        if (static::$pdo !== null) {
+            return static::$pdo;
+        }
+
+        $pdo = parent::connect([
             'storageFileKey' => 'sqliteRankingPositionOhlcDb',
             'mode' => $config['mode'] ?? null
         ]);
+
+        if (!str_contains(($config['mode'] ?? ''), 'mode=ro')) {
+            $schema = file_get_contents(FileStorageServiceConfig::$sqliteSchemaFiles['sqliteRankingPositionOhlcDb']);
+            $pdo->exec($schema);
+        }
+
+        return $pdo;
     }
 }
