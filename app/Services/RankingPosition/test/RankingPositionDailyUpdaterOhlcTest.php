@@ -233,14 +233,14 @@ class RankingPositionDailyUpdaterOhlcTest extends TestCase
 
         // --- 検証: ranking_position_ohlc ---
         SQLiteRankingPositionOhlc::$pdo = null;
-        $rankingOhlc = $rankingOhlcRepo->getOhlcDateAsc(1001, 0, 'ranking');
+        $rankingOhlc = $rankingOhlcRepo->getOhlcDateAsc(1001, 0, RankingType::Ranking);
         $this->assertCount(1, $rankingOhlc, 'Ranking OHLCが保存されていること');
         $this->assertEquals(5, $rankingOhlc[0]['open_position']);
         $this->assertEquals(3, $rankingOhlc[0]['high_position']);
         $this->assertEquals(8, $rankingOhlc[0]['low_position']);
         $this->assertEquals(4, $rankingOhlc[0]['close_position']);
 
-        $risingOhlc = $rankingOhlcRepo->getOhlcDateAsc(1001, 0, 'rising');
+        $risingOhlc = $rankingOhlcRepo->getOhlcDateAsc(1001, 0, RankingType::Rising);
         $this->assertCount(1, $risingOhlc, 'Rising OHLCが保存されていること');
         $this->assertNull($risingOhlc[0]['low_position'], '圏外ありの場合low_positionはNULL');
     }

@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 use App\Models\SQLite\Repositories\RankingPosition\SqliteRankingPositionOhlcRepository;
 use App\Models\SQLite\SQLiteRankingPositionOhlc;
+use App\Services\OpenChat\Enum\RankingType;
 use App\Services\Storage\FileStorageInterface;
 use Shadow\Kernel\Dispatcher\ConstructorInjection;
 use PHPUnit\Framework\TestCase;
@@ -94,7 +95,7 @@ class SqliteRankingPositionOhlcRepositoryTest extends TestCase
 
         SQLiteRankingPositionOhlc::$pdo = null;
 
-        $result = $this->repository->getOhlcDateAsc(1001, 0, 'ranking');
+        $result = $this->repository->getOhlcDateAsc(1001, 0, RankingType::Ranking);
 
         $this->assertCount(1, $result);
         $this->assertSame('2025-01-15', $result[0]['date']);
@@ -129,7 +130,7 @@ class SqliteRankingPositionOhlcRepositoryTest extends TestCase
 
         SQLiteRankingPositionOhlc::$pdo = null;
 
-        $result = $this->repository->getOhlcDateAsc(2001, 1, 'rising');
+        $result = $this->repository->getOhlcDateAsc(2001, 1, RankingType::Rising);
 
         $this->assertCount(1, $result);
         $this->assertNull($result[0]['low_position'], 'low_positionがNULLであること');
@@ -179,17 +180,17 @@ class SqliteRankingPositionOhlcRepositoryTest extends TestCase
         SQLiteRankingPositionOhlc::$pdo = null;
 
         // category=0, type=ranking のみ取得
-        $result = $this->repository->getOhlcDateAsc(3001, 0, 'ranking');
+        $result = $this->repository->getOhlcDateAsc(3001, 0, RankingType::Ranking);
         $this->assertCount(1, $result);
         $this->assertEquals(1, $result[0]['open_position']);
 
         // category=0, type=rising のみ取得
-        $result2 = $this->repository->getOhlcDateAsc(3001, 0, 'rising');
+        $result2 = $this->repository->getOhlcDateAsc(3001, 0, RankingType::Rising);
         $this->assertCount(1, $result2);
         $this->assertEquals(10, $result2[0]['open_position']);
 
         // category=1, type=ranking のみ取得
-        $result3 = $this->repository->getOhlcDateAsc(3001, 1, 'ranking');
+        $result3 = $this->repository->getOhlcDateAsc(3001, 1, RankingType::Ranking);
         $this->assertCount(1, $result3);
         $this->assertEquals(20, $result3[0]['open_position']);
     }
@@ -212,7 +213,7 @@ class SqliteRankingPositionOhlcRepositoryTest extends TestCase
         SQLiteRankingPositionOhlc::connect();
         SQLiteRankingPositionOhlc::$pdo = null;
 
-        $result = $this->repository->getOhlcDateAsc(99999, 0, 'ranking');
+        $result = $this->repository->getOhlcDateAsc(99999, 0, RankingType::Ranking);
         $this->assertSame([], $result);
     }
 
@@ -258,7 +259,7 @@ class SqliteRankingPositionOhlcRepositoryTest extends TestCase
         $this->repository->insertOhlc($data);
         SQLiteRankingPositionOhlc::$pdo = null;
 
-        $result = $this->repository->getOhlcDateAsc(4001, 0, 'ranking');
+        $result = $this->repository->getOhlcDateAsc(4001, 0, RankingType::Ranking);
 
         $this->assertCount(3, $result);
         $this->assertSame('2025-01-15', $result[0]['date']);

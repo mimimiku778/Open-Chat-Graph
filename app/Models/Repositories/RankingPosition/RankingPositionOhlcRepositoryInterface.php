@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models\Repositories\RankingPosition;
 
+use App\Services\OpenChat\Enum\RankingType;
+
 interface RankingPositionOhlcRepositoryInterface
 {
     /**
@@ -20,5 +22,5 @@ interface RankingPositionOhlcRepositoryInterface
      *
      * @return array{ date: string, open_position: int, high_position: int, low_position: int|null, close_position: int }[]
      */
-    public function getOhlcDateAsc(int $open_chat_id, int $category, string $type): array;
+    public function getOhlcDateAsc(int $open_chat_id, int $category, RankingType $type): array;
 }

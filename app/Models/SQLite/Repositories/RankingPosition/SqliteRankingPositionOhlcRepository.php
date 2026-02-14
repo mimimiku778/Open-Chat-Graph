@@ -7,6 +7,7 @@ namespace App\Models\SQLite\Repositories\RankingPosition;
 use App\Models\Repositories\RankingPosition\RankingPositionOhlcRepositoryInterface;
 use App\Models\SQLite\SQLiteInsertImporter;
 use App\Models\SQLite\SQLiteRankingPositionOhlc;
+use App\Services\OpenChat\Enum\RankingType;
 
 class SqliteRankingPositionOhlcRepository implements RankingPositionOhlcRepositoryInterface
 {
@@ -18,8 +19,10 @@ class SqliteRankingPositionOhlcRepository implements RankingPositionOhlcReposito
         return $inserter->import(SQLiteRankingPositionOhlc::connect(), 'ranking_position_ohlc', $data, 500);
     }
 
-    public function getOhlcDateAsc(int $open_chat_id, int $category, string $type): array
+    public function getOhlcDateAsc(int $open_chat_id, int $category, RankingType $type): array
     {
+        $typeValue = $type->value;
+
         $query =
             "SELECT
                 date,
@@ -37,7 +40,7 @@ class SqliteRankingPositionOhlcRepository implements RankingPositionOhlcReposito
                 date ASC";
 
         SQLiteRankingPositionOhlc::connect(['mode' => '?mode=ro']);
-        $result = SQLiteRankingPositionOhlc::fetchAll($query, compact('open_chat_id', 'category', 'type'));
+        $result = SQLiteRankingPositionOhlc::fetchAll($query, ['open_chat_id' => $open_chat_id, 'category' => $category, 'type' => $typeValue]);
         SQLiteRankingPositionOhlc::$pdo = null;
 
         return $result;

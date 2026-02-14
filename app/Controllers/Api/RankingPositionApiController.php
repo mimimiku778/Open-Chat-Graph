@@ -73,7 +73,7 @@ class RankingPositionApiController
         int $category,
         string $sort
     ) {
-        return response($repo->getOhlcDateAsc($open_chat_id, $category, $sort));
+        return response($repo->getOhlcDateAsc($open_chat_id, $category, RankingType::from($sort)));
     }
 
     function rankingPositionHour(
