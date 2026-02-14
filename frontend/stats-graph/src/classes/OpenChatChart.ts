@@ -220,20 +220,15 @@ export default class OpenChatChart implements ChartFactory {
     const allValues: number[] = []
     const ohlcDates: string[] = []
     const apiOhlcMap = new Map(this.memberOhlcApiData.map(r => [r.date, r]))
-    const hasRealOhlc = this.memberOhlcApiData.length > 0
 
-    if (hasRealOhlc) {
-      for (let i = startIdx; i < len; i++) {
-        const record = apiOhlcMap.get(dates[i])
-        if (record) {
-          ohlcDates.push(dates[i])
-          ohlcData.push({ x: ohlcData.length, o: record.open_member, h: record.high_member, l: record.low_member, c: record.close_member })
-          allValues.push(record.open_member, record.high_member, record.low_member, record.close_member)
-        }
-      }
-    } else {
-      // メンバーOHLCが無い場合、日次member値から擬似OHLCを生成
-      for (let i = startIdx; i < len; i++) {
+    for (let i = startIdx; i < len; i++) {
+      const record = apiOhlcMap.get(dates[i])
+      if (record) {
+        ohlcDates.push(dates[i])
+        ohlcData.push({ x: ohlcData.length, o: record.open_member, h: record.high_member, l: record.low_member, c: record.close_member })
+        allValues.push(record.open_member, record.high_member, record.low_member, record.close_member)
+      } else {
+        // APIにレコードがない日は日次member値から擬似OHLCで補完
         const c = statsDto.member[i]
         if (c === null) continue
         const prev = i > 0 ? (statsDto.member[i - 1] ?? c) : c
@@ -267,6 +262,9 @@ export default class OpenChatChart implements ChartFactory {
             l: r.low_position ?? 0,
             c: r.close_position,
           })
+        } else {
+          // ランキングOHLCがない日は圏外（position=0）で埋める
+          ohlcRankingData.push({ x: i, o: 0, h: 0, l: 0, c: 0 })
         }
       }
     }

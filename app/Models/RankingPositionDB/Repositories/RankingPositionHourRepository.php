@@ -126,6 +126,13 @@ class RankingPositionHourRepository implements RankingPositionHourRepositoryInte
         return RankingPositionDB::fetchAll($query);
     }
 
+    /**
+     * 指定日の毎時ランキングデータからOHLCを集約する。
+     *
+     * - その日にランキングに一度でも掲載されたルームのみレコードを生成
+     *   （終日圏外のルームはレコードなし）
+     * - low_position: room_count < total_slots（一部の時間帯で圏外）の場合は NULL
+     */
     public function getDailyPositionOhlc(RankingType $type, \DateTime $date): array
     {
         $time = $date->format('Y-m-d');
