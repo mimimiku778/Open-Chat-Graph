@@ -12,6 +12,7 @@ export const rankingRisingSignal = signal<ToggleChart>('none')
 export const categorySignal = signal<urlParamsValue<'category'>>('in')
 export const limitSignal = signal<ChartLimit | 25>(8)
 export const zoomEnableSignal = signal(false)
+export const chartModeSignal = signal<ChartMode>('line')
 
 export function setChartStatesFromUrlParams() {
   const params = getCurrentUrlParams()
@@ -33,6 +34,12 @@ export function setChartStatesFromUrlParams() {
       limitSignal.value = 0
       break
   }
+
+  // ローソク足モードの復元（OHLCデータが存在する場合のみ）
+  if (params.chart === 'candlestick' && hasOhlcData()) {
+    chartModeSignal.value = 'candlestick'
+    chart.setMode('candlestick')
+  }
 }
 
 export function setUrlParamsFromChartStates() {
@@ -49,7 +56,7 @@ export function setUrlParamsFromChartStates() {
       break
   }
 
-  setUrlParams({ bar: rankingRisingSignal.value, category: categorySignal.value, limit })
+  setUrlParams({ bar: rankingRisingSignal.value, category: categorySignal.value, limit, chart: chartModeSignal.value })
 }
 
 export function initDisplay() {
@@ -89,6 +96,11 @@ export function initDisplay() {
 export function handleChangeLimit(limit: ChartLimit | 25) {
   limitSignal.value = limit
 
+  if (chartModeSignal.value === 'candlestick' && limit === 25) {
+    chartModeSignal.value = 'line'
+    chart.setMode('line')
+  }
+
   if (limit === 25) {
     chart.setIsHour(true)
     fetchChart(true)
@@ -118,4 +130,23 @@ export function handleChangeRankingRising(alignment: ToggleChart) {
 export function handleChangeEnableZoom(value: boolean) {
   zoomEnableSignal.value = value
   chart.updateEnableZoom(value)
+}
+
+export function hasOhlcData(): boolean {
+  return Array.isArray(statsDto.open)
+}
+
+export function handleChangeChartMode(mode: ChartMode) {
+  chartModeSignal.value = mode
+  chart.setMode(mode)
+
+  if (mode === 'candlestick') {
+    if (limitSignal.value === 25) {
+      limitSignal.value = 8
+      chart.setIsHour(false)
+    }
+  }
+
+  fetchChart(true)
+  setUrlParamsFromChartStates()
 }

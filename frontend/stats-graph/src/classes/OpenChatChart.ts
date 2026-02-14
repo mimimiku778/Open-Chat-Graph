@@ -1,12 +1,15 @@
 import { Chart as ChartJS } from 'chart.js/auto';
 import ChartDataLabels from 'chartjs-plugin-datalabels'
 import zoomPlugin from 'chartjs-plugin-zoom'
+import { CandlestickController, CandlestickElement, OhlcController, OhlcElement } from 'chartjs-chart-financial'
+import 'chartjs-adapter-luxon'
 import formatDates from "./ChartJS/Util/formatDates";
 import ModelFactory from "./ModelFactory.ts"
 import openChatChartJSFactory from "./ChartJS/Factories/openChatChartJSFactory.ts";
 import afterOpenChatChartJSFactory from './ChartJS/Factories/afterOpenChatChartJSFactory.ts'; import getIncreaseLegendSpacingPlugin from './ChartJS/Plugin/getIncreaseLegendSpacingPlugin.ts';
 import getEventCatcherPlugin from './ChartJS/Plugin/getEventCatcherPlugin.ts';
 import paddingArray from './ChartJS/Util/paddingArray.ts';
+import { statsDto } from '../util/fetchRenderer';
 
 export default class OpenChatChart implements ChartFactory {
   chart: ChartJS = null!
@@ -28,11 +31,16 @@ export default class OpenChatChart implements ChartFactory {
   onZooming = false
   onPaning = false
   enableZoom = false
+  ohlcData: { x: number; o: number; h: number; l: number; c: number }[] = []
+  ohlcRankingData: { x: number; o: number; h: number; l: number; c: number }[] = []
+  ohlcDates: string[] = []
   private isHour: boolean = false
+  private mode: ChartMode = 'line'
 
   constructor() {
     ChartJS.register(ChartDataLabels)
     ChartJS.register(zoomPlugin)
+    ChartJS.register(CandlestickController, CandlestickElement, OhlcController, OhlcElement)
     ChartJS.register(getIncreaseLegendSpacingPlugin(this))
     ChartJS.register(getEventCatcherPlugin(this))
   }
@@ -118,15 +126,28 @@ export default class OpenChatChart implements ChartFactory {
     return !!this.isHour
   }
 
+  setMode(mode: ChartMode) {
+    this.mode = mode
+  }
+
+  getMode(): ChartMode {
+    return this.mode
+  }
+
   private createChart(animation: boolean) {
     this.setSize()
     this.isZooming = false
     this.zoomWeekday = 0
 
-    if (this.isHour) {
-      this.buildHourData()
+    if (this.mode === 'candlestick') {
+      this.buildCandlestickData()
     } else {
-      this.buildData()
+      this.ohlcRankingData = []
+      if (this.isHour) {
+        this.buildHourData()
+      } else {
+        this.buildData()
+      }
     }
 
     this.setGraph2Max(this.data.graph2)
@@ -141,7 +162,9 @@ export default class OpenChatChart implements ChartFactory {
       this.enableAnimationOption()
     }
 
-    afterOpenChatChartJSFactory(this)
+    {
+      afterOpenChatChartJSFactory(this)
+    }
   }
 
   private enableAnimationOption() {
@@ -179,6 +202,78 @@ export default class OpenChatChart implements ChartFactory {
     }
   }
 
+  private buildCandlestickData() {
+    const limit = this.limit
+    const dates = statsDto.date
+    const len = dates.length
+
+    const startIdx = limit ? Math.max(0, len - limit) : 0
+
+    const ohlcData: { x: number; o: number; h: number; l: number; c: number }[] = []
+    const allValues: number[] = []
+    const ohlcDates: string[] = []
+    const hasRealOhlc = statsDto.open.some(v => v !== null)
+
+    if (hasRealOhlc) {
+      for (let i = startIdx; i < len; i++) {
+        const o = statsDto.open[i]
+        const h = statsDto.high[i]
+        const l = statsDto.low[i]
+        const c = statsDto.close[i]
+        if (o !== null && h !== null && l !== null && c !== null) {
+          ohlcDates.push(dates[i])
+          ohlcData.push({ x: ohlcData.length, o, h, l, c })
+          allValues.push(o, h, l, c)
+        }
+      }
+    } else {
+      // メンバーOHLCが無い場合、日次member値から擬似OHLCを生成
+      for (let i = startIdx; i < len; i++) {
+        const c = statsDto.member[i]
+        if (c === null) continue
+        const prev = i > 0 ? (statsDto.member[i - 1] ?? c) : c
+        const o = prev
+        const h = Math.max(o, c)
+        const l = Math.min(o, c)
+        ohlcDates.push(dates[i])
+        ohlcData.push({ x: ohlcData.length, o, h, l, c })
+        allValues.push(o, h, l, c)
+      }
+    }
+
+    const labels = formatDates(ohlcDates, limit)
+
+    // ランキング順位OHLCを基準日付に合わせて構築
+    const ohlcRankingData: { x: number; o: number; h: number; l: number; c: number }[] = []
+    const rankingOhlc = this.initData.rankingOhlc
+    if (rankingOhlc?.length) {
+      const rankingMap = new Map(rankingOhlc.map(r => [r.date, r]))
+      for (let i = 0; i < ohlcDates.length; i++) {
+        const r = rankingMap.get(ohlcDates[i])
+        if (r) {
+          ohlcRankingData.push({
+            x: i,
+            o: r.open_position,
+            h: r.high_position,
+            l: r.low_position,
+            c: r.close_position,
+          })
+        }
+      }
+    }
+
+    this.data = {
+      date: paddingArray<string | string[]>(labels, ''),
+      graph1: paddingArray<number | null>(allValues, null),
+      graph2: [],
+      time: [],
+      totalCount: [],
+    }
+    this.ohlcData = ohlcData
+    this.ohlcRankingData = ohlcRankingData
+    this.ohlcDates = ohlcDates
+  }
+
   setGraph2Max(graph2: (number | null)[]) {
     this.graph2Max = graph2.reduce((a, b) => Math.max(a === null ? 0 : a, b === null ? 0 : b), -Infinity) as number
     this.graph2Min = (graph2.filter(v => v !== null && v !== 0) as number[]).reduce((a, b) => Math.min(a, b), Infinity) as number
@@ -192,6 +287,9 @@ export default class OpenChatChart implements ChartFactory {
   }
 
   getDate(limit: ChartLimit): (string | string[])[] {
+    if (this.mode === 'candlestick') {
+      return paddingArray<string | string[]>(formatDates(this.ohlcDates, limit), '')
+    }
     const data = this.initData.date.slice(this.limit * -1)
     return formatDates(data, limit)
   }

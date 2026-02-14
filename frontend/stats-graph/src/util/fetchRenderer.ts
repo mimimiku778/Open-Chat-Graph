@@ -1,6 +1,7 @@
 import {
   categorySignal,
   chart,
+  chartModeSignal,
   limitSignal,
   loading,
   rankingRisingSignal,
@@ -97,6 +98,43 @@ export function renderChartWithoutRanking() {
 }
 
 export async function fetchChart(animation: boolean) {
+  if (chartModeSignal.value === 'candlestick') {
+    setRenderPositionBtns(true)
+    const limit: ChartLimit = limitSignal.value === 25 ? 31 : limitSignal.value
+
+    if (rankingRisingSignal.value !== 'none') {
+      const sort = rankingRisingSignal.value
+      const category = categorySignal.value === 'all' ? 0 : chatArgDto.categoryKey
+      loading.value = true
+      const ohlcData = await fetcher<RankingPositionOhlc[]>(
+        `${chatArgDto.baseUrl}/oc/${chatArgDto.id}/position_ohlc?sort=${sort}&category=${category}`
+      )
+      loading.value = false
+      const isRising = sort === 'rising'
+      chart.render(
+        {
+          date: statsDto.date,
+          graph1: statsDto.member,
+          graph2: [],
+          time: [],
+          totalCount: [],
+          rankingOhlc: ohlcData,
+        },
+        {
+          label1: t('メンバー数'),
+          label2: isRising ? t('急上昇') : t('ランキング'),
+          category: categorySignal.value === 'all' ? t('すべて') : chatArgDto.categoryName,
+          isRising,
+        },
+        animation,
+        limit
+      )
+    } else {
+      renderMemberChart(animation, limit)(statsDto)
+    }
+    return
+  }
+
   const path: PotisionPath = chart.getIsHour() ? 'position_hour' : 'position'
   const limit: ChartLimit = limitSignal.value === 25 ? 31 : limitSignal.value
 

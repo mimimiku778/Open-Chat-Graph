@@ -3,6 +3,7 @@ import { updateURLSearchParams } from "./util"
 const categoryParam: urlParamsValue<'category'>[] = ['in', 'all']
 const barParam: urlParamsValue<'bar'>[] = ['ranking', 'rising', 'none']
 const limitParam: urlParamsValue<'limit'>[] = ['hour', 'week', 'month', 'all']
+const chartParam: urlParamsValue<'chart'>[] = ['line', 'candlestick']
 
 const validParam = <T extends urlParamsName>(definition: urlParamsValue<T>[], url: URL, name: T)
   : urlParamsValue<T> | null => {
@@ -40,6 +41,7 @@ export const defaultCategory: urlParamsValue<'category'> = getStoregeCategorySet
 export const defaultBar: urlParamsValue<'bar'> = getStoregeBarSetting('none')
 export const defaultLimit: urlParamsValue<'limit'> = 'week'
 export const defaultLimitNum: ChartLimit | 25 = 8
+export const defaultChart: urlParamsValue<'chart'> = 'line'
 
 export function getCurrentUrlParams(): urlParams {
   const url = new URL(window.location.href);
@@ -47,6 +49,7 @@ export function getCurrentUrlParams(): urlParams {
     category: validParam<'category'>(categoryParam, url, 'category') ?? defaultCategory,
     bar: validParam<'bar'>(barParam, url, 'bar') ?? defaultBar,
     limit: validParam<'limit'>(limitParam, url, 'limit') ?? defaultLimit,
+    chart: validParam<'chart'>(chartParam, url, 'chart') ?? defaultChart,
   }
 }
 
@@ -55,7 +58,8 @@ export function setUrlParams(params: urlParams) {
     {
       bar: params.bar === defaultBar ? '' : params.bar,
       category: params.category === defaultCategory || params.bar === 'none' ? '' : params.category,
-      limit: params.limit === defaultLimit ? '' : params.limit
+      limit: params.limit === defaultLimit ? '' : params.limit,
+      chart: params.chart === defaultChart ? '' : params.chart,
     }
   ))
 }

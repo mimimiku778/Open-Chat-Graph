@@ -3,6 +3,7 @@ import getZoomOption from "../Plugin/zoomOptions"
 import getTooltipLabelCallback from '../Plugin/getTooltipLabelCallback'
 import { ChartType, Tooltip, TooltipPositionerFunction } from "chart.js"
 import { getTooltipAndLineCallback } from "../Plugin/getTooltipAndLineCallback"
+import { t } from '../../../util/translation'
 
 declare module 'chart.js' {
   interface TooltipPositionerMap {
@@ -24,6 +25,7 @@ export default function buildPlugin(ocChart: OpenChatChart): any {
   return {
     zoom: limit === 0 && ocChart.enableZoom ? getZoomOption(ocChart) : undefined,
     legend: {
+      display: true,
       onClick: () => false,
       labels: {
         font: {
@@ -33,6 +35,22 @@ export default function buildPlugin(ocChart: OpenChatChart): any {
         },
         padding: 6,
         color: '#111',
+        usePointStyle: ocChart.getMode() === 'candlestick',
+        pointStyle: ocChart.getMode() === 'candlestick' ? 'rectRounded' : undefined,
+        generateLabels: ocChart.getMode() === 'candlestick'
+          ? (chart: any) => {
+              const colors = ['#00c853', 'rgba(41, 121, 255, 0.5)']
+              return chart.data.datasets.map((ds: any, i: number) => ({
+                text: ds.label,
+                fillStyle: colors[i] ?? '#999',
+                strokeStyle: colors[i] ?? '#999',
+                lineWidth: 0,
+                hidden: false,
+                datasetIndex: i,
+                pointStyle: 'rectRounded',
+              }))
+            }
+          : undefined,
       },
     },
     tooltip:
@@ -48,7 +66,13 @@ export default function buildPlugin(ocChart: OpenChatChart): any {
       enabled: true,
       displayColors: false,
       callbacks: {
-        label: getTooltipLabelCallback(ocChart)
+        label: ocChart.getMode() === 'candlestick'
+          ? (tooltipItem: any) => {
+              const raw = tooltipItem.raw
+              if (!raw) return ''
+              return `${t('始')}${raw.o}→${t('終')}${raw.c}  ${t('高')}${raw.h}/${t('安')}${raw.l}`
+            }
+          : getTooltipLabelCallback(ocChart)
       },
       position: 'tooltipAndLine',
     },

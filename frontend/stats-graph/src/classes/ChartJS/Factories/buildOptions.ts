@@ -15,7 +15,7 @@ export default function buildOptions(
   ocChart: OpenChatChart,
   plugins: any
 ): ChartConfiguration<'bar' | 'line', number[], string | string[]>['options'] {
-  const hasPosition = !!ocChart.data.graph2.length
+  const hasPosition = !!ocChart.data.graph2.length || !!ocChart.ohlcRankingData.length
   const limit = ocChart.limit
   const isWeekly = limit === 8
 
@@ -41,7 +41,7 @@ export default function buildOptions(
 
   const paddingX = 20
   const paddingY = isWeekly ? 0 : 5
-  const displayY = !isWeekly
+  const displayY = ocChart.getMode() === 'candlestick' ? true : !isWeekly
 
   const labelRangeLine = getVerticalLabelRange(ocChart, ocChart.data.graph1)
 
@@ -64,6 +64,7 @@ export default function buildOptions(
     aspectRatio: aspectRatio(ocChart),
     scales: {
       x: {
+        type: 'category' as const,
         grid: {
           display: hasPosition ? displayY : true,
           color: '#efefef',
@@ -71,7 +72,6 @@ export default function buildOptions(
         ticks: {
           color: getHorizontalLabelFontColor,
           padding: hasPosition ? paddingX : isWeekly ? 10 : 3,
-          autoSkip: true,
           maxRotation: 90,
           font: {
             size: ticksFontSize,
@@ -107,7 +107,38 @@ export default function buildOptions(
     options.scales!.x!.ticks!.callback = getHourTicksFormatterCallback(ocChart)
   }
 
-  if (ocChart.data.graph2.length) {
+  if (ocChart.getMode() === 'candlestick' && ocChart.ohlcRankingData.length) {
+    const allRankValues = ocChart.ohlcRankingData.flatMap(d => [d.o, d.h, d.l, d.c])
+    const rankMin = Math.min(...allRankValues)
+    const rankMax = Math.max(...allRankValues)
+    const padding = Math.max(1, Math.ceil((rankMax - rankMin) * 0.1))
+
+    options.scales!.temperatureChart! = {
+      position: 'right',
+      min: Math.max(1, rankMin - padding),
+      max: rankMax + padding,
+      reverse: true,
+      display: displayY,
+      grid: {
+        display: false,
+      },
+      ticks: {
+        display: displayY,
+        callback: (v: any) => {
+          const tick = Math.round(v)
+          if (tick !== v || tick < 1) return ''
+          return sprintfT('%s 位', tick)
+        },
+        autoSkip: true,
+        maxTicksLimit: 14,
+        precision: 0,
+        font: {
+          size: ticksFontSize,
+        },
+        color: '#aaa',
+      },
+    }
+  } else if (ocChart.data.graph2.length) {
     const labelRangeBar = getRankingBarLabelRange(
       ocChart,
       ocChart.getReverseGraph2(ocChart.data.graph2)
@@ -115,7 +146,7 @@ export default function buildOptions(
     const show = displayY && ocChart.data.graph2.some((v) => v !== 0 && v !== null)
 
     let lastTick = 0
-    
+
     options.scales!.temperatureChart! = {
       position: 'right',
       min: labelRangeBar.dataMin,
@@ -143,6 +174,32 @@ export default function buildOptions(
         },
         color: '#aaa',
       },
+    }
+  }
+
+  // ローソク足モード: CandlestickControllerがautoSkipを極端に効かせるため無効化
+  // 月・全期間はcallbackでラベルを間引く
+  if (ocChart.getMode() === 'candlestick') {
+    options.scales!.x!.ticks!.autoSkip = false
+
+    const dataLen = ocChart.ohlcData.length
+
+    if (!isWeekly) {
+      const maxLabels = limit === 31 ? 15 : 20
+      const step = Math.max(1, Math.ceil(dataLen / maxLabels))
+      options.scales!.x!.ticks!.callback = function (this: any, _val: any, index: number) {
+        if (index % step !== 0) return ''
+        return this.getLabelForValue(index)
+      }
+    }
+
+    // グリッド線もラベルと同じ間隔で間引く（大量データでグレーになるのを防止）
+    if (dataLen > 40) {
+      const gridStep = Math.max(1, Math.ceil(dataLen / 20))
+      options.scales!.x!.grid = {
+        ...options.scales!.x!.grid,
+        color: (ctx: any) => ctx.index % gridStep === 0 ? '#efefef' : 'transparent',
+      }
     }
   }
 

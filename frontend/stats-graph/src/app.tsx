@@ -76,7 +76,7 @@ export function App() {
         {renderTab.value && <ChartLimitBtns />}
       </div>
       {renderPositionBtns.value && (
-        <div style="min-height: 84px;">
+        <div style={{ minHeight: "84px" }}>
           <ToggleButtons />
         </div>
       )}
