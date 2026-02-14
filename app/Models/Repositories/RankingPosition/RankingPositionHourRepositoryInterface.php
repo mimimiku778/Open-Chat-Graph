@@ -55,7 +55,7 @@ interface RankingPositionHourRepositoryInterface
     /**
      * @return array{ open_chat_id: int, category: int, open_position: int, high_position: int, low_position: int, close_position: int, date: string }[]
      */
-    public function getDailyPositionOhlc(string $tableName, \DateTime $date): array;
+    public function getDailyPositionOhlc(RankingType $type, \DateTime $date): array;
 
     /**
      * @return string|false Y-m-d H:i:s

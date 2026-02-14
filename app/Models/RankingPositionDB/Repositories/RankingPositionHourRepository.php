@@ -126,9 +126,10 @@ class RankingPositionHourRepository implements RankingPositionHourRepositoryInte
         return RankingPositionDB::fetchAll($query);
     }
 
-    public function getDailyPositionOhlc(string $tableName, \DateTime $date): array
+    public function getDailyPositionOhlc(RankingType $type, \DateTime $date): array
     {
         $time = $date->format('Y-m-d');
+        $tableName = $type->value;
 
         $query =
             "SELECT
@@ -136,7 +137,10 @@ class RankingPositionHourRepository implements RankingPositionHourRepositoryInte
                 r.category,
                 first_val.position AS open_position,
                 stats.max_position AS high_position,
-                stats.min_position AS low_position,
+                CASE
+                    WHEN room_count.cnt < total_slots.cnt THEN NULL
+                    ELSE stats.min_position
+                END AS low_position,
                 last_val.position AS close_position,
                 DATE(r.time) AS date
             FROM
@@ -157,7 +161,17 @@ class RankingPositionHourRepository implements RankingPositionHourRepositoryInte
                 FROM {$tableName} t3
                 JOIN (SELECT open_chat_id, category, MAX(time) AS max_time FROM {$tableName} WHERE DATE(time) = '{$time}' GROUP BY open_chat_id, category) AS lt
                 ON t3.open_chat_id = lt.open_chat_id AND t3.category = lt.category AND t3.time = lt.max_time
-            ) AS last_val ON r.open_chat_id = last_val.open_chat_id AND r.category = last_val.category";
+            ) AS last_val ON r.open_chat_id = last_val.open_chat_id AND r.category = last_val.category
+            JOIN (
+                SELECT category, COUNT(DISTINCT time) AS cnt
+                FROM {$tableName} WHERE DATE(time) = '{$time}'
+                GROUP BY category
+            ) AS total_slots ON r.category = total_slots.category
+            JOIN (
+                SELECT open_chat_id, category, COUNT(*) AS cnt
+                FROM {$tableName} WHERE DATE(time) = '{$time}'
+                GROUP BY open_chat_id, category
+            ) AS room_count ON r.open_chat_id = room_count.open_chat_id AND r.category = room_count.category";
 
         return RankingPositionDB::fetchAll($query);
     }

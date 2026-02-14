@@ -33,6 +33,7 @@ export default class OpenChatChart implements ChartFactory {
   enableZoom = false
   ohlcData: { x: number; o: number; h: number; l: number; c: number }[] = []
   ohlcRankingData: { x: number; o: number; h: number; l: number; c: number }[] = []
+  ohlcRankingNullLow: Set<number> = new Set()
   ohlcDates: string[] = []
   private isHour: boolean = false
   private mode: ChartMode = 'line'
@@ -245,17 +246,21 @@ export default class OpenChatChart implements ChartFactory {
 
     // ランキング順位OHLCを基準日付に合わせて構築
     const ohlcRankingData: { x: number; o: number; h: number; l: number; c: number }[] = []
+    const ohlcRankingNullLow = new Set<number>()
     const rankingOhlc = this.initData.rankingOhlc
     if (rankingOhlc?.length) {
       const rankingMap = new Map(rankingOhlc.map(r => [r.date, r]))
       for (let i = 0; i < ohlcDates.length; i++) {
         const r = rankingMap.get(ohlcDates[i])
         if (r) {
+          if (r.low_position === null) {
+            ohlcRankingNullLow.add(i)
+          }
           ohlcRankingData.push({
             x: i,
             o: r.open_position,
             h: r.high_position,
-            l: r.low_position,
+            l: r.low_position ?? 0,
             c: r.close_position,
           })
         }
@@ -271,6 +276,7 @@ export default class OpenChatChart implements ChartFactory {
     }
     this.ohlcData = ohlcData
     this.ohlcRankingData = ohlcRankingData
+    this.ohlcRankingNullLow = ohlcRankingNullLow
     this.ohlcDates = ohlcDates
   }
 

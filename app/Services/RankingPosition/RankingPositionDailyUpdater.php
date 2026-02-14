@@ -12,6 +12,7 @@ use App\Models\Repositories\Statistics\StatisticsRepositoryInterface;
 use App\Models\Repositories\SyncOpenChatStateRepositoryInterface;
 use App\Services\Cron\Enum\SyncOpenChatStateType;
 use App\Services\Cron\Utility\CronUtility;
+use App\Services\OpenChat\Enum\RankingType;
 use App\Services\OpenChat\Utility\OpenChatServicesUtility;
 use App\Services\RankingPosition\Persistence\RankingPositionDailyPersistence;
 
@@ -77,12 +78,12 @@ class RankingPositionDailyUpdater
     {
         $date = new \DateTime($this->date);
 
-        $rankingOhlc = $this->rankingPositionHourRepository->getDailyPositionOhlc('ranking', $date);
-        $risingOhlc = $this->rankingPositionHourRepository->getDailyPositionOhlc('rising', $date);
+        $rankingOhlc = $this->rankingPositionHourRepository->getDailyPositionOhlc(RankingType::Ranking, $date);
+        $risingOhlc = $this->rankingPositionHourRepository->getDailyPositionOhlc(RankingType::Rising, $date);
 
         $allOhlc = array_merge(
-            array_map(fn($r) => [...$r, 'type' => 'ranking'], $rankingOhlc),
-            array_map(fn($r) => [...$r, 'type' => 'rising'], $risingOhlc)
+            array_map(fn($r) => [...$r, 'type' => RankingType::Ranking->value], $rankingOhlc),
+            array_map(fn($r) => [...$r, 'type' => RankingType::Rising->value], $risingOhlc)
         );
         unset($rankingOhlc, $risingOhlc);
 

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS "ranking_position_ohlc" (
 	type TEXT NOT NULL,
 	open_position INTEGER NOT NULL,
 	high_position INTEGER NOT NULL,
-	low_position INTEGER NOT NULL,
+	low_position INTEGER,
 	close_position INTEGER NOT NULL,
 	date TEXT NOT NULL
 );

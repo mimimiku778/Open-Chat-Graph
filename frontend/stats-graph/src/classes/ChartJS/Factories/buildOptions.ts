@@ -108,15 +108,26 @@ export default function buildOptions(
   }
 
   if (ocChart.getMode() === 'candlestick' && ocChart.ohlcRankingData.length) {
-    const allRankValues = ocChart.ohlcRankingData.flatMap(d => [d.o, d.h, d.l, d.c])
-    const rankMin = Math.min(...allRankValues)
-    const rankMax = Math.max(...allRankValues)
+    // nullLow（圏外）のl値を除外して軸範囲を計算
+    const realRankValues = ocChart.ohlcRankingData.flatMap(d => {
+      const vals = [d.o, d.h, d.c]
+      if (!ocChart.ohlcRankingNullLow.has(d.x)) vals.push(d.l)
+      return vals
+    })
+    const rankMin = Math.min(...realRankValues)
+    const rankMax = Math.max(...realRankValues)
     const padding = Math.max(1, Math.ceil((rankMax - rankMin) * 0.1))
+    const axisMax = rankMax + padding
+
+    // 圏外のl値を軸最大値に置換（ヒゲがチャートの一番下まで伸びる）
+    for (const d of ocChart.ohlcRankingData) {
+      if (ocChart.ohlcRankingNullLow.has(d.x)) d.l = axisMax
+    }
 
     options.scales!.temperatureChart! = {
       position: 'right',
       min: Math.max(1, rankMin - padding),
-      max: rankMax + padding,
+      max: axisMax,
       reverse: true,
       display: displayY,
       grid: {

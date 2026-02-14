@@ -36,7 +36,7 @@ interface RankingPositionOhlc {
   date: string
   open_position: number
   high_position: number
-  low_position: number
+  low_position: number | null
   close_position: number
 }
 
