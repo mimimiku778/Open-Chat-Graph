@@ -11,10 +11,14 @@ type StatisticsChartDto = {
   member: (number | null)[]
   startDate: string
   endDate: string
-  open: (number | null)[]
-  high: (number | null)[]
-  low: (number | null)[]
-  close: (number | null)[]
+}
+
+interface MemberOhlc {
+  date: string
+  open_member: number
+  high_member: number
+  low_member: number
+  close_member: number
 }
 
 interface ErrorResponse {

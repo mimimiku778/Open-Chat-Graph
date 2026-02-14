@@ -152,7 +152,7 @@ export function handleChangeEnableZoom(value: boolean) {
 }
 
 export function hasOhlcData(): boolean {
-  return Array.isArray(statsDto.open)
+  return statsDto.date.length > 1
 }
 
 export function handleChangeChartMode(mode: ChartMode) {

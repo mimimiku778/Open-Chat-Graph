@@ -31,6 +31,7 @@ export default class OpenChatChart implements ChartFactory {
   onZooming = false
   onPaning = false
   enableZoom = false
+  memberOhlcApiData: MemberOhlc[] = []
   ohlcData: { x: number; o: number; h: number; l: number; c: number }[] = []
   ohlcRankingData: { x: number; o: number; h: number; l: number; c: number }[] = []
   ohlcRankingNullLow: Set<number> = new Set()
@@ -216,18 +217,16 @@ export default class OpenChatChart implements ChartFactory {
     const ohlcData: { x: number; o: number; h: number; l: number; c: number }[] = []
     const allValues: number[] = []
     const ohlcDates: string[] = []
-    const hasRealOhlc = statsDto.open.some(v => v !== null)
+    const apiOhlcMap = new Map(this.memberOhlcApiData.map(r => [r.date, r]))
+    const hasRealOhlc = this.memberOhlcApiData.length > 0
 
     if (hasRealOhlc) {
       for (let i = startIdx; i < len; i++) {
-        const o = statsDto.open[i]
-        const h = statsDto.high[i]
-        const l = statsDto.low[i]
-        const c = statsDto.close[i]
-        if (o !== null && h !== null && l !== null && c !== null) {
+        const record = apiOhlcMap.get(dates[i])
+        if (record) {
           ohlcDates.push(dates[i])
-          ohlcData.push({ x: ohlcData.length, o, h, l, c })
-          allValues.push(o, h, l, c)
+          ohlcData.push({ x: ohlcData.length, o: record.open_member, h: record.high_member, l: record.low_member, c: record.close_member })
+          allValues.push(record.open_member, record.high_member, record.low_member, record.close_member)
         }
       }
     } else {

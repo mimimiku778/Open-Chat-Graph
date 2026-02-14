@@ -102,10 +102,16 @@ export async function fetchChart(animation: boolean) {
     setRenderPositionBtns(true)
     const limit: ChartLimit = limitSignal.value === 25 ? 31 : limitSignal.value
 
+    // メンバーOHLCをAPI経由で取得
+    loading.value = true
+    const memberOhlcData = await fetcher<MemberOhlc[]>(
+      `${chatArgDto.baseUrl}/oc/${chatArgDto.id}/member_ohlc`
+    )
+    chart.memberOhlcApiData = memberOhlcData
+
     if (rankingRisingSignal.value !== 'none') {
       const sort = rankingRisingSignal.value
       const category = categorySignal.value === 'all' ? 0 : chatArgDto.categoryKey
-      loading.value = true
       const ohlcData = await fetcher<RankingPositionOhlc[]>(
         `${chatArgDto.baseUrl}/oc/${chatArgDto.id}/position_ohlc?sort=${sort}&category=${category}`
       )
@@ -130,6 +136,7 @@ export async function fetchChart(animation: boolean) {
         limit
       )
     } else {
+      loading.value = false
       renderMemberChart(animation, limit)(statsDto)
     }
     return
