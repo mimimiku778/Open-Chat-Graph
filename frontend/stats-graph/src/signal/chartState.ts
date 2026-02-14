@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals"
 import { chatArgDto, fetchChart, statsDto } from "../util/fetchRenderer"
 import OpenChatChart from "../classes/OpenChatChart"
-import { getCurrentUrlParams, setUrlParams } from "../util/urlParam"
+import { getCurrentUrlParams, getStoregeFixedLimitSetting, setUrlParams } from "../util/urlParam"
 import { toggleDisplay24h, toggleDisplayAll, toggleDisplayMonth } from "../components/ChartLimitBtns"
 import { setRenderPositionBtns } from "../app"
 
@@ -13,6 +13,8 @@ export const categorySignal = signal<urlParamsValue<'category'>>('in')
 export const limitSignal = signal<ChartLimit | 25>(8)
 export const zoomEnableSignal = signal(false)
 export const chartModeSignal = signal<ChartMode>('line')
+
+let isInitialLoad = true
 
 export function setChartStatesFromUrlParams() {
   const params = getCurrentUrlParams()
@@ -35,11 +37,28 @@ export function setChartStatesFromUrlParams() {
       break
   }
 
+  // 初回読込時のみ: 期間固定オプションでlimitを上書き
+  if (isInitialLoad) {
+    const fixedLimit = getStoregeFixedLimitSetting()
+    if (fixedLimit) {
+      switch (fixedLimit) {
+        case "week": limitSignal.value = 8; break
+        case "month": limitSignal.value = 31; break
+        case "all": limitSignal.value = 0; break
+      }
+      chart.setIsHour(false)
+    }
+  }
+
   // ローソク足モードの復元（OHLCデータが存在する場合のみ）
   if (params.chart === 'candlestick' && hasOhlcData()) {
     chartModeSignal.value = 'candlestick'
     chart.setMode('candlestick')
   }
+}
+
+export function markInitialLoadComplete() {
+  isInitialLoad = false
 }
 
 export function setUrlParamsFromChartStates() {

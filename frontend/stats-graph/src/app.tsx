@@ -6,6 +6,7 @@ import {
   chart,
   initDisplay,
   loading,
+  markInitialLoadComplete,
   setChartStatesFromUrlParams,
   setUrlParamsFromChartStates,
 } from "./signal/chartState";
@@ -29,6 +30,7 @@ const init = async () => {
     renderChartWithoutRanking();
   }
 
+  markInitialLoadComplete();
   renderTab.value = true;
   setUrlParamsFromChartStates();
 };

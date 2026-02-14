@@ -31,6 +31,15 @@
   font-size: 0.875rem;
 }
 
+.MuiChip-root.openchat-item-header-chip.graph.chart-mode-toggle {
+  height: 23px;
+  font-size: 0.7rem;
+}
+
+.MuiChip-root.openchat-item-header-chip.graph.chart-mode-toggle .MuiChip-icon {
+  font-size: 0.85rem;
+}
+
 .MuiToggleButton-root.MuiToggleButton-standard {
   color: #b7b7b7;
   border: 1px solid #efefef;
@@ -107,6 +116,10 @@
 
   .MuiChip-root.openchat-item-header-chip.graph {
     font-size: 13px;
+  }
+
+  .MuiChip-root.openchat-item-header-chip.graph.chart-mode-toggle {
+    font-size: 0.75rem;
   }
 }
 

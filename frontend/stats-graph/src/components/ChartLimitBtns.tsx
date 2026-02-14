@@ -23,7 +23,7 @@ function CandlestickToggle() {
 
   return (
     <Chip
-      className={`openchat-item-header-chip graph ${isCandlestick ? 'selected' : ''}`}
+      className={`openchat-item-header-chip graph chart-mode-toggle ${isCandlestick ? 'selected' : ''}`}
       icon={isCandlestick ? <ShowChartIcon /> : <CandlestickChartIcon />}
       label={isCandlestick ? t('折れ線グラフ') : t('ローソク足')}
       onClick={handleToggle}
@@ -31,11 +31,8 @@ function CandlestickToggle() {
       sx={{
         opacity: disabled ? 0.4 : 1,
         cursor: disabled ? 'default' : 'pointer',
-        height: '24px',
-        fontSize: '0.75rem',
         '& .MuiChip-icon': {
           color: 'inherit',
-          fontSize: '1rem',
         },
       }}
       aria-label={isCandlestick ? t('折れ線グラフに切り替え') : t('ローソク足に切り替え')}

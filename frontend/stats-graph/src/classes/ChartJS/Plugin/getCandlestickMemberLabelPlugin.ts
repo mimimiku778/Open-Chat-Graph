@@ -1,28 +1,26 @@
 import OpenChatChart from "../../OpenChatChart"
 
-export default function getCandlestickRankingLabelPlugin(ocChart: OpenChatChart) {
+export default function getCandlestickMemberLabelPlugin(ocChart: OpenChatChart) {
   return {
-    id: 'candlestick-ranking-labels',
+    id: 'candlestick-member-labels',
     afterDatasetsDraw(chart: any) {
-      if (ocChart.getMode() !== 'candlestick' || !ocChart.ohlcRankingData.length) return
+      if (ocChart.getMode() !== 'candlestick') return
 
-      const meta = chart.getDatasetMeta(1)
+      const meta = chart.getDatasetMeta(0)
       if (!meta?.data?.length) return
 
-      const chartArea = chart.chartArea
+      const scale = chart.scales.rainChart
       const xMin = chart.scales.x.min
       const xMax = chart.scales.x.max
       const range = xMax - xMin + 1
       const showAll = range < 9
-      const autoSkipAll = ocChart.limit === 0 || ocChart.limit === 31
       const dataLen = meta.data.length
 
-      // 可視範囲内の先頭・末尾インデックスを特定
       let firstVisible = -1
       let lastVisible = -1
       for (let i = 0; i < dataLen; i++) {
-        const x = ocChart.ohlcRankingData[i].x
-        if (x >= xMin && x <= xMax) {
+        const d = ocChart.ohlcData[i]
+        if (d.x >= xMin && d.x <= xMax) {
           if (firstVisible === -1) firstVisible = i
           lastVisible = i
         }
@@ -40,29 +38,27 @@ export default function getCandlestickRankingLabelPlugin(ocChart: OpenChatChart)
       ctx.font = `${fontWeight} ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`
       ctx.fillStyle = '#111'
       ctx.textAlign = 'center'
-      ctx.textBaseline = 'bottom'
+      ctx.textBaseline = 'middle'
 
-      const y = chartArea.bottom - 2
       const gap = 4
       let lastRight = -Infinity
 
       for (let i = 0; i < dataLen; i++) {
-        const x = ocChart.ohlcRankingData[i].x
-        if (x < xMin || x > xMax) continue
+        const d = ocChart.ohlcData[i]
+        if (d.x < xMin || d.x > xMax) continue
 
-        // 週: 全件、月・全期間: autoSkip付き全件、それ以外: 先頭と末尾のみ
-        if (!showAll && !autoSkipAll && i !== firstVisible && i !== lastVisible) continue
+        if (!showAll && i !== firstVisible && i !== lastVisible) continue
 
         const el = meta.data[i]
-        const raw = ocChart.ohlcRankingData[i]
-        if (!el || raw?.h == null) continue
+        if (!el || d.c == null) continue
 
-        const text = String(raw.h)
+        const text = d.c.toLocaleString()
         const halfWidth = ctx.measureText(text).width / 2
         const left = el.x - halfWidth
 
-        if (left < lastRight + gap && i !== firstVisible && i !== lastVisible) continue
+        if (!showAll && left < lastRight + gap && i !== firstVisible && i !== lastVisible) continue
 
+        const y = scale.getPixelForValue(d.c)
         ctx.fillText(text, el.x, y)
         lastRight = el.x + halfWidth
       }
