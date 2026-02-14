@@ -15,7 +15,8 @@ export default function getCandlestickRankingLabelPlugin(ocChart: OpenChatChart)
       const range = xMax - xMin + 1
       const showAll = range < 9
       const autoSkipAll = ocChart.limit === 0 || ocChart.limit === 31
-      const dataLen = meta.data.length
+      const dataLen = Math.min(meta.data.length, ocChart.ohlcRankingData.length)
+      if (!dataLen) return
 
       // 可視範囲内の先頭・末尾インデックスを特定
       let firstVisible = -1

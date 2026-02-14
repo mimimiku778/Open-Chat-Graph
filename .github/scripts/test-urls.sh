@@ -314,6 +314,21 @@ main() {
     fi
     echo ""
 
+    # OCメンバーOHLCデータAPI（ローソク足チャート用）のテスト
+    log "OCメンバーOHLCデータAPIのテスト"
+    if [ -n "$JA_OC_ID" ]; then
+        test_url "${BASE_URL}/oc/${JA_OC_ID}/member_ohlc" "OCメンバーOHLC"
+    fi
+
+    if [ -n "$TH_OC_ID" ]; then
+        test_url "${BASE_URL}/th/oc/${TH_OC_ID}/member_ohlc" "OCメンバーOHLC（タイ語）"
+    fi
+
+    if [ -n "$TW_OC_ID" ]; then
+        test_url "${BASE_URL}/tw/oc/${TW_OC_ID}/member_ohlc" "OCメンバーOHLC（繁体字）"
+    fi
+    echo ""
+
     # 各種ページ
     log "各種ページのテスト（多言語）"
     test_url "${BASE_URL}/policy" "ポリシーページ"

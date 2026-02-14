@@ -144,7 +144,9 @@ export default class OpenChatChart implements ChartFactory {
     if (this.mode === 'candlestick') {
       this.buildCandlestickData()
     } else {
+      this.ohlcData = []
       this.ohlcRankingData = []
+      this.ohlcDates = []
       if (this.isHour) {
         this.buildHourData()
       } else {
@@ -270,8 +272,8 @@ export default class OpenChatChart implements ChartFactory {
     }
 
     this.data = {
-      date: paddingArray<string | string[]>(labels, ''),
-      graph1: paddingArray<number | null>(allValues, null),
+      date: labels,
+      graph1: allValues,
       graph2: [],
       time: [],
       totalCount: [],
@@ -296,7 +298,7 @@ export default class OpenChatChart implements ChartFactory {
 
   getDate(limit: ChartLimit): (string | string[])[] {
     if (this.mode === 'candlestick') {
-      return paddingArray<string | string[]>(formatDates(this.ohlcDates, limit), '')
+      return formatDates(this.ohlcDates, limit)
     }
     const data = this.initData.date.slice(this.limit * -1)
     return formatDates(data, limit)

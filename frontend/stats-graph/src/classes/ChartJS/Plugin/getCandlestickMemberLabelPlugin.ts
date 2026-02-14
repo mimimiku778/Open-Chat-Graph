@@ -14,7 +14,8 @@ export default function getCandlestickMemberLabelPlugin(ocChart: OpenChatChart) 
       const xMax = chart.scales.x.max
       const range = xMax - xMin + 1
       const showAll = range < 9
-      const dataLen = meta.data.length
+      const dataLen = Math.min(meta.data.length, ocChart.ohlcData.length)
+      if (!dataLen) return
 
       let firstVisible = -1
       let lastVisible = -1
@@ -45,7 +46,7 @@ export default function getCandlestickMemberLabelPlugin(ocChart: OpenChatChart) 
 
       for (let i = 0; i < dataLen; i++) {
         const d = ocChart.ohlcData[i]
-        if (d.x < xMin || d.x > xMax) continue
+        if (!d || d.x < xMin || d.x > xMax) continue
 
         if (!showAll && i !== firstVisible && i !== lastVisible) continue
 
