@@ -5,6 +5,7 @@ import {
   limitSignal,
   loading,
   rankingRisingSignal,
+  updateTabVisibility,
 } from '../signal/chartState'
 import { setRenderPositionBtns } from '../app'
 import fetcher from './fetcher'
@@ -100,7 +101,6 @@ export function renderChartWithoutRanking() {
 export async function fetchChart(animation: boolean) {
   if (chartModeSignal.value === 'candlestick') {
     setRenderPositionBtns(true)
-    const limit: ChartLimit = limitSignal.value === 25 ? 31 : limitSignal.value
 
     // メンバーOHLCをAPI経由で取得
     loading.value = true
@@ -108,6 +108,10 @@ export async function fetchChart(animation: boolean) {
       `${chatArgDto.baseUrl}/oc/${chatArgDto.id}/member_ohlc`
     )
     chart.memberOhlcApiData = memberOhlcData
+
+    // OHLCデータ数に基づいてタブ表示を更新
+    updateTabVisibility(memberOhlcData.length)
+    const limit: ChartLimit = limitSignal.value === 25 ? 31 : limitSignal.value
 
     if (rankingRisingSignal.value !== 'none') {
       const sort = rankingRisingSignal.value
@@ -141,6 +145,9 @@ export async function fetchChart(animation: boolean) {
     }
     return
   }
+
+  // 折れ線グラフモード: statsDto基準でタブ表示を復元
+  updateTabVisibility(statsDto.date.length)
 
   const path: PotisionPath = chart.getIsHour() ? 'position_hour' : 'position'
   const limit: ChartLimit = limitSignal.value === 25 ? 31 : limitSignal.value

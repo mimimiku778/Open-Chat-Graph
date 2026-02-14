@@ -86,15 +86,8 @@ export function initDisplay() {
     rankingRisingSignal.value !== 'rising' && (rankingRisingSignal.value = 'none')
   }
 
-  // 最新１週間のデータがない場合
-  if (statsDto.date.length <= 8) {
-    toggleDisplayMonth.value = false
-  }
-
-  // 最新1ヶ月のデータがない場合
-  if (statsDto.date.length <= 31) {
-    toggleDisplayAll.value = false
-  }
+  // データ数に基づいてタブ表示を設定
+  updateTabVisibility(statsDto.date.length)
 
   // ランキング未掲載の場合
   if (chatArgDto.categoryKey === null) {
@@ -153,6 +146,19 @@ export function handleChangeEnableZoom(value: boolean) {
 
 export function hasOhlcData(): boolean {
   return statsDto.date.length > 1
+}
+
+export function updateTabVisibility(dataLength: number) {
+  toggleDisplayMonth.value = dataLength > 8
+  toggleDisplayAll.value = dataLength > 31
+
+  // 非表示になったタブが選択中の場合、表示中のタブにフォールバック
+  if (limitSignal.value === 0 && !toggleDisplayAll.value) {
+    limitSignal.value = toggleDisplayMonth.value ? 31 : 8
+  }
+  if (limitSignal.value === 31 && !toggleDisplayMonth.value) {
+    limitSignal.value = 8
+  }
 }
 
 export function handleChangeChartMode(mode: ChartMode) {
