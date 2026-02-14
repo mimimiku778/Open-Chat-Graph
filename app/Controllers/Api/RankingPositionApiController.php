@@ -10,6 +10,7 @@ use App\Services\RankingPosition\Dto\RankingPositionChartDto;
 use App\Services\RankingPosition\RankingPositionChartArrayService;
 use App\Services\RankingPosition\RankingPositionHourChartArrayService;
 use App\Models\Repositories\RankingPosition\RankingPositionOhlcRepositoryInterface;
+use App\Models\Repositories\Statistics\StatisticsOhlcRepositoryInterface;
 use App\Services\Storage\FileStorageInterface;
 
 class RankingPositionApiController
@@ -38,6 +39,13 @@ class RankingPositionApiController
             new \DateTime($start_date),
             new \DateTime($end_date)
         ));
+    }
+
+    function memberOhlc(
+        StatisticsOhlcRepositoryInterface $repo,
+        int $open_chat_id
+    ) {
+        return response($repo->getOhlcDateAsc($open_chat_id));
     }
 
     function rankingPositionOhlc(

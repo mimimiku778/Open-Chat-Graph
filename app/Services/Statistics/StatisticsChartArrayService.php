@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\Statistics;
 
-use App\Models\Repositories\Statistics\StatisticsOhlcRepositoryInterface;
 use App\Models\Repositories\Statistics\StatisticsPageRepositoryInterface;
 use App\Services\Statistics\Dto\StatisticsChartDto;
 
@@ -12,7 +11,6 @@ class StatisticsChartArrayService
 {
     function __construct(
         private StatisticsPageRepositoryInterface $statisticsPageRepository,
-        private StatisticsOhlcRepositoryInterface $statisticsOhlcRepository,
     ) {}
 
     /**
@@ -28,15 +26,12 @@ class StatisticsChartArrayService
             return false;
         }
 
-        $ohlcStats = $this->statisticsOhlcRepository->getOhlcDateAsc($open_chat_id);
-
         $dto = new StatisticsChartDto($memberStats[0]['date'], $memberStats[count($memberStats) - 1]['date']);
 
         return $this->generateChartArray(
             $dto,
             $this->generateDateArray($dto->startDate, $dto->endDate),
-            $memberStats,
-            $ohlcStats
+            $memberStats
         );
     }
 
@@ -64,48 +59,21 @@ class StatisticsChartArrayService
     /**
      * @param string[] $dateArray
      * @param array{ date:string, member:int }[] $memberStats
-     * @param array{ date:string, open_member:int, high_member:int, low_member:int, close_member:int }[] $ohlcStats
      */
-    private function generateChartArray(StatisticsChartDto $dto, array $dateArray, array $memberStats, array $ohlcStats = []): StatisticsChartDto
+    private function generateChartArray(StatisticsChartDto $dto, array $dateArray, array $memberStats): StatisticsChartDto
     {
         $getMemberStatsCurDate = fn(int $key): string => $memberStats[$key]['date'] ?? '';
-        $getOhlcStatsCurDate = fn(int $key): string => $ohlcStats[$key]['date'] ?? '';
-
         $curKeyMemberStats = 0;
         $memberStatsCurDate = $getMemberStatsCurDate(0);
 
-        $curKeyOhlcStats = 0;
-        $ohlcStatsCurDate = $getOhlcStatsCurDate(0);
-
         foreach ($dateArray as $date) {
-            $matchMemberStats = $memberStatsCurDate === $date;
-
             $member = null;
-            if ($matchMemberStats) {
+            if ($memberStatsCurDate === $date) {
                 $member = $memberStats[$curKeyMemberStats]['member'];
                 $curKeyMemberStats++;
                 $memberStatsCurDate = $getMemberStatsCurDate($curKeyMemberStats);
             }
-
-            $dto->addValue(
-                $date,
-                $member,
-            );
-
-            $matchOhlcStats = $ohlcStatsCurDate === $date;
-
-            if ($matchOhlcStats) {
-                $dto->addOhlcValue(
-                    $ohlcStats[$curKeyOhlcStats]['open_member'],
-                    $ohlcStats[$curKeyOhlcStats]['high_member'],
-                    $ohlcStats[$curKeyOhlcStats]['low_member'],
-                    $ohlcStats[$curKeyOhlcStats]['close_member'],
-                );
-                $curKeyOhlcStats++;
-                $ohlcStatsCurDate = $getOhlcStatsCurDate($curKeyOhlcStats);
-            } else {
-                $dto->addOhlcValue(null, null, null, null);
-            }
+            $dto->addValue($date, $member);
         }
 
         return $dto;
