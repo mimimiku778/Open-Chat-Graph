@@ -102,7 +102,7 @@ class RankingPositionHourRepository implements RankingPositionHourRepositoryInte
                 stats.high_member,
                 stats.low_member,
                 last_val.member AS close_member,
-                DATE(m.time) AS date
+                '{$time}' AS date
             FROM
                 (SELECT DISTINCT open_chat_id FROM member WHERE DATE(time) = '{$time}') AS m
             JOIN (
@@ -142,7 +142,7 @@ class RankingPositionHourRepository implements RankingPositionHourRepositoryInte
                     ELSE stats.min_position
                 END AS low_position,
                 last_val.position AS close_position,
-                DATE(r.time) AS date
+                '{$time}' AS date
             FROM
                 (SELECT DISTINCT open_chat_id, category FROM {$tableName} WHERE DATE(time) = '{$time}') AS r
             JOIN (
