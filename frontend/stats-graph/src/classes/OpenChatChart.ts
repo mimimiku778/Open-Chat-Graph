@@ -10,6 +10,7 @@ import afterOpenChatChartJSFactory from './ChartJS/Factories/afterOpenChatChartJ
 import getEventCatcherPlugin from './ChartJS/Plugin/getEventCatcherPlugin.ts';
 import paddingArray from './ChartJS/Util/paddingArray.ts';
 import { statsDto } from '../util/fetchRenderer';
+import { t } from '../util/translation';
 
 export default class OpenChatChart implements ChartFactory {
   chart: ChartJS = null!
@@ -143,6 +144,10 @@ export default class OpenChatChart implements ChartFactory {
 
     if (this.mode === 'candlestick') {
       this.buildCandlestickData()
+      if (!this.ohlcData.length) {
+        this.drawEmptyMessage()
+        return
+      }
     } else {
       this.ohlcData = []
       this.ohlcRankingData = []
@@ -227,17 +232,6 @@ export default class OpenChatChart implements ChartFactory {
         ohlcDates.push(dates[i])
         ohlcData.push({ x: ohlcData.length, o: record.open_member, h: record.high_member, l: record.low_member, c: record.close_member })
         allValues.push(record.open_member, record.high_member, record.low_member, record.close_member)
-      } else {
-        // APIにレコードがない日は日次member値から擬似OHLCで補完
-        const c = statsDto.member[i]
-        if (c === null) continue
-        const prev = i > 0 ? (statsDto.member[i - 1] ?? c) : c
-        const o = prev
-        const h = Math.max(o, c)
-        const l = Math.min(o, c)
-        ohlcDates.push(dates[i])
-        ohlcData.push({ x: ohlcData.length, o, h, l, c })
-        allValues.push(o, h, l, c)
       }
     }
 
@@ -300,5 +294,22 @@ export default class OpenChatChart implements ChartFactory {
     }
     const data = this.initData.date.slice(this.limit * -1)
     return formatDates(data, limit)
+  }
+
+  private drawEmptyMessage() {
+    if (!this.canvas) return
+    const ctx = this.canvas.getContext('2d')
+    if (!ctx) return
+
+    const w = this.canvas.width
+    const h = this.canvas.height
+    ctx.clearRect(0, 0, w, h)
+    ctx.save()
+    ctx.fillStyle = '#888'
+    ctx.font = '14px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(t('OHLCデータがありません'), w / 2, h / 2)
+    ctx.restore()
   }
 }

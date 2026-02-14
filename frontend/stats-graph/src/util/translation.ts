@@ -137,6 +137,10 @@ const translation = {
     tw: "不固定",
     th: "ไม่คงที่",
   },
+  OHLCデータがありません: {
+    tw: "沒有OHLC數據",
+    th: "ไม่มีข้อมูล OHLC",
+  },
 };
 
 const sprintfTranslation = {
