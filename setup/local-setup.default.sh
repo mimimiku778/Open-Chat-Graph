@@ -249,6 +249,12 @@ for lang in ja tw th; do
     # statistics.db を生成
     cat setup/schema/sqlite/statistics.sql | docker compose exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/statistics/statistics.db"
 
+    # statistics_ohlc.db を生成
+    cat setup/schema/sqlite/statistics_ohlc.sql | docker compose exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/statistics_ohlc/statistics_ohlc.db"
+
+    # ranking_position_ohlc.db を生成
+    cat setup/schema/sqlite/ranking_position_ohlc.sql | docker compose exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/ranking_position_ohlc/ranking_position_ohlc.db"
+
     # ranking_position.db を生成
     cat setup/schema/sqlite/ranking_position.sql | docker compose exec -T -u www-data app sqlite3 "storage/${lang}/SQLite/ranking_position/ranking_position.db"
 

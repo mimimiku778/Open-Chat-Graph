@@ -6,6 +6,8 @@ namespace App\Services\RankingPosition;
 
 use App\Models\Repositories\OpenChatRepositoryInterface;
 use App\Models\Repositories\RankingPosition\RankingPositionHourRepositoryInterface;
+use App\Models\Repositories\RankingPosition\RankingPositionOhlcRepositoryInterface;
+use App\Models\Repositories\Statistics\StatisticsOhlcRepositoryInterface;
 use App\Models\Repositories\Statistics\StatisticsRepositoryInterface;
 use App\Models\Repositories\SyncOpenChatStateRepositoryInterface;
 use App\Services\Cron\Enum\SyncOpenChatStateType;
@@ -20,6 +22,8 @@ class RankingPositionDailyUpdater
     function __construct(
         private RankingPositionDailyPersistence $rankingPositionDailyPersistence,
         private StatisticsRepositoryInterface $statisticsRepository,
+        private StatisticsOhlcRepositoryInterface $statisticsOhlcRepository,
+        private RankingPositionOhlcRepositoryInterface $rankingPositionOhlcRepository,
         private RankingPositionHourRepositoryInterface $rankingPositionHourRepository,
         private OpenChatRepositoryInterface $openChatRepository,
         private SyncOpenChatStateRepositoryInterface $syncStateRepository,
@@ -48,12 +52,41 @@ class RankingPositionDailyUpdater
         $ocDbIdArray = $this->openChatRepository->getOpenChatIdAll();
 
         $filteredData = array_filter($data, fn($stats) => in_array($stats['open_chat_id'], $ocDbIdArray));
-        unset($ocDbIdArray);
+        unset($data);
 
         $this->statisticsRepository->insertMember($filteredData);
+        unset($filteredData);
+
+        // OHLCデータの永続化
+        $ohlcData = $this->rankingPositionHourRepository->getDailyMemberOhlc(new \DateTime($this->date));
+        $filteredOhlcData = array_filter($ohlcData, fn($stats) => in_array($stats['open_chat_id'], $ocDbIdArray));
+        unset($ohlcData, $ocDbIdArray);
+
+        $this->statisticsOhlcRepository->insertOhlc($filteredOhlcData);
+        CronUtility::addVerboseCronLog('メンバーOHLCデータの永続化が完了: ' . $this->date);
+
+        // ランキング順位OHLCの永続化
+        $this->persistRankingPositionOhlc();
 
         // 実行日を保存
         $this->syncStateRepository->setString(SyncOpenChatStateType::persistMemberStatsLastDate, $this->date);
         CronUtility::addVerboseCronLog('毎時人数データの永続化が完了: ' . $this->date);
+    }
+
+    private function persistRankingPositionOhlc(): void
+    {
+        $date = new \DateTime($this->date);
+
+        $rankingOhlc = $this->rankingPositionHourRepository->getDailyPositionOhlc('ranking', $date);
+        $risingOhlc = $this->rankingPositionHourRepository->getDailyPositionOhlc('rising', $date);
+
+        $allOhlc = array_merge(
+            array_map(fn($r) => [...$r, 'type' => 'ranking'], $rankingOhlc),
+            array_map(fn($r) => [...$r, 'type' => 'rising'], $risingOhlc)
+        );
+        unset($rankingOhlc, $risingOhlc);
+
+        $this->rankingPositionOhlcRepository->insertOhlc($allOhlc);
+        CronUtility::addVerboseCronLog('ランキング順位OHLCデータの永続化が完了: ' . $this->date);
     }
 }

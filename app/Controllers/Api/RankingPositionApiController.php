@@ -9,6 +9,7 @@ use App\Services\OpenChat\Enum\RankingType;
 use App\Services\RankingPosition\Dto\RankingPositionChartDto;
 use App\Services\RankingPosition\RankingPositionChartArrayService;
 use App\Services\RankingPosition\RankingPositionHourChartArrayService;
+use App\Models\Repositories\RankingPosition\RankingPositionOhlcRepositoryInterface;
 use App\Services\Storage\FileStorageInterface;
 
 class RankingPositionApiController
@@ -37,6 +38,15 @@ class RankingPositionApiController
             new \DateTime($start_date),
             new \DateTime($end_date)
         ));
+    }
+
+    function rankingPositionOhlc(
+        RankingPositionOhlcRepositoryInterface $repo,
+        int $open_chat_id,
+        int $category,
+        string $sort
+    ) {
+        return response($repo->getOhlcDateAsc($open_chat_id, $category, $sort));
     }
 
     function rankingPositionHour(

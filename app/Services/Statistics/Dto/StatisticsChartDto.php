@@ -12,6 +12,18 @@ class StatisticsChartDto
     /** @var (int|null)[] */
     public array $member = [];
 
+    /** @var (int|null)[] */
+    public array $open = [];
+
+    /** @var (int|null)[] */
+    public array $high = [];
+
+    /** @var (int|null)[] */
+    public array $low = [];
+
+    /** @var (int|null)[] */
+    public array $close = [];
+
     public string $startDate = '';
 
     public string $endDate = '';
@@ -26,5 +38,13 @@ class StatisticsChartDto
     {
         $this->date[] = $date;
         $this->member[] = $member;
+    }
+
+    function addOhlcValue(?int $open, ?int $high, ?int $low, ?int $close)
+    {
+        $this->open[] = $open;
+        $this->high[] = $high;
+        $this->low[] = $low;
+        $this->close[] = $close;
     }
 }
