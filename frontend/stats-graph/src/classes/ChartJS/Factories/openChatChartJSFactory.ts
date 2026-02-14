@@ -3,11 +3,13 @@ import OpenChatChart from "../../OpenChatChart";
 import buildData from "./buildData";
 import buildOptions from "./buildOptions";
 import buildPlugin from "./buildPlugin";
+import getCandlestickRankingLabelPlugin from "../Plugin/getCandlestickRankingLabelPlugin";
 
 export default function openChatChartJSFactory(ocChart: OpenChatChart) {
   /* @ts-ignore */
   return new ChartJS(ocChart.canvas!, {
     data: buildData(ocChart),
-    options: buildOptions(ocChart, buildPlugin(ocChart))
+    options: buildOptions(ocChart, buildPlugin(ocChart)),
+    plugins: [getCandlestickRankingLabelPlugin(ocChart)],
   })
 }

@@ -12,6 +12,21 @@ export const barEasing = 'easeOutCirc'
 
 export default function buildData(ocChart: OpenChatChart) {
   if (ocChart.getMode() === 'candlestick') {
+    const candleDatalabelDisplay = (context: any) => {
+      const range = context.chart.scales.x.max - context.chart.scales.x.min + 1
+      if (range < 9) return true
+      const len = context.dataset.data.length
+      const index = context.dataIndex
+      return index === 0 || index === len - 1 ? 'auto' : false
+    }
+
+    const isLimit8 = ocChart.limit === 8
+    const candleLabelFontSize = isLimit8
+      ? (ocChart.isPC ? 10.5 : (ocChart.isMiniMobile ? 9 : 10))
+      : ocChart.limit === 31 ? 9
+      : (ocChart.isPC ? 9.5 : 9)
+    const candleLabelFont = { weight: 'normal' as const, size: candleLabelFontSize }
+
     const datasets: any[] = [{
       type: 'candlestick' as any,
       label: t('メンバー数'),
@@ -19,7 +34,13 @@ export default function buildData(ocChart: OpenChatChart) {
       color: { up: '#00c853', down: '#ff1744', unchanged: '#757575' },
       backgroundColors: { up: 'rgba(0, 200, 83, 0.7)', down: 'rgba(255, 23, 68, 0.7)', unchanged: 'rgba(117, 117, 117, 0.7)' },
       borderColors: { up: '#00c853', down: '#ff1744', unchanged: '#757575' },
-      datalabels: { display: false },
+      datalabels: {
+        display: candleDatalabelDisplay,
+        formatter: (v: any) => v?.c?.toLocaleString() ?? '',
+        align: 'end' as const,
+        anchor: 'end' as const,
+        font: candleLabelFont,
+      },
       animation: { duration: ocChart.animation ? undefined : 0 },
       yAxisID: 'rainChart',
     }]
@@ -29,9 +50,9 @@ export default function buildData(ocChart: OpenChatChart) {
         type: 'candlestick' as any,
         label: `${ocChart.option.label2} | ${ocChart.option.category}`,
         data: ocChart.ohlcRankingData,
-        color: { up: 'rgba(255, 109, 0, 0.5)', down: 'rgba(41, 121, 255, 0.5)', unchanged: 'rgba(158, 158, 158, 0.5)' },
-        backgroundColors: { up: 'rgba(255, 109, 0, 0.15)', down: 'rgba(41, 121, 255, 0.15)', unchanged: 'rgba(158, 158, 158, 0.15)' },
-        borderColors: { up: 'rgba(255, 109, 0, 0.5)', down: 'rgba(41, 121, 255, 0.5)', unchanged: 'rgba(158, 158, 158, 0.5)' },
+        color: { up: 'rgba(255, 109, 0, 0.35)', down: 'rgba(41, 121, 255, 0.35)', unchanged: 'rgba(158, 158, 158, 0.35)' },
+        backgroundColors: { up: 'rgba(255, 109, 0, 0.1)', down: 'rgba(41, 121, 255, 0.1)', unchanged: 'rgba(158, 158, 158, 0.1)' },
+        borderColors: { up: 'rgba(255, 109, 0, 0.35)', down: 'rgba(41, 121, 255, 0.35)', unchanged: 'rgba(158, 158, 158, 0.35)' },
         borderWidth: 1,
         datalabels: { display: false },
         animation: { duration: ocChart.animation ? undefined : 0 },
