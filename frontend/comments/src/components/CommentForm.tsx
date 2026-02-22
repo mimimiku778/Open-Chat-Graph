@@ -59,7 +59,8 @@ export default function CommentForm() {
         setPostedItem(commentId, name, text, userId, userIdHash, uaHash, ipHash)
         setName('')
         setText('')
-      } catch {
+      } catch (error) {
+        console.error(error)
         setFailDialog((p) => ({ ...p, open: true, result: 'fail' }))
       } finally {
         setIsSending(false)
