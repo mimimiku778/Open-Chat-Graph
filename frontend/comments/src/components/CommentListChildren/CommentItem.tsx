@@ -4,6 +4,7 @@ import LikeButton from '../Button/LikeButton'
 import { memo } from 'react'
 import { convertTimeTagFormatFromMySql, formatDatetimeWithWeekdayFromMySql } from '../../utils/utils'
 import ReportButton from '../Button/ReportButton'
+import HashId from './HashId'
 
 const listItemSx: SxProps<Theme> = {
   p: 0,
@@ -12,7 +13,7 @@ const listItemSx: SxProps<Theme> = {
 }
 
 export default memo(function CommentItem(props: CommentItemApi & LikeBtnApi) {
-  const { id, commentId, name, time, text, userId, empathyCount, insightsCount, negativeCount, voted } = props
+  const { id, commentId, name, time, text, userId, userIdHash, uaHash, ipHash, empathyCount, insightsCount, negativeCount, voted } = props
 
   return (
     <ListItem sx={listItemSx}>
@@ -23,8 +24,9 @@ export default memo(function CommentItem(props: CommentItemApi & LikeBtnApi) {
             {`${id}: `}
             <b>{text.length ? `${name ? name : '匿名'}` : '***'}</b>
             <time dateTime={convertTimeTagFormatFromMySql(time)}>{` ${formatDatetimeWithWeekdayFromMySql(time)}`}</time>
-            {text.length ? (userId ? ` ID:${userId}` : '') : userId ? ` ${userId}` : ' 削除済'}
+            {!text.length && (userId ? ` ${userId}` : ' 削除済')}
             {!!text.length && <ReportButton id={id} commentId={commentId} />}
+            <HashId userIdHash={userIdHash} uaHash={uaHash} ipHash={ipHash} />
           </Typography>
         }
         secondary={
@@ -33,7 +35,7 @@ export default memo(function CommentItem(props: CommentItemApi & LikeBtnApi) {
             component="span"
             variant="body1"
             color="text.primary"
-            margin={'8px 0'}
+            margin={'0 0 8px 0'}
             sx={{
               wordBreak: 'break-all',
               whiteSpace: 'pre-line',
