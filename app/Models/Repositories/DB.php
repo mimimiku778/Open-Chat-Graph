@@ -26,7 +26,11 @@ class DB extends \Shadow\DB implements DBInterface
                 return parent::execute($query, $params);
             } catch (\PDOException $e) {
                 if ($attempt < 4 && static::isConnectionLost($e)) {
-                    static::reconnect($attempt);
+                    try {
+                        static::reconnect($attempt);
+                    } catch (\PDOException $reconnectException) {
+                        // 再接続自体が失敗しても、ループを継続して最大5回まで試行する
+                    }
                     continue;
                 }
 

@@ -64,7 +64,8 @@ class DB implements DBInterface
 
         if ($stmt === false) {
             $errorInfo = static::$pdo->errorInfo();
-            $ex = new \PDOException($errorInfo[2] ?? 'PDO::prepare() failed');
+            $driverCode = isset($errorInfo[1]) && is_numeric($errorInfo[1]) ? (int) $errorInfo[1] : 0;
+            $ex = new \PDOException($errorInfo[2] ?? 'PDO::prepare() failed', $driverCode);
             // PDOException::$errorInfo is a standard public property (see PHP docs)
             $ex->errorInfo = $errorInfo;
             throw $ex;
