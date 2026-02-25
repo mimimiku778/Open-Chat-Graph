@@ -12,6 +12,18 @@ class DB extends \Shadow\DB implements DBInterface
 {
     public static ?\PDO $pdo = null;
 
+    /**
+     * 接続断時の最大リトライ回数。
+     * Webリクエスト用途では低めの値を設定可能。バッチ処理では高い値を推奨。
+     */
+    public static int $maxRetries = 5;
+
+    /**
+     * 再接続バックオフの上限秒数（1回あたりの最大スリープ時間）。
+     * Webリクエスト用途では低めの値を設定可能。バッチ処理では高い値を推奨。
+     */
+    public static int $maxBackoffSeconds = 8;
+
     public static function connect(?array $config = null): \PDO
     {
         return parent::connect($config ?? [
@@ -21,15 +33,15 @@ class DB extends \Shadow\DB implements DBInterface
 
     public static function execute(string $query, ?array $params = null): \PDOStatement
     {
-        for ($attempt = 0; $attempt < 5; $attempt++) {
+        for ($attempt = 0; $attempt < static::$maxRetries; $attempt++) {
             try {
                 return parent::execute($query, $params);
             } catch (\PDOException $e) {
-                if ($attempt < 4 && static::isConnectionLost($e)) {
+                if ($attempt < static::$maxRetries - 1 && static::isConnectionLost($e)) {
                     try {
                         static::reconnect($attempt);
                     } catch (\PDOException $reconnectException) {
-                        // 再接続自体が失敗しても、ループを継続して最大5回まで試行する
+                        // 再接続自体が失敗しても、ループを継続して最大リトライ回数まで試行する
                     }
                     continue;
                 }
@@ -68,12 +80,12 @@ class DB extends \Shadow\DB implements DBInterface
 
     /**
      * MySQL接続をリセットして再接続する
-     * エクスポネンシャルバックオフ: sleep(1 << $attempt) = 1, 2, 4, 8秒 (attempt=0〜3)
+     * エクスポネンシャルバックオフ: sleep(min(1 << $attempt, $maxBackoffSeconds))
      */
     private static function reconnect(int $attempt = 0): void
     {
         static::$pdo = null;
-        sleep(1 << $attempt);
+        sleep(min(1 << $attempt, static::$maxBackoffSeconds));
         static::connect();
     }
 }
