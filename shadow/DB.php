@@ -62,6 +62,14 @@ class DB implements DBInterface
 
         $stmt = static::$pdo->prepare($query);
 
+        if ($stmt === false) {
+            $errorInfo = static::$pdo->errorInfo();
+            $ex = new \PDOException($errorInfo[2] ?? 'PDO::prepare() failed');
+            // PDOException::$errorInfo is a standard public property (see PHP docs)
+            $ex->errorInfo = $errorInfo;
+            throw $ex;
+        }
+
         if ($params === null) {
             $stmt->execute();
         } else {

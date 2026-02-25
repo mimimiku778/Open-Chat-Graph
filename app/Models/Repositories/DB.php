@@ -21,12 +21,12 @@ class DB extends \Shadow\DB implements DBInterface
 
     public static function execute(string $query, ?array $params = null): \PDOStatement
     {
-        for ($attempt = 0; $attempt < 3; $attempt++) {
+        for ($attempt = 0; $attempt < 5; $attempt++) {
             try {
                 return parent::execute($query, $params);
             } catch (\PDOException $e) {
-                if ($attempt < 2 && static::isConnectionLost($e)) {
-                    static::reconnect();
+                if ($attempt < 4 && static::isConnectionLost($e)) {
+                    static::reconnect($attempt);
                     continue;
                 }
 
@@ -64,11 +64,12 @@ class DB extends \Shadow\DB implements DBInterface
 
     /**
      * MySQL接続をリセットして再接続する
+     * エクスポネンシャルバックオフ: sleep(1 << $attempt) = 1, 2, 4, 8秒 (attempt=0〜3)
      */
-    private static function reconnect(): void
+    private static function reconnect(int $attempt = 0): void
     {
         static::$pdo = null;
-        sleep(1);
+        sleep(1 << $attempt);
         static::connect();
     }
 }
