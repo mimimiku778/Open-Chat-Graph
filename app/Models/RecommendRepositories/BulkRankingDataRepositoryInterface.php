@@ -33,4 +33,28 @@ interface BulkRankingDataRepositoryInterface
      * }> IDをキーとした連想配列
      */
     function fetchAll(): array;
+
+    /**
+     * 指定したrecommend_tagを持つオープンチャットデータを取得する
+     *
+     * @param string[] $tags recommend_tagのリスト
+     * @return array<int, array> IDをキーとした連想配列
+     */
+    function fetchByRecommendTags(array $tags): array;
+
+    /**
+     * 指定したカテゴリのオープンチャットデータを取得する
+     *
+     * @param int[] $categories カテゴリのリスト
+     * @return array<int, array> IDをキーとした連想配列
+     */
+    function fetchByCategories(array $categories): array;
+
+    /**
+     * 指定したエンブレムのオープンチャットデータを取得する
+     *
+     * @param int[] $emblems エンブレムのリスト
+     * @return array<int, array> IDをキーとした連想配列
+     */
+    function fetchByEmblems(array $emblems): array;
 }
