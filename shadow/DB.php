@@ -66,15 +66,16 @@ class DB implements DBInterface
             $stmt->execute();
         } else {
             foreach ($params as $key => $value) {
+                $bindKey = is_int($key) ? $key + 1 : $key;
                 if ($value === null) {
-                    $stmt->bindValue($key, $value, \PDO::PARAM_NULL);
+                    $stmt->bindValue($bindKey, $value, \PDO::PARAM_NULL);
                 } elseif (is_bool($value)) {
-                    $stmt->bindValue($key, $value, \PDO::PARAM_BOOL);
+                    $stmt->bindValue($bindKey, $value, \PDO::PARAM_BOOL);
                 } elseif (is_numeric($value)) {
                     $type = is_int($value) ? \PDO::PARAM_INT : \PDO::PARAM_STR;
-                    $stmt->bindValue($key, $value, $type);
+                    $stmt->bindValue($bindKey, $value, $type);
                 } elseif (is_string($value)) {
-                    $stmt->bindValue($key, $value, \PDO::PARAM_STR);
+                    $stmt->bindValue($bindKey, $value, \PDO::PARAM_STR);
                 } else {
                     throw new \InvalidArgumentException("Only string, number, null or bool is allowed: {$key}");
                 }
